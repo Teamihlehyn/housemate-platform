@@ -1,0 +1,477 @@
+// Housemate platform — prototype schema (core end-to-end slice)
+// SQLite for zero-config local dev. JSON is stored as stringified text.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // Direct (unpooled) connection used for migrations / `prisma db push`.
+  // On Neon set this to the non-pooler connection string; locally it can match DATABASE_URL.
+  directUrl = env("DIRECT_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Accounts & auth
+// ---------------------------------------------------------------------------
+
+model User {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  emailVerified  Boolean  @default(false)
+  phone          String?
+  phoneVerified  Boolean  @default(false)
+  displayName    String
+  accountStatus  String   @default("active") // active|restricted|suspended|deletion_pending|deleted
+  adultEligible  Boolean  @default(false)
+  locale         String   @default("en-GB")
+  role           String   @default("member") // member|verifier|moderator|admin
+  lastActiveDay  DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  profile        Profile?
+  search         Search?
+  sessions       Session[]
+  checks         VerificationCheck[]
+  scoreSnapshots ScoreSnapshot[]
+}
+
+model Session {
+  token     String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model AuthCode {
+  id        String   @id @default(cuid())
+  email     String
+  code      String
+  attempts  Int      @default(0)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Profile, search, preferences
+// ---------------------------------------------------------------------------
+
+model Profile {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  journey           String?  // find_together|candidate_home|existing_room
+  bio               String?
+  avatarInitials    String?
+  publicationStatus String   @default("draft") // draft|published
+  publishedAt       DateTime?
+  version           Int      @default(1)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Search {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status             String   @default("draft") // draft|active|paused|housed|archived
+  cityId             String?
+  currency           String?  // GBP|NGN
+  rentMinMinor       Int?
+  rentMaxMinor       Int?
+  rentPeriod         String?  // month|year
+  upfrontMinor       Int?
+  moveMode           String?  // exact|range|undecided
+  earliestDate       String?  // YYYY-MM-DD
+  latestDate         String?
+  preferredDate      String?
+  arrivalDate        String?
+  stayMinMonths      Int?
+  stayMaxMonths      Int?
+  version            Int      @default(1)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  areas       SearchArea[]
+  preferences PreferenceAnswer[]
+  versions    SearchVersion[]
+}
+
+model SearchArea {
+  id       String @id @default(cuid())
+  searchId String
+  search   Search @relation(fields: [searchId], references: [id], onDelete: Cascade)
+  areaId   String
+
+  @@unique([searchId, areaId])
+}
+
+model PreferenceAnswer {
+  id             String @id @default(cuid())
+  searchId       String
+  search         Search @relation(fields: [searchId], references: [id], onDelete: Cascade)
+  dimension      String // cleaning|quiet|guests|smoking|pets|social
+  ownAnswer      String
+  acceptedValues String // JSON array of accepted values
+
+  @@unique([searchId, dimension])
+}
+
+model SearchVersion {
+  id        String   @id @default(cuid())
+  searchId  String
+  search    Search   @relation(fields: [searchId], references: [id], onDelete: Cascade)
+  versionNo Int
+  snapshot  String   // JSON snapshot of matching-relevant fields
+  purpose   String   @default("edit")
+  createdAt DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Verification & credibility
+// ---------------------------------------------------------------------------
+
+model VerificationCheck {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category  String   // identity|email|phone|reference|additional
+  status    String   @default("verified") // simplified for slice
+  points    Int      @default(0)
+  checkedAt DateTime @default(now())
+  validUntil DateTime?
+
+  @@unique([userId, category])
+}
+
+model ScoreSnapshot {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  score          Int
+  componentJson  String
+  rubricVersion  String   @default("v1")
+  calculatedAt   DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Introductions & chat
+// ---------------------------------------------------------------------------
+
+model Introduction {
+  id        String   @id @default(cuid())
+  lowUserId String
+  highUserId String
+  senderId  String
+  state     String   @default("pending") // pending|accepted|declined|withdrawn|expired
+  text      String
+  reasonCode String?
+  expiresAt DateTime
+  version   Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  conversation Conversation?
+
+  @@unique([lowUserId, highUserId])
+}
+
+model Conversation {
+  id             String   @id @default(cuid())
+  introductionId String   @unique
+  introduction   Introduction @relation(fields: [introductionId], references: [id], onDelete: Cascade)
+  userAId        String
+  userBId        String
+  status         String   @default("open") // open|closed
+  lastSequence   Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  messages Message[]
+  meetings Meeting[]
+}
+
+model Message {
+  id              String   @id @default(cuid())
+  conversationId  String
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId        String
+  clientMessageId String
+  serverSequence  Int
+  body            String
+  state           String   @default("sent")
+  sentAt          DateTime @default(now())
+
+  @@unique([conversationId, serverSequence])
+  @@unique([senderId, clientMessageId])
+}
+
+model Meeting {
+  id             String   @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  proposedBy     String
+  startsAt       DateTime
+  endsAt         DateTime
+  timezone       String
+  state          String   @default("proposed") // proposed|accepted|declined|cancelled|completed
+  version        Int      @default(1)
+  createdAt      DateTime @default(now())
+}
+
+model Block {
+  id        String   @id @default(cuid())
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+
+  @@unique([blockerId, blockedId])
+}
+
+// ---------------------------------------------------------------------------
+// Households
+// ---------------------------------------------------------------------------
+
+model Household {
+  id                 String   @id @default(cuid())
+  state              String   @default("proposed") // proposed|active|completed|closed|declined|expired
+  derivedStage       String   @default("planning") // planning|viewing|application|move_in_pending|needs_reagreement
+  introductionId     String?
+  currentPlanVersion Int      @default(1)
+  version            Int      @default(1)
+  formedAt           DateTime?
+  closedAt           DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  memberships Membership[]
+  plans       HouseholdPlan[]
+  shortlist   ShortlistItem[]
+  viewings    Viewing[]
+  handoffs    Handoff[]
+  moveIns     MoveInConfirmation[]
+}
+
+model Membership {
+  id          String   @id @default(cuid())
+  householdId String
+  household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  userId      String
+  state       String   @default("active") // active|left
+  joinedAt    DateTime @default(now())
+  leftAt      DateTime?
+
+  @@unique([householdId, userId])
+}
+
+model HouseholdPlan {
+  id            String   @id @default(cuid())
+  householdId   String
+  household     Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  versionNo     Int
+  earliestDate  String
+  latestDate    String
+  contributions String   // JSON: { userId: minorAmount }
+  currency      String
+  stayMin       Int
+  stayMax       Int
+  propertyId    String?
+  changeReason  String?
+  createdAt     DateTime @default(now())
+
+  acceptances PlanAcceptance[]
+
+  @@unique([householdId, versionNo])
+}
+
+model PlanAcceptance {
+  id         String   @id @default(cuid())
+  planId     String
+  plan       HouseholdPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  userId     String
+  acceptedAt DateTime @default(now())
+  revokedAt  DateTime?
+
+  @@unique([planId, userId])
+}
+
+// ---------------------------------------------------------------------------
+// Properties & downstream housing workflow
+// ---------------------------------------------------------------------------
+
+model Property {
+  id             String   @id @default(cuid())
+  sourceType     String   // sample_partner_feed|user_link|member_room_offer
+  cityId         String
+  areaId         String
+  title          String
+  description    String
+  sourceUrl      String?
+  bedroomCount   Int      @default(1)
+  contractType   String   @default("room") // room|whole_home
+  rentMinor      Int
+  currency       String
+  rentPeriod     String
+  includedCosts  String?  // JSON
+  upfrontItems   String?  // JSON
+  depositMinor   Int?
+  sharersAllowed Boolean  @default(true)
+  startEarliest  String?
+  startLatest    String?
+  stayMin        Int?
+  stayMax        Int?
+  state          String   @default("available") // available|withdrawn
+  lastConfirmedAt DateTime @default(now())
+  createdAt      DateTime @default(now())
+}
+
+model ShortlistItem {
+  id          String   @id @default(cuid())
+  householdId String
+  household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  propertyId  String?
+  url         String?
+  title       String
+  area        String?
+  priceNote   String?
+  notes       String?
+  state       String   @default("active") // active|archived
+  createdAt   DateTime @default(now())
+
+  votes ShortlistVote[]
+}
+
+model ShortlistVote {
+  id       String   @id @default(cuid())
+  itemId   String
+  item     ShortlistItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  userId   String
+  decision String // interested|not_interested|undecided
+
+  @@unique([itemId, userId])
+}
+
+model Viewing {
+  id          String   @id @default(cuid())
+  householdId String
+  household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  shortlistItemId String
+  proposedBy  String
+  startsAt    DateTime
+  endsAt      DateTime
+  timezone    String
+  state       String   @default("proposed") // proposed|awaiting_partner|confirmed|rejected|cancelled|completed|no_show|disputed
+  version     Int      @default(1)
+  createdAt   DateTime @default(now())
+
+  outcomes ViewingOutcome[]
+}
+
+model ViewingOutcome {
+  id        String   @id @default(cuid())
+  viewingId String
+  viewing   Viewing  @relation(fields: [viewingId], references: [id], onDelete: Cascade)
+  userId    String
+  response  String   // completed|no_show|cancelled
+  recordedAt DateTime @default(now())
+
+  @@unique([viewingId, userId])
+}
+
+model Handoff {
+  id             String   @id @default(cuid())
+  householdId    String
+  household      Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  propertyId     String?
+  planVersion    Int
+  partnerId      String   @default("mock_partner_gb")
+  state          String   @default("draft") // draft|awaiting_member_consent|submitted|needs_input|accepted|rejected|withdrawn
+  version        Int      @default(1)
+  decision       String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  acceptances HandoffAcceptance[]
+}
+
+model HandoffAcceptance {
+  id          String   @id @default(cuid())
+  handoffId   String
+  handoff     Handoff  @relation(fields: [handoffId], references: [id], onDelete: Cascade)
+  userId      String
+  payloadHash String
+  acceptedAt  DateTime @default(now())
+
+  @@unique([handoffId, userId])
+}
+
+model MoveInConfirmation {
+  id          String   @id @default(cuid())
+  householdId String
+  household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  userId      String
+  actualDate  String
+  response    String   // moved_in|not_moved|disputed
+  source      String   @default("self_report_demo")
+  recordedAt  DateTime @default(now())
+
+  @@unique([householdId, userId])
+}
+
+// ---------------------------------------------------------------------------
+// Notifications, audit, outbox
+// ---------------------------------------------------------------------------
+
+model Notification {
+  id          String   @id @default(cuid())
+  recipientId String
+  eventName   String
+  title       String
+  body        String
+  channel     String   @default("in_app")
+  readAt      DateTime?
+  createdAt   DateTime @default(now())
+}
+
+model AuditEvent {
+  id            String   @id @default(cuid())
+  eventType     String
+  actorType     String   // user|staff|service|job
+  actorId       String?
+  subjectId     String?
+  resourceType  String
+  resourceId    String
+  action        String
+  outcome       String   // allowed|denied|failed
+  reasonCode    String?
+  safeBefore    String?
+  safeAfter     String?
+  versionBefore Int?
+  versionAfter  Int?
+  requestId     String?
+  correlationId String?
+  occurredAt    DateTime @default(now())
+}
+
+model OutboxEvent {
+  id            String   @id @default(cuid())
+  eventName     String
+  payload       String
+  status        String   @default("pending") // pending|delivered|dead_letter
+  attempts      Int      @default(0)
+  correlationId String?
+  createdAt     DateTime @default(now())
+  deliveredAt   DateTime?
+}
+
+model IdempotencyKey {
+  key          String   @id
+  actorId      String
+  route        String
+  requestHash  String
+  responseJson String
+  createdAt    DateTime @default(now())
+}
