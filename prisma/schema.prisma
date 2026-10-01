@@ -85,6 +85,7 @@ model Search {
   rentMaxMinor       Int?
   rentPeriod         String?  // month|year
   upfrontMinor       Int?
+  locationDetail     String?  // private: preferred postcode/address (owner-only, never on public card)
   moveMode           String?  // exact|range|undecided
   earliestDate       String?  // YYYY-MM-DD
   latestDate         String?

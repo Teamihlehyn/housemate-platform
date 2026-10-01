@@ -22,6 +22,7 @@ export default function SignIn() {
   const [stage, setStage] = useState<"email" | "code">("email");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const isBeta = process.env.NEXT_PUBLIC_APP_ENV === "beta";
 
   async function requestCode(targetEmail: string) {
     setError(null);
@@ -68,8 +69,9 @@ export default function SignIn() {
         <div className="card p-8">
           <h1 className="text-2xl font-bold text-stone-900">Sign in or create an account</h1>
           <p className="mt-2 text-sm text-stone-600">
-            We&apos;ll email you a 6-digit code. In this prototype the code appears in the demo sink
-            below — no real inbox needed.
+            {isBeta
+              ? "We'll email you a 6-digit code to sign in. It expires in 10 minutes."
+              : "We'll email you a 6-digit code. In this prototype the code appears in the demo sink below — no real inbox needed."}
           </p>
 
           {stage === "email" ? (
@@ -144,6 +146,7 @@ export default function SignIn() {
           )}
         </div>
 
+        {!isBeta && (
         <div className="card p-8">
           <h2 className="font-semibold text-stone-900">Jump in with a seeded persona</h2>
           <p className="mt-2 text-sm text-stone-600">
@@ -167,6 +170,7 @@ export default function SignIn() {
             play both sides of a London household.
           </p>
         </div>
+        )}
       </main>
     </div>
   );

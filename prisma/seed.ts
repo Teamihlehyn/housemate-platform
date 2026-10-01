@@ -214,6 +214,13 @@ const properties: PropertySeed[] = [
 ];
 
 async function main() {
+  // Safety: never load demo personas into a real-user (beta) database.
+  if (process.env.APP_ENV === "beta" && process.env.FORCE_SEED !== "true") {
+    console.error(
+      "Refusing to seed demo data into a beta environment. Set FORCE_SEED=true only if you really mean it."
+    );
+    process.exit(1);
+  }
   console.log("Seeding Housemate prototype…  TEST_TODAY =", TEST_TODAY);
 
   // Clean slate (order respects FKs; SQLite cascades handle children)

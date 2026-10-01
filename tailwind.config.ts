@@ -21,9 +21,37 @@ export default {
           800: "#22453d",
           900: "#1e3a33",
         },
+        // Warm, Lovi-style neutrals
+        ink: "#23221e",
+        paper: "#f6f4ef",
+        cream: "#faf9f5",
       },
       fontFamily: {
         sans: ["var(--font-sans)", "system-ui", "sans-serif"],
+        display: ["var(--font-display)", "var(--font-sans)", "system-ui", "sans-serif"],
+      },
+      letterSpacing: {
+        tightest: "-0.045em",
+      },
+      borderRadius: {
+        "4xl": "2rem",
+        "5xl": "2.5rem",
+      },
+      keyframes: {
+        marquee: {
+          from: { transform: "translateX(0)" },
+          to: { transform: "translateX(-50%)" },
+        },
+        shimmer: {
+          "0%": { opacity: "0.5" },
+          "50%": { opacity: "1" },
+          "100%": { opacity: "0.5" },
+        },
+      },
+      animation: {
+        marquee: "marquee 32s linear infinite",
+        "marquee-slow": "marquee 48s linear infinite",
+        shimmer: "shimmer 2.2s ease-in-out infinite",
       },
     },
   },

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { handler, ok, fail } from "@/lib/api";
 import { prisma } from "@/lib/db";
+import { sendLoginCode } from "@/lib/email";
 
 // POST /api/v1/auth/request-code {email} → 202 generic.
 // Prototype: code is delivered to the demo "sink" (returned in body + logged), never a real inbox.
@@ -27,15 +28,9 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
   await prisma.authCode.create({
     data: { email: clean, code, expiresAt: new Date(Date.now() + 10 * 60 * 1000) },
   });
-  console.log(`[demo sink] Sign-in code for ${clean}: ${code}`);
 
-  const demo = process.env.DEMO_MODE !== "false";
-  return ok(
-    {
-      status: "sent",
-      // Demo sink hint so the prototype can complete the journey without a real mailbox.
-      sink_code: demo ? code : undefined,
-    },
-    rid
-  );
+  // Demo envs return a sink code; beta sends a real email.
+  const { sink, sinkCode } = await sendLoginCode(clean, code);
+
+  return ok({ status: "sent", sink_code: sink ? sinkCode : undefined }, rid);
 });

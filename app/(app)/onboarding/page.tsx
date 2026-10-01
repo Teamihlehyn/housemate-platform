@@ -20,6 +20,7 @@ export default function Onboarding() {
   const [journey, setJourney] = useState("");
   const [city, setCity] = useState<CityId | "">("");
   const [areas, setAreas] = useState<string[]>([]);
+  const [locationDetail, setLocationDetail] = useState("");
   const [rentMin, setRentMin] = useState("");
   const [rentMax, setRentMax] = useState("");
   const [period, setPeriod] = useState<"month" | "year">("month");
@@ -47,6 +48,7 @@ export default function Onboarding() {
       if (s) {
         if (s.cityId) { setCity(s.cityId); setPeriod(s.rentPeriod ?? CITIES[s.cityId as CityId].defaultPeriod); }
         if (s.areas?.length) setAreas(s.areas);
+        if (s.locationDetail) setLocationDetail(s.locationDetail);
         if (s.rentMinMinor) setRentMin(String(s.rentMinMinor / 100));
         if (s.rentMaxMinor) setRentMax(String(s.rentMaxMinor / 100));
         if (s.moveMode && s.moveMode !== "undecided") setMoveMode(s.moveMode);
@@ -91,7 +93,7 @@ export default function Onboarding() {
       } else if (step === 1) {
         if (!city) { setErrors({ city: "Choose a city." }); return false; }
         if (areas.length === 0) { setErrors({ areas: "Choose at least one area." }); return false; }
-        await api("/me/search", { method: "PATCH", body: { cityId: city, areaIds: areas, rentPeriod: period } });
+        await api("/me/search", { method: "PATCH", body: { cityId: city, areaIds: areas, rentPeriod: period, locationDetail } });
       } else if (step === 2) {
         const min = Math.round(parseFloat(rentMin) * 100);
         const max = Math.round(parseFloat(rentMax) * 100);
@@ -199,6 +201,29 @@ export default function Onboarding() {
                   ))}
                 </div>
                 {errors.areas && <p className="field-error">{errors.areas}</p>}
+              </div>
+            )}
+            {cityCfg && (
+              <div className="mt-6">
+                <label className="label" htmlFor="loc">
+                  {city === "london" ? "Postcode or address (optional)" : "Address (optional)"}
+                </label>
+                <input
+                  id="loc"
+                  className="input"
+                  value={locationDetail}
+                  onChange={(e) => setLocationDetail(e.target.value)}
+                  placeholder={
+                    city === "london"
+                      ? "e.g. E8 3RH, or a street / area you have in mind"
+                      : "e.g. 12 Herbert Macaulay Way, Yaba"
+                  }
+                  maxLength={200}
+                />
+                <p className="mt-1 text-xs text-stone-400">
+                  Private — only you see this. It never appears on your public profile card.
+                </p>
+                {errors.locationDetail && <p className="field-error">{errors.locationDetail}</p>}
               </div>
             )}
           </fieldset>

@@ -7,7 +7,21 @@
 }
 
 body {
-  @apply bg-stone-50 text-stone-800 antialiased;
+  @apply bg-paper text-ink antialiased;
+}
+
+/* Respect reduced-motion for marquees and shimmer */
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee,
+  .animate-marquee-slow,
+  .animate-shimmer {
+    animation: none !important;
+  }
+}
+
+.marquee-mask {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
 }
 
 @layer components {

@@ -31,6 +31,12 @@ export const PATCH = handler(async (req: NextRequest, { rid }) => {
     else data.rentPeriod = body.rentPeriod;
   }
 
+  if (body.locationDetail !== undefined) {
+    const loc = String(body.locationDetail).trim();
+    if (loc.length > 200) fe.locationDetail = "Keep this under 200 characters.";
+    else data.locationDetail = loc.length ? loc : null;
+  }
+
   const rentMin = body.rentMinMinor ?? search.rentMinMinor;
   const rentMax = body.rentMaxMinor ?? search.rentMaxMinor;
   if (body.rentMinMinor !== undefined) {
