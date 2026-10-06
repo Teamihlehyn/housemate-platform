@@ -36,13 +36,23 @@ export default function Discover() {
   const [loading, setLoading] = useState(true);
   const [passed, setPassed] = useState<Set<string>>(new Set());
   const [composerFor, setComposerFor] = useState<Candidate | null>(null);
+  const [identityPending, setIdentityPending] = useState(false);
+  const isBeta = process.env.NEXT_PUBLIC_APP_ENV === "beta";
 
   useEffect(() => {
     api<{ candidates: Candidate[]; exclusions: any }>("/recommendations")
       .then((d) => { setCandidates(d.candidates); setExclusions(d.exclusions); })
       .catch((e) => { if (e instanceof ApiClientError && e.status === 403) router.replace("/onboarding"); })
       .finally(() => setLoading(false));
-  }, [router]);
+    if (isBeta) {
+      api<{ credibility: { components: { category: string; status: string }[] } }>("/me")
+        .then((m) => {
+          const id = m.credibility.components.find((c) => c.category === "identity");
+          setIdentityPending(id?.status !== "verified");
+        })
+        .catch(() => {});
+    }
+  }, [router, isBeta]);
 
   const visible = candidates.filter((c) => !passed.has(c.userId));
 
@@ -61,6 +71,16 @@ export default function Discover() {
         <h1 className="text-2xl font-bold text-stone-900">Discover housemates</h1>
         <p className="text-sm text-stone-600">Ranked by shared dates, areas and living habits. The number is match strength, not a percentage.</p>
       </div>
+
+      {identityPending && (
+        <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <p className="font-semibold text-amber-900">Identity verification pending</p>
+          <p className="mt-1 text-sm text-amber-800">
+            You can browse, but you&apos;ll only appear to others and be able to send introductions once our team
+            verifies your identity. We&apos;ll email you to arrange a short check.
+          </p>
+        </div>
+      )}
 
       {visible.length === 0 ? (
         <div className="card p-8 text-center">

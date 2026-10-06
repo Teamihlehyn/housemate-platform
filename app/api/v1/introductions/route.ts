@@ -4,6 +4,14 @@ import { requireUser, withIdempotency } from "@/lib/guard";
 import { prisma } from "@/lib/db";
 import { writeAudit, writeOutbox, notify } from "@/lib/audit";
 import { addDays, testToday } from "@/lib/dates";
+import { IS_BETA } from "@/lib/env";
+
+async function identityVerified(userId: string): Promise<boolean> {
+  const c = await prisma.verificationCheck.findUnique({
+    where: { userId_category: { userId, category: "identity" } },
+  });
+  return c?.status === "verified";
+}
 
 // GET /api/v1/introductions?direction=incoming|outgoing
 export const GET = handler(async (req: NextRequest, { rid }) => {
@@ -81,6 +89,14 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
     },
   });
   if (block) return fail("NOT_FOUND", "This member is not available.", 404, rid);
+
+  // Pilot: both people must be team-verified before any introduction.
+  if (IS_BETA) {
+    if (!(await identityVerified(user.id)))
+      return fail("IDENTITY_PENDING", "Your identity verification is still pending. We'll email you to arrange it.", 403, rid);
+    if (!(await identityVerified(targetId)))
+      return fail("NOT_FOUND", "This member is not available.", 404, rid);
+  }
 
   // Rate limits: 10 new / 24h; 20 pending.
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000);

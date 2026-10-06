@@ -4,6 +4,7 @@ export const PROTOTYPE_BANNER =
   "Prototype — sample people, simulated checks, no real bookings";
 
 export const ALGORITHM_VERSION = "match-v1";
+export const PRIVACY_VERSION = "privacy-v1";
 export const RUBRIC_VERSION = "rubric-v1";
 export const QUESTIONNAIRE_VERSION = "q-v1";
 

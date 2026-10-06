@@ -36,7 +36,7 @@ export default function Onboarding() {
   });
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
-  const [published, setPublished] = useState<{ score: number } | null>(null);
+  const [published, setPublished] = useState<{ score: number; pending: boolean } | null>(null);
 
   // Resume from existing data
   useEffect(() => {
@@ -132,8 +132,8 @@ export default function Onboarding() {
     setBusy(true);
     setTopError(null);
     try {
-      const data = await api<{ credibility: { score: number } }>("/me/search/publish", { body: {} });
-      setPublished({ score: data.credibility.score });
+      const data = await api<{ credibility: { score: number }; pendingIdentity?: boolean }>("/me/search/publish", { body: {} });
+      setPublished({ score: data.credibility.score, pending: !!data.pendingIdentity });
     } catch (e) {
       setTopError(e instanceof ApiClientError ? e.message : "Could not publish.");
     } finally {
@@ -345,10 +345,19 @@ export default function Onboarding() {
           <div>
             {published ? (
               <div className="text-center">
-                <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-brand-100 text-3xl">✅</div>
-                <h2 className="mt-4 text-xl font-bold text-stone-900">You&apos;re live!</h2>
-                <p className="mt-2 text-stone-600">Your demo credibility is <strong>{published.score}/100</strong>. Discovery is on.</p>
-                <button className="btn-primary mt-6" onClick={() => router.push("/discover")}>Start discovering</button>
+                <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-brand-100 text-3xl">{published.pending ? "📨" : "✅"}</div>
+                {published.pending ? (
+                  <>
+                    <h2 className="mt-4 text-xl font-bold text-stone-900">Profile submitted</h2>
+                    <p className="mt-2 text-stone-600">Our team will verify your identity with a short check before you appear in discovery. We&apos;ll email you to arrange it — you can look around in the meantime.</p>
+                  </>
+                ) : (
+                  <>
+                    <h2 className="mt-4 text-xl font-bold text-stone-900">You&apos;re live!</h2>
+                    <p className="mt-2 text-stone-600">Your demo credibility is <strong>{published.score}/100</strong>. Discovery is on.</p>
+                  </>
+                )}
+                <button className="btn-primary mt-6" onClick={() => router.push("/discover")}>{published.pending ? "Look around" : "Start discovering"}</button>
               </div>
             ) : (
               <div>
