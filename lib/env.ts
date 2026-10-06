@@ -26,9 +26,11 @@ export const EMAIL_DELIVERY = !DEMO_MODE;
 // Honest banner per environment. Verification/property partners are still
 // simulated everywhere until real vendors are integrated (a production gate),
 // so even beta says so plainly.
+// Honest per-environment notice. In the beta pilot identity is really (manually)
+// verified by the team, but property viewings/handoff are still guided examples.
 export const BANNER =
   IS_BETA
-    ? "Beta — identity and property checks are still simulated; not for real tenancy decisions yet."
+    ? "Early access — identity is verified by our team; property listings and viewings are guided examples."
     : "Prototype — sample people, simulated checks, no real bookings";
 
 export const ENV_LABEL = APP_ENV;

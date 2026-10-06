@@ -101,6 +101,7 @@ export default function Profile() {
       <div className="mt-4 flex gap-2">
         {s.status === "active" && <button className="btn-secondary" onClick={() => status("pause")}>Pause search</button>}
         {s.status === "paused" && <button className="btn-primary" onClick={() => status("resume")}>Resume search</button>}
+        <Link href="/settings" className="btn-secondary">Settings &amp; privacy</Link>
       </div>
     </div>
   );

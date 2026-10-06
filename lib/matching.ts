@@ -3,6 +3,7 @@ import { ALGORITHM_VERSION, QUESTIONNAIRE, answerLabel, CITIES, Dimension } from
 import { monthlyEquivalentMinor } from "./money";
 import { dateOverlap } from "./dates";
 import { computeScore } from "./credibility";
+import { IS_BETA } from "./env";
 
 export interface Candidate {
   userId: string;
@@ -135,6 +136,10 @@ export async function getRecommendations(viewerId: string): Promise<MatchResult>
       role: "member",
       profile: { publicationStatus: "published" },
       search: { status: "active", cityId: viewer.cityId },
+      // Pilot: only team-verified identities are discoverable.
+      ...(IS_BETA
+        ? { checks: { some: { category: "identity", status: "verified" } } }
+        : {}),
     },
     include: { profile: true, search: { include: { areas: true, preferences: true } } },
   });

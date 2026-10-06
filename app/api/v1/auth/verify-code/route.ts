@@ -3,10 +3,12 @@ import { handler, ok, fail } from "@/lib/api";
 import { prisma } from "@/lib/db";
 import { createSession } from "@/lib/session";
 import { writeAudit } from "@/lib/audit";
+import { IS_BETA } from "@/lib/env";
+import { PRIVACY_VERSION } from "@/lib/constants";
 
 // POST /api/v1/auth/verify-code {email, code} → session + user.
 export const POST = handler(async (req: NextRequest, { rid }) => {
-  const { email, code } = await req.json().catch(() => ({}));
+  const { email, code, accept_privacy } = await req.json().catch(() => ({}));
   if (!email || !code) {
     return fail("VALIDATION", "Email and code are required.", 422, rid);
   }
@@ -59,6 +61,28 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
   }
   if (user.accountStatus === "deleted") {
     return fail("ACCOUNT_DELETED", "This account no longer exists.", 403, rid);
+  }
+
+  // Staff bootstrap: emails in ADMIN_EMAILS are granted the admin role on sign-in.
+  const adminEmails = (process.env.ADMIN_EMAILS || "")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  if (adminEmails.includes(clean) && user.role !== "admin") {
+    await prisma.user.update({ where: { id: user.id }, data: { role: "admin" } });
+    user.role = "admin";
+  }
+
+  // Privacy consent. Required in the real-user pilot before a session is granted.
+  if (accept_privacy) {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { privacyConsentAt: new Date(), privacyConsentVersion: PRIVACY_VERSION },
+    });
+  } else if (IS_BETA && !user.privacyConsentAt) {
+    return fail("CONSENT_REQUIRED", "Please accept the privacy notice to continue.", 422, rid, {
+      field_errors: { accept_privacy: "Required." },
+    });
   }
 
   await createSession(user.id);

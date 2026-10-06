@@ -22,6 +22,7 @@ export default function SignIn() {
   const [stage, setStage] = useState<"email" | "code">("email");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [consent, setConsent] = useState(false);
   const isBeta = process.env.NEXT_PUBLIC_APP_ENV === "beta";
 
   async function requestCode(targetEmail: string) {
@@ -48,7 +49,7 @@ export default function SignIn() {
     setError(null);
     setBusy(true);
     try {
-      const data = await api<{ is_new: boolean }>("/auth/verify-code", { body: { email, code } });
+      const data = await api<{ is_new: boolean }>("/auth/verify-code", { body: { email, code, accept_privacy: consent } });
       router.push(data.is_new ? "/onboarding" : "/discover");
       router.refresh();
     } catch (e) {
@@ -79,6 +80,7 @@ export default function SignIn() {
               className="mt-6 space-y-4"
               onSubmit={(e) => {
                 e.preventDefault();
+                if (isBeta && !consent) { setError("Please accept the privacy notice to continue."); return; }
                 if (email) requestCode(email);
               }}
             >
@@ -94,8 +96,16 @@ export default function SignIn() {
                   autoComplete="email"
                 />
               </div>
+              <label className="flex items-start gap-2 text-sm text-stone-600">
+                <input type="checkbox" className="mt-1" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
+                <span>
+                  I agree to the{" "}
+                  <a href="/privacy" target="_blank" className="font-medium text-brand-700 underline underline-offset-2">privacy notice</a>
+                  {isBeta ? "" : " (optional in this environment)"}.
+                </span>
+              </label>
               {error && <p className="field-error" role="alert">{error}</p>}
-              <button className="btn-primary w-full" disabled={busy || !email}>
+              <button className="btn-primary w-full" disabled={busy || !email || (isBeta && !consent)}>
                 {busy ? "Sending…" : "Send code"}
               </button>
             </form>

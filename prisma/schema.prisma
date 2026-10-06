@@ -29,6 +29,8 @@ model User {
   locale         String   @default("en-GB")
   role           String   @default("member") // member|verifier|moderator|admin
   lastActiveDay  DateTime @default(now())
+  privacyConsentAt      DateTime?
+  privacyConsentVersion String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
