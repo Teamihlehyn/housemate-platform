@@ -30,6 +30,8 @@ export interface PersonaTemplate {
   stayMax: number;
   bio: string;
   habits: Habits;
+  gender: "woman" | "man" | "non_binary" | "prefer_not_to_say";
+  genderPreference: string[]; // who they're open to living with
   inProgress: boolean; // starts with a household already formed
 }
 
@@ -50,12 +52,14 @@ export const PERSONAS: PersonaTemplate[] = [
     stayMax: 12,
     bio: "Postgrad student starting in Hackney next month. Tidy, early riser, happy to share the odd dinner but I value calm study time on weeknights.",
     habits: H({ quiet: "before_22" }),
+    gender: "man",
+    genderPreference: ["woman", "man", "non_binary"],
     inProgress: false,
   },
   {
     key: "hana",
     name: "Hana",
-    subtitle: "Already matched in London — agreeing rent split and a home",
+    subtitle: "Women-only flatshare in London — already matched, agreeing rent split",
     city: "london",
     journey: "find_together",
     areas: ["camden", "islington"],
@@ -68,6 +72,8 @@ export const PERSONAS: PersonaTemplate[] = [
     stayMax: 24,
     bio: "Junior doctor relocating to London. Organised, quiet on weeknights, sociable at weekends. Looking for someone reliable to split a two-bed with.",
     habits: H({ cleaning: "daily", social: "mostly_private" }),
+    gender: "woman",
+    genderPreference: ["woman"],
     inProgress: true,
   },
   {
@@ -86,6 +92,8 @@ export const PERSONAS: PersonaTemplate[] = [
     stayMax: 24,
     bio: "Fintech analyst moving back to Lagos for a new role. Organised, non-smoker, I cook most evenings. Looking to split a calm two-bed near work.",
     habits: H(),
+    gender: "man",
+    genderPreference: ["woman", "man", "non_binary"],
     inProgress: false,
   },
   {
@@ -104,6 +112,8 @@ export const PERSONAS: PersonaTemplate[] = [
     stayMax: 24,
     bio: "UX writer relocating within Lagos. Neat, calm during the week, happy with the occasional guest. Want everything agreed in writing up front.",
     habits: H({ guests: "never" }),
+    gender: "woman",
+    genderPreference: ["woman", "non_binary"],
     inProgress: true,
   },
 ];

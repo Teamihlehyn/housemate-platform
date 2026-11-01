@@ -140,3 +140,41 @@ export const REPORT_CATEGORIES = [
   { id: "threat", label: "Threat to someone's safety" },
   { id: "other", label: "Something else" },
 ] as const;
+
+// Housemate gender preference. Private: used only for matching, never shown publicly.
+export const GENDERS = [
+  { id: "woman", label: "Woman", plural: "Women" },
+  { id: "man", label: "Man", plural: "Men" },
+  { id: "non_binary", label: "Non-binary or another gender", plural: "Non-binary & other genders" },
+] as const;
+export const GENDER_IDS: string[] = GENDERS.map((g) => g.id);
+export const OWN_GENDER_OPTIONS = [
+  ...GENDERS.map((g) => ({ id: g.id as string, label: g.label as string })),
+  { id: "prefer_not_to_say", label: "Prefer not to say" },
+];
+
+export function parseGenderPreference(raw: string | null | undefined): string[] {
+  try {
+    const v = JSON.parse(raw ?? "");
+    const ok = Array.isArray(v) ? v.filter((g) => GENDER_IDS.includes(g)) : [];
+    return ok.length ? ok : [...GENDER_IDS];
+  } catch {
+    return [...GENDER_IDS];
+  }
+}
+
+// Would someone who accepts `accepts` be happy living with a person of `gender`?
+// Open-to-anyone accepts everyone (including "prefer not to say"); otherwise the
+// person's stated gender must be in the accepted set.
+function acceptsGender(accepts: string[], gender: string | null | undefined): boolean {
+  if (GENDER_IDS.every((g) => accepts.includes(g))) return true;
+  return !!gender && gender !== "prefer_not_to_say" && accepts.includes(gender);
+}
+
+// Two-way check, like the living-habit dealbreakers.
+export function gendersCompatible(
+  a: { gender: string | null | undefined; accepts: string[] },
+  b: { gender: string | null | undefined; accepts: string[] }
+): boolean {
+  return acceptsGender(b.accepts, a.gender) && acceptsGender(a.accepts, b.gender);
+}

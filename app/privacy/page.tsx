@@ -6,7 +6,7 @@ export const metadata = { title: "Privacy notice — Housemate" };
 export default function Privacy() {
   const sections: [string, string][] = [
     ["Who we are", "Housemate is an early-access service that helps people find compatible housemates and coordinate a shared move. This notice explains what personal data we collect and how we use it. It is the data controller for the information you provide."],
-    ["What we collect", "Account and contact details (email, phone), your profile and search preferences (areas, budget, move-in dates, living habits, bio), messages you send to other members, and the outcome of identity verification (a yes/no result — we do not store copies of your identity documents). We do not ask for religion, ethnicity, sexual orientation, health, criminal history or income on your public profile."],
+    ["What we collect", "Account and contact details (email, phone), your profile and search preferences (areas, budget, move-in dates, living habits, bio), messages you send to other members, and the outcome of identity verification (a yes/no result — we do not store copies of your identity documents). If you choose, your gender and who you're open to living with — used only for matching, never shown on your profile, and \"prefer not to say\" is always an option. We do not ask for religion, ethnicity, sexual orientation, health, criminal history or income on your public profile."],
     [
       "How identity verification works",
       IS_BETA

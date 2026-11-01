@@ -8,16 +8,25 @@
 import { Prisma } from "@prisma/client";
 import { randomBytes } from "crypto";
 import { prisma } from "./db";
-import { CITIES, CityId, QUESTIONNAIRE, RUBRIC } from "./constants";
+import { CITIES, CityId, GENDER_IDS, QUESTIONNAIRE, RUBRIC, parseGenderPreference } from "./constants";
 import { addDays, testToday } from "./dates";
 import { monthlyEquivalentMinor } from "./money";
 import { writeAudit } from "./audit";
 import { PERSONAS, PersonaTemplate } from "./personas";
 
 type Tx = Prisma.TransactionClient;
-const NAMES: Record<CityId, string[]> = {
-  london: ["Maya Patel", "Jonah Reid", "Chloe Bennett", "Kwame Mensah", "Lucia Romero", "Theo Walsh", "Aisha Khan", "Sam Okafor", "Nina Novak", "Rory Doyle"],
-  lagos: ["Tolu Adewale", "Ifeoma Obi", "Kemi Lawal", "Emeka Nnaji", "Bisi Ogunleye", "Musa Ibrahim", "Funke Ajayi", "Dayo Coker", "Ngozi Eze", "Seun Bakare"],
+// Sample housemate names grouped by gender, so a tester's gender preference is respected.
+const NAMES: Record<CityId, Record<string, string[]>> = {
+  london: {
+    woman: ["Maya Patel", "Chloe Bennett", "Lucia Romero", "Aisha Khan", "Nina Novak", "Grace Owusu"],
+    man: ["Jonah Reid", "Kwame Mensah", "Theo Walsh", "Rory Doyle", "Arjun Mehta", "Daniel Ross"],
+    non_binary: ["Sam Okafor", "Alex Morgan", "Jordan Lee", "Robin Shaw"],
+  },
+  lagos: {
+    woman: ["Ifeoma Obi", "Kemi Lawal", "Bisi Ogunleye", "Funke Ajayi", "Ngozi Eze", "Amaka Udeh"],
+    man: ["Emeka Nnaji", "Musa Ibrahim", "Dayo Coker", "Femi Alade", "Chuka Obi", "Bayo Sanni"],
+    non_binary: ["Tolu Adewale", "Seun Bakare", "Kene Okoro", "Ayo Ibe"],
+  },
 };
 
 const BIOS: Record<CityId, string[]> = {
@@ -77,6 +86,7 @@ interface SearchShape {
   stayMaxMonths: number;
   areas: string[];
   prefs: Record<string, { own: string; accepted: string[] }>;
+  genderAccepts: string[];
 }
 
 async function loadSearchShape(tx: Tx, userId: string): Promise<SearchShape | null> {
@@ -99,6 +109,7 @@ async function loadSearchShape(tx: Tx, userId: string): Promise<SearchShape | nu
     stayMaxMonths: s.stayMaxMonths,
     areas: s.areas.map((a) => a.areaId),
     prefs,
+    genderAccepts: parseGenderPreference(s.genderPreference),
   };
 }
 
@@ -109,7 +120,15 @@ export async function generateCounterparts(tx: Tx, ownerId: string, count = 6): 
   if (!t) return [];
   const existing = await tx.user.count({ where: { sandboxWorldId: ownerId, isDemoBot: true } });
   const cityAreas = CITIES[t.cityId].areas.map((a) => a.id);
-  const names = NAMES[t.cityId];
+  // Only genders the owner is open to living with; skip names already in this world.
+  const taken = new Set(
+    (await tx.user.findMany({ where: { sandboxWorldId: ownerId, isDemoBot: true }, select: { displayName: true } })).map((u) => u.displayName)
+  );
+  const pool = GENDER_IDS.filter((g) => t.genderAccepts.includes(g)).flatMap((g) =>
+    NAMES[t.cityId][g].map((name) => ({ name, gender: g }))
+  );
+  const fresh = pool.filter((p) => !taken.has(p.name));
+  const names = fresh.length >= count ? fresh : pool;
   const bios = BIOS[t.cityId];
   const offset = Math.floor(Math.random() * names.length);
   const today = testToday();
@@ -117,7 +136,7 @@ export async function generateCounterparts(tx: Tx, ownerId: string, count = 6): 
 
   for (let k = 0; k < count; k++) {
     const i = existing + k;
-    const name = names[(offset + i) % names.length];
+    const { name, gender } = names[(offset + k) % names.length];
     const areas = [...new Set([t.areas[i % t.areas.length], cityAreas[(i + 2) % cityAreas.length]])];
 
     // Budget band that always overlaps the owner's band.
@@ -172,6 +191,8 @@ export async function generateCounterparts(tx: Tx, ownerId: string, count = 6): 
             preferredDate: earliest,
             stayMinMonths: Math.max(1, t.stayMinMonths - (i % 2)),
             stayMaxMonths: Math.min(36, t.stayMaxMonths + 3 * (i % 3)),
+            gender,
+            genderPreference: JSON.stringify(GENDER_IDS), // sample housemates are open to anyone
             areas: { create: areas.map((a) => ({ areaId: a })) },
             preferences: { create: prefsCreate },
           },
@@ -247,6 +268,8 @@ export async function createPersonaAccount(
               preferredDate: earliest,
               stayMinMonths: p.stayMin,
               stayMaxMonths: p.stayMax,
+              gender: p.gender,
+              genderPreference: JSON.stringify(p.genderPreference),
               areas: { create: p.areas.map((a) => ({ areaId: a })) },
               preferences: {
                 create: QUESTIONNAIRE.map((q) => ({

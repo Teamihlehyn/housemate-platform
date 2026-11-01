@@ -213,6 +213,10 @@ const properties: PropertySeed[] = [
   { city: "lagos", area: "lekki", title: "Room in shared 2-bed, Lekki", description: "Sample room listing. One furnished room in a calm professional flat share.", bedrooms: 1, contract: "room", rentMinor: 90000000, currency: "NGN", period: "year", included: ["Estate security", "Water"], upfront: [{ label: "Caution deposit", minor: 9000000 }], deposit: 9000000 },
 ];
 
+// Seeded members' gender (matching only). Everyone stays open to living with anyone.
+const WOMEN = ["amara", "priya", "sofia", "hana", "yara", "isla", "grace", "ada", "ngozi", "zainab", "bola"];
+const genderFor = (email: string) => (WOMEN.includes(email.split("@")[0]) ? "woman" : "man");
+
 async function main() {
   // Safety: never load demo personas into a real-user (beta) database.
   if (process.env.APP_ENV === "beta" && process.env.FORCE_SEED !== "true") {
@@ -292,6 +296,7 @@ async function main() {
             preferredDate: m.earliest,
             stayMinMonths: m.stayMin,
             stayMaxMonths: m.stayMax,
+            gender: genderFor(m.email),
             areas: { create: m.areas.map((a) => ({ areaId: a })) },
             preferences: {
               create: QUESTIONNAIRE.map((q) => ({
