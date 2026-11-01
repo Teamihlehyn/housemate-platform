@@ -23,6 +23,18 @@ set_staging() {
   fi
 }
 
+# Guard against copy-pasted placeholders or malformed values.
+if [ -n "${CLARITY_ID:-}" ]; then
+  if [ "$CLARITY_ID" = "yourid" ] || ! [[ "$CLARITY_ID" =~ ^[A-Za-z0-9]+$ ]]; then
+    echo "CLARITY_ID looks like a placeholder or is invalid. Use the project ID from clarity.microsoft.com → Settings → Overview." >&2; exit 1
+  fi
+fi
+if [ -n "${FEEDBACK_URL:-}" ]; then
+  if [[ "$FEEDBACK_URL" == *yourform* ]] || ! [[ "$FEEDBACK_URL" =~ ^https:// ]]; then
+    echo "FEEDBACK_URL looks like a placeholder or isn't an https link. Use your Tally form's share link." >&2; exit 1
+  fi
+fi
+
 echo "Setting production to research mode…"
 set_prod APP_ENV research
 set_prod NEXT_PUBLIC_APP_ENV research
@@ -38,5 +50,10 @@ set_staging APP_ENV research
 set_staging NEXT_PUBLIC_APP_ENV research
 
 echo "Deploying (push main → production)…"
+git fetch -q origin main
+if [ "$(git rev-parse main)" = "$(git rev-parse origin/main)" ]; then
+  # No new code: settings only take effect on a fresh build, so trigger one.
+  git commit -q --allow-empty -m "chore: redeploy to apply environment settings"
+fi
 git push origin main
 echo "Done. Vercel is building; https://gethousemate.vercel.app updates in ~2 minutes."

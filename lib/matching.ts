@@ -1,5 +1,5 @@
 import { prisma } from "./db";
-import { ALGORITHM_VERSION, QUESTIONNAIRE, answerLabel, CITIES, Dimension } from "./constants";
+import { ALGORITHM_VERSION, QUESTIONNAIRE, answerLabel, CITIES, Dimension, gendersCompatible, parseGenderPreference } from "./constants";
 import { monthlyEquivalentMinor } from "./money";
 import { dateOverlap } from "./dates";
 import { computeScore } from "./credibility";
@@ -46,6 +46,8 @@ interface Loaded {
   stayMax: number;
   areas: string[];
   prefs: Record<string, { own: string; accepted: string[] }>;
+  gender: string | null;
+  genderAccepts: string[];
 }
 
 async function loadMatchable(userId: string): Promise<Loaded | null> {
@@ -93,6 +95,8 @@ async function loadMatchable(userId: string): Promise<Loaded | null> {
     stayMax: s.stayMaxMonths,
     areas: s.areas.map((a) => a.areaId),
     prefs,
+    gender: s.gender,
+    genderAccepts: parseGenderPreference(s.genderPreference),
   };
 }
 
@@ -196,6 +200,13 @@ export async function getRecommendations(viewerId: string): Promise<MatchResult>
     if (dealbreakerFail) {
       excludedCount++;
       reasonsWhyNarrow.add("habits");
+      continue;
+    }
+
+    // Housemate gender preference, checked both ways.
+    if (!gendersCompatible({ gender: viewer.gender, accepts: viewer.genderAccepts }, { gender: c.gender, accepts: c.genderAccepts })) {
+      excludedCount++;
+      reasonsWhyNarrow.add("gender preference");
       continue;
     }
 

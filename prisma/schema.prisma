@@ -101,6 +101,9 @@ model Search {
   arrivalDate        String?
   stayMinMonths      Int?
   stayMaxMonths      Int?
+  // Private, matching only — never shown on the public profile.
+  gender             String?  // woman|man|non_binary|prefer_not_to_say
+  genderPreference   String   @default("[\"woman\",\"man\",\"non_binary\"]") // JSON array: who they're open to living with
   version            Int      @default(1)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt

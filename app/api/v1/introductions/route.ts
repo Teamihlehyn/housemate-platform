@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { writeAudit, writeOutbox, notify } from "@/lib/audit";
 import { addDays, testToday } from "@/lib/dates";
 import { IS_BETA } from "@/lib/env";
+import { gendersCompatible, parseGenderPreference } from "@/lib/constants";
 import { afterIntroduction } from "@/lib/demoBots";
 
 async function identityVerified(userId: string): Promise<boolean> {
@@ -96,6 +97,17 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
     },
   });
   if (block) return fail("NOT_FOUND", "This member is not available.", 404, rid);
+
+  // Housemate gender preference applies both ways (generic response — no reason disclosed).
+  const mine = await prisma.search.findUnique({ where: { userId: user.id } });
+  if (
+    target.search &&
+    !gendersCompatible(
+      { gender: mine?.gender, accepts: parseGenderPreference(mine?.genderPreference) },
+      { gender: target.search.gender, accepts: parseGenderPreference(target.search.genderPreference) }
+    )
+  )
+    return fail("NOT_FOUND", "This member is not available.", 404, rid);
 
   // Pilot: both people must be team-verified before any introduction.
   if (IS_BETA) {

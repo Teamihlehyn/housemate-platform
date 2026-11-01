@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, ApiClientError } from "@/lib/client";
-import { CITIES, JOURNEYS, QUESTIONNAIRE, CityId } from "@/lib/constants";
+import { CITIES, GENDER_IDS, JOURNEYS, QUESTIONNAIRE, CityId } from "@/lib/constants";
+import GenderPreferenceFields from "@/components/GenderPreferenceFields";
 
 type Prefs = Record<string, { own: string; accepted: string[] }>;
 
@@ -29,6 +30,8 @@ export default function Onboarding() {
   const [latest, setLatest] = useState("");
   const [stayMin, setStayMin] = useState("6");
   const [stayMax, setStayMax] = useState("12");
+  const [gender, setGender] = useState<string | null>(null);
+  const [genderAccepts, setGenderAccepts] = useState<string[]>([...GENDER_IDS]);
   const [prefs, setPrefs] = useState<Prefs>(() => {
     const p: Prefs = {};
     for (const q of QUESTIONNAIRE) p[q.id] = { own: q.values[0].id, accepted: q.values.map((v) => v.id) };
@@ -56,6 +59,8 @@ export default function Onboarding() {
         if (s.latestDate) setLatest(s.latestDate);
         if (s.stayMinMonths) setStayMin(String(s.stayMinMonths));
         if (s.stayMaxMonths) setStayMax(String(s.stayMaxMonths));
+        if (s.gender) setGender(s.gender);
+        if (s.genderPreference?.length) setGenderAccepts(s.genderPreference);
         if (s.preferences?.length) {
           setPrefs((prev) => {
             const next = { ...prev };
@@ -106,9 +111,14 @@ export default function Onboarding() {
           },
         });
       } else if (step === 3) {
+        if (!gender) { setErrors({ gender: "Choose an option — \"Prefer not to say\" is fine." }); return false; }
         await api("/me/search", {
           method: "PATCH",
-          body: { preferences: QUESTIONNAIRE.map((q) => ({ dimension: q.id, ownAnswer: prefs[q.id].own, acceptedValues: prefs[q.id].accepted })) },
+          body: {
+            gender,
+            genderPreference: genderAccepts,
+            preferences: QUESTIONNAIRE.map((q) => ({ dimension: q.id, ownAnswer: prefs[q.id].own, acceptedValues: prefs[q.id].accepted })),
+          },
         });
       } else if (step === 4) {
         await api("/me/profile", { method: "PATCH", body: { displayName, bio } });
@@ -295,6 +305,15 @@ export default function Onboarding() {
           <fieldset>
             <legend className="text-xl font-bold text-stone-900">Living habits</legend>
             <p className="mt-1 text-sm text-stone-600">Your answer, plus what you&apos;d accept in a housemate. Anything you leave selected is &quot;accepted&quot;.</p>
+            <div className="mt-4 rounded-lg border border-stone-200 p-4">
+              <p className="mb-3 font-medium text-stone-900">Housemate gender</p>
+              <GenderPreferenceFields
+                gender={gender}
+                accepts={genderAccepts}
+                onChange={(n) => { setGender(n.gender); setGenderAccepts(n.accepts); }}
+                errors={errors}
+              />
+            </div>
             <div className="mt-4 space-y-5">
               {QUESTIONNAIRE.map((q) => (
                 <div key={q.id} className="rounded-lg border border-stone-200 p-4">

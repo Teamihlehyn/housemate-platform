@@ -3,7 +3,7 @@ import { handler, ok, fail } from "@/lib/api";
 import { requireUser } from "@/lib/guard";
 import { prisma } from "@/lib/db";
 import { writeAudit, writeOutbox } from "@/lib/audit";
-import { CITIES, QUESTIONNAIRE } from "@/lib/constants";
+import { CITIES, GENDER_IDS, OWN_GENDER_OPTIONS, QUESTIONNAIRE } from "@/lib/constants";
 import { testToday, addMonths } from "@/lib/dates";
 
 // PATCH /api/v1/me/search — partial onboarding updates. Stores a search version on change.
@@ -29,6 +29,18 @@ export const PATCH = handler(async (req: NextRequest, { rid }) => {
   if (body.rentPeriod !== undefined) {
     if (!["month", "year"].includes(body.rentPeriod)) fe.rentPeriod = "Choose month or year.";
     else data.rentPeriod = body.rentPeriod;
+  }
+
+  if (body.gender !== undefined) {
+    if (body.gender !== null && !OWN_GENDER_OPTIONS.some((g) => g.id === body.gender)) fe.gender = "Choose an option.";
+    else data.gender = body.gender;
+  }
+  if (body.genderPreference !== undefined) {
+    const pref = Array.isArray(body.genderPreference)
+      ? [...new Set((body.genderPreference as string[]).filter((g) => GENDER_IDS.includes(g)))]
+      : [];
+    if (pref.length === 0) fe.genderPreference = "Choose at least one.";
+    else data.genderPreference = JSON.stringify(GENDER_IDS.filter((g) => pref.includes(g)));
   }
 
   if (body.locationDetail !== undefined) {

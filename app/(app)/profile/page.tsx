@@ -5,7 +5,8 @@ import Link from "next/link";
 import { api, ApiClientError } from "@/lib/client";
 import { formatMoney } from "@/lib/money";
 import { formatDateRange } from "@/lib/dates";
-import { CITIES, QUESTIONNAIRE, answerLabel } from "@/lib/constants";
+import { CITIES, GENDERS, GENDER_IDS, OWN_GENDER_OPTIONS, QUESTIONNAIRE, answerLabel } from "@/lib/constants";
+import GenderPreferenceFields from "@/components/GenderPreferenceFields";
 
 export default function Profile() {
   const [me, setMe] = useState<any>(null);
@@ -98,11 +99,74 @@ export default function Profile() {
         </dl>
       </div>
 
+      <GenderCard search={s} onSaved={async (m) => { setMsg(m); await load(); }} />
+
       <div className="mt-4 flex gap-2">
         {s.status === "active" && <button className="btn-secondary" onClick={() => status("pause")}>Pause search</button>}
         {s.status === "paused" && <button className="btn-primary" onClick={() => status("resume")}>Resume search</button>}
         <Link href="/settings" className="btn-secondary">Settings &amp; privacy</Link>
       </div>
+    </div>
+  );
+}
+
+function GenderCard({ search, onSaved }: { search: any; onSaved: (msg: string) => Promise<void> }) {
+  const [editing, setEditing] = useState(false);
+  const [gender, setGender] = useState<string | null>(search.gender ?? null);
+  const [accepts, setAccepts] = useState<string[]>(search.genderPreference ?? [...GENDER_IDS]);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+
+  const savedAccepts: string[] = search.genderPreference ?? [...GENDER_IDS];
+  const everyone = GENDER_IDS.every((g) => savedAccepts.includes(g));
+  const genderLabel = OWN_GENDER_OPTIONS.find((o) => o.id === search.gender)?.label ?? "Not set";
+
+  async function save() {
+    setErrors({});
+    if (!gender) return setErrors({ gender: "Choose an option — \"Prefer not to say\" is fine." });
+    setBusy(true);
+    try {
+      await api("/me/search", { method: "PATCH", body: { gender, genderPreference: accepts } });
+      setEditing(false);
+      await onSaved("Saved. Your matches now reflect your housemate gender preference.");
+    } catch (e) {
+      if (e instanceof ApiClientError) setErrors(e.fieldErrors ?? { gender: e.message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="card mt-4 p-6">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="font-semibold text-stone-900">Housemate gender</h3>
+          <p className="text-xs text-stone-500">🔒 Private — only used to match you, never shown on your profile.</p>
+        </div>
+        {!editing && <button className="btn-secondary px-3 py-1.5 text-sm" onClick={() => setEditing(true)}>Edit</button>}
+      </div>
+      {editing ? (
+        <div className="mt-4">
+          <GenderPreferenceFields gender={gender} accepts={accepts} onChange={(n) => { setGender(n.gender); setAccepts(n.accepts); }} errors={errors} showPrivacyNote={false} />
+          <div className="mt-4 flex gap-2">
+            <button className="btn-primary" disabled={busy} onClick={save}>{busy ? "Saving…" : "Save"}</button>
+            <button className="btn-ghost" onClick={() => { setEditing(false); setGender(search.gender ?? null); setAccepts(savedAccepts); setErrors({}); }}>Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <dl className="mt-3 grid gap-2 sm:grid-cols-2">
+          <div className="flex justify-between border-b border-stone-100 py-1.5 text-sm">
+            <dt className="text-stone-500">Your gender</dt>
+            <dd className="font-medium text-stone-800">{genderLabel}</dd>
+          </div>
+          <div className="flex justify-between border-b border-stone-100 py-1.5 text-sm">
+            <dt className="text-stone-500">Open to living with</dt>
+            <dd className="text-right font-medium text-stone-800">
+              {everyone ? "Anyone" : GENDERS.filter((g) => savedAccepts.includes(g.id)).map((g) => g.plural).join(", ")}
+            </dd>
+          </div>
+        </dl>
+      )}
     </div>
   );
 }

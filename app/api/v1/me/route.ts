@@ -3,6 +3,7 @@ import { handler, ok } from "@/lib/api";
 import { requireUser } from "@/lib/guard";
 import { prisma } from "@/lib/db";
 import { computeScore } from "@/lib/credibility";
+import { parseGenderPreference } from "@/lib/constants";
 
 // GET /api/v1/me — private own account, progress, credibility.
 export const GET = handler(async (_req: NextRequest, { rid }) => {
@@ -31,6 +32,7 @@ export const GET = handler(async (_req: NextRequest, { rid }) => {
         ? {
             ...full!.search,
             areas: full!.search.areas.map((a) => a.areaId),
+            genderPreference: parseGenderPreference(full!.search.genderPreference),
             preferences: full!.search.preferences.map((p) => ({
               dimension: p.dimension,
               ownAnswer: p.ownAnswer,
