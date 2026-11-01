@@ -72,6 +72,13 @@ export default function Discover() {
         <p className="text-sm text-stone-600">Ranked by shared dates, areas and living habits. The number is match strength, not a percentage.</p>
       </div>
 
+      {process.env.NEXT_PUBLIC_APP_ENV === "research" && (
+        <div className="mb-5 rounded-xl border border-stone-200 bg-white p-4 text-sm text-stone-600">
+          Everyone here is a <strong>sample housemate</strong> created for your test, matched to what you entered. They reply
+          automatically, so you can introduce yourself, chat, agree a household plan and book a viewing on your own.
+        </div>
+      )}
+
       {identityPending && (
         <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4">
           <p className="font-semibold text-amber-900">Identity verification pending</p>

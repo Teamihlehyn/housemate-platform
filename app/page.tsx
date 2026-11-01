@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BANNER, IS_BETA } from "@/lib/env";
+import { FeedbackLink } from "@/components/ResearchTools";
 
 /* ---------------------------------- bits ---------------------------------- */
 
@@ -93,11 +94,41 @@ function MatchCardMock() {
 
 function FloatingChip({ className = "", dot, label, value }: { className?: string; dot: string; label: string; value: string }) {
   return (
-    <div className={`absolute hidden items-center gap-2 rounded-2xl border border-ink/10 bg-white/90 px-3 py-2 shadow-lg backdrop-blur sm:flex ${className}`}>
+    <div className={`absolute hidden items-center gap-2 rounded-2xl border border-ink/10 bg-white px-3 py-2 shadow-lg sm:flex ${className}`}>
       <span className="h-2.5 w-2.5 rounded-full" style={{ background: dot }} />
       <div className="leading-tight">
         <p className="text-[10px] font-medium uppercase tracking-wide text-ink/40">{label}</p>
         <p className="text-sm font-semibold text-ink">{value}</p>
+      </div>
+    </div>
+  );
+}
+
+function AgreementMock() {
+  return (
+    <div className="rounded-4xl bg-cream p-6 ring-1 ring-ink/5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="font-semibold text-ink">Household agreement</p>
+          <p className="text-xs text-ink/40">Version 2 · Amara &amp; Ben</p>
+        </div>
+        <span className="rounded-full bg-brand-100 px-3 py-1 text-xs font-semibold text-brand-800">✓ Agreed by both</span>
+      </div>
+      <div className="mt-5 space-y-2 text-sm">
+        <p className="text-ink/40">Rent split (per month)</p>
+        {[["Amara", "£950", "50%"], ["Ben", "£950", "50%"]].map(([n, a, p]) => (
+          <div key={n} className="flex justify-between rounded-2xl bg-white px-3 py-2.5 ring-1 ring-ink/5">
+            <span className="text-ink/80">{n}</span><span className="font-medium text-ink">{a}/mo <span className="font-normal text-ink/40">· {p}</span></span>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+        <div className="rounded-2xl bg-white px-3 py-2.5 ring-1 ring-ink/5"><p className="text-xs text-ink/40">Bills</p><p className="font-medium text-ink">Split equally</p></div>
+        <div className="rounded-2xl bg-white px-3 py-2.5 ring-1 ring-ink/5"><p className="text-xs text-ink/40">Notice if someone leaves</p><p className="font-medium text-ink">4 weeks</p></div>
+      </div>
+      <div className="mt-2 rounded-2xl bg-white px-3 py-2.5 text-sm ring-1 ring-ink/5">
+        <p className="text-xs text-ink/40">Also agreed</p>
+        <p className="text-ink/80">Caution deposit split 50/50. Rent paid by the 1st.</p>
       </div>
     </div>
   );
@@ -124,7 +155,7 @@ const AREAS_ROW_2 = ["Yaba", "Lekki", "Ikeja", "Surulere", "Gbagada", "Ikoyi"];
 const STAGES = [
   { n: "01", t: "Introduce", d: "Send a short intro to someone whose dates and habits fit." },
   { n: "02", t: "Chat", d: "Message privately and arrange a quick video meet." },
-  { n: "03", t: "Household", d: "Agree a plan together — dates, budget split, stay length." },
+  { n: "03", t: "Agree in writing", d: "Rent split, bills and notice if someone leaves — both accept every version." },
   { n: "04", t: "Shortlist & view", d: "Add sample homes, vote, and book a viewing." },
   { n: "05", t: "Move in", d: "Complete a demo handoff and confirm your move-in." },
 ];
@@ -148,7 +179,7 @@ export default function Landing() {
   return (
     <div className="min-h-screen font-sans">
       {/* Nav */}
-      <header className="sticky top-8 z-40 border-b border-ink/5 bg-paper/80 backdrop-blur">
+      <header className="sticky top-8 z-40 border-b border-ink/5 bg-paper">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3.5">
           <Logo />
           <nav className="hidden items-center gap-7 text-sm font-medium text-ink/70 sm:flex">
@@ -172,8 +203,8 @@ export default function Landing() {
           <br className="hidden sm:block" /> plans fit yours
         </h1>
         <p className="mx-auto mt-6 max-w-xl text-lg text-ink/60">
-          Match on real living preferences and exact move-in dates, see what&apos;s been verified, and
-          organise a shared home — all the way to moving day.
+          Match on move-in dates and living habits, see what&apos;s been checked, and agree rent split, bills
+          and notice in writing — before anyone moves in.
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
           <CtaPrimary>Start your search</CtaPrimary>
@@ -253,6 +284,28 @@ export default function Landing() {
           </div>
           <h3 className="mt-7 font-display text-2xl font-normal tracking-tightest text-ink">Trust, shown honestly</h3>
           <p className="mt-2 text-ink/60">A transparent score with the full evidence breakdown. &ldquo;Checks completed — not a guarantee of safety.&rdquo;</p>
+        </div>
+      </section>
+
+      {/* The money stuff */}
+      <section id="agreement" className="mx-auto max-w-6xl px-4 pt-20">
+        <div className="grid items-center gap-10 rounded-5xl bg-white p-8 shadow-sm ring-1 ring-ink/5 sm:p-14 md:grid-cols-2">
+          <div>
+            <Pill><span className="text-brand-600">✦</span> No more surprise exits</Pill>
+            <h2 className="mt-6 font-display text-3xl font-normal leading-tight tracking-tightest text-ink sm:text-5xl">
+              Agree the money stuff before anyone moves in
+            </h2>
+            <p className="mt-4 text-ink/60">
+              Late rent, unpaid bills and flatmates who leave with a week&apos;s notice are what make sharing stressful.
+              Housemate gets you both to agree, in writing, who pays what, how bills are split and how much notice to give.
+            </p>
+            <ul className="mt-6 space-y-2 text-ink/80">
+              {["A rent split you both accept", "Bills split equally or by rent share", "Notice period if someone leaves", "Every change is a new version you both accept"].map((t) => (
+                <li key={t} className="flex gap-2"><span className="text-brand-600">✓</span>{t}</li>
+              ))}
+            </ul>
+          </div>
+          <AgreementMock />
         </div>
       </section>
 
@@ -336,8 +389,9 @@ export default function Landing() {
             Ready to find your household?
           </h2>
           <p className="mx-auto mt-4 max-w-lg text-cream/70">
-            Sign in with any email — your code appears in the demo sink. Or jump in as a seeded persona
-            and explore the whole journey.
+            {IS_BETA
+              ? "Sign in with your email — we'll send you a 6-digit code."
+              : "Enter any email and your code appears on screen, or try a demo persona in one click."}
           </p>
           <div className="mt-8 flex justify-center">
             <Link href="/signin" className="inline-flex min-h-[52px] items-center justify-center rounded-full bg-cream px-8 text-base font-medium text-ink transition hover:bg-white">
@@ -349,10 +403,16 @@ export default function Landing() {
 
       {/* Footer */}
       <footer className="border-t border-ink/10 bg-cream">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-10 text-sm text-ink/50 sm:flex-row">
+        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 py-10 text-sm text-ink/50 sm:flex-row">
           <Logo />
-          <p>{BANNER}</p>
+          <nav className="flex flex-wrap justify-center gap-x-5 gap-y-2" aria-label="Footer">
+            <Link href="/safety" className="hover:text-ink">Safety</Link>
+            <Link href="/privacy" className="hover:text-ink">Privacy</Link>
+            <Link href="/terms" className="hover:text-ink">Terms</Link>
+            <FeedbackLink className="hover:text-ink">Give feedback</FeedbackLink>
+          </nav>
         </div>
+        <p className="px-4 pb-8 text-center text-xs text-ink/40">{BANNER}</p>
       </footer>
     </div>
   );

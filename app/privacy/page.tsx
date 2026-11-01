@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { IS_BETA } from "@/lib/env";
 
 export const metadata = { title: "Privacy notice — Housemate" };
 
@@ -6,12 +7,18 @@ export default function Privacy() {
   const sections: [string, string][] = [
     ["Who we are", "Housemate is an early-access service that helps people find compatible housemates and coordinate a shared move. This notice explains what personal data we collect and how we use it. It is the data controller for the information you provide."],
     ["What we collect", "Account and contact details (email, phone), your profile and search preferences (areas, budget, move-in dates, living habits, bio), messages you send to other members, and the outcome of identity verification (a yes/no result — we do not store copies of your identity documents). We do not ask for religion, ethnicity, sexual orientation, health, criminal history or income on your public profile."],
-    ["How identity verification works", "During this pilot, identity is confirmed by our team through a short live check. We record only that the check passed or failed and the date — we do not keep your ID document or selfie."],
+    [
+      "How identity verification works",
+      IS_BETA
+        ? "During this pilot, identity is confirmed by our team through a short live check. We record only that the check passed or failed and the date — we do not keep your ID document or selfie."
+        : "In this prototype, verification is simulated: no identity documents are requested or checked, and every badge is a sample.",
+    ],
     ["Why we use it (lawful basis)", "To provide the service you asked for (performance of a contract), to keep members safe (legitimate interests), and with your consent for optional items. You can withdraw consent at any time."],
     ["Who can see what", "Other members see only your public profile: display name, areas, budget, move-in window, bio, selected habits and your verification badge. Your legal identity, contacts and exact address are never shown on profile cards."],
     ["How long we keep it", "We keep your data while your account is active and delete or minimise it after a retention period once you leave or delete your account. Verification results are kept only as long as needed to run the service."],
     ["Your rights", "You can access and export your data, correct it, pause your search, and request deletion at any time from Settings. Depending on your location you may also have rights under UK GDPR or Nigeria's NDPR, including the right to complain to a regulator."],
-    ["Contact", "For any privacy question or request, contact the team at the email you were onboarded with. We respond to rights requests without undue delay."],
+    ["User research", "While we test Housemate, we may record how the site is used (clicks, scrolling and page views) with Microsoft Clarity to find where people get stuck. Email addresses, codes, messages and other typed text are masked and never recorded. Feedback you send through the Feedback button is stored with the page you were on and an anonymous tester ID, not your name."],
+    ["Contact", "For any privacy question or request, use the Feedback button on any page or the email you were onboarded with. We respond to rights requests without undue delay."],
   ];
   return (
     <div className="min-h-screen font-sans">
@@ -23,7 +30,7 @@ export default function Privacy() {
       </header>
       <main className="mx-auto max-w-3xl px-4 py-12">
         <h1 className="font-display text-3xl font-normal tracking-tightest text-ink">Privacy notice</h1>
-        <p className="mt-2 text-sm text-ink/50">Early-access pilot · version privacy-v1</p>
+        <p className="mt-2 text-sm text-ink/50">Version privacy-v1</p>
         <div className="mt-8 space-y-6">
           {sections.map(([t, d]) => (
             <section key={t}>

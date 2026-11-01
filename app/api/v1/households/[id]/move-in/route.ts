@@ -2,10 +2,11 @@ import { NextRequest } from "next/server";
 import { handler, ok, fail } from "@/lib/api";
 import { requireUser } from "@/lib/guard";
 import { prisma } from "@/lib/db";
-import { writeAudit, writeOutbox, notify } from "@/lib/audit";
+import { recordMoveIn } from "@/lib/household";
+import { afterMoveIn } from "@/lib/demoBots";
 
 // POST /api/v1/households/[id]/move-in {actual_date, response}
-// Household completes only after BOTH confirm moved_in. Disagreement never marks success.
+// The household completes only after every member confirms moved_in.
 export const POST = handler(async (req: NextRequest, { rid, params }) => {
   const user = await requireUser();
   const body = await req.json().catch(() => ({}));
@@ -27,31 +28,8 @@ export const POST = handler(async (req: NextRequest, { rid, params }) => {
   if (response === "moved_in" && !actualDate)
     return fail("VALIDATION", "Provide your move-in date.", 422, rid);
 
-  const otherId = hh.memberships.find((m) => m.userId !== user.id)!.userId;
-
-  const result = await prisma.$transaction(async (tx) => {
-    await tx.moveInConfirmation.upsert({
-      where: { householdId_userId: { householdId: hh.id, userId: user.id } },
-      create: { householdId: hh.id, userId: user.id, actualDate: actualDate ?? "", response, source: "self_report_demo" },
-      update: { response, actualDate: actualDate ?? "" },
-    });
-    const confs = await tx.moveInConfirmation.findMany({ where: { householdId: hh.id } });
-    let state = hh.state;
-    if (confs.length >= 2 && confs.every((c) => c.response === "moved_in")) {
-      state = "completed";
-      await tx.household.update({
-        where: { id: hh.id },
-        data: { state: "completed", closedAt: new Date(), version: hh.version + 1 },
-      });
-      await notify(tx, otherId, "move_in", "Move-in confirmed", "You've both confirmed your move-in. 🎉");
-      await notify(tx, user.id, "move_in", "Move-in confirmed", "You've both confirmed your move-in. 🎉");
-    } else {
-      await notify(tx, otherId, "move_in", "Move-in update", `${user.displayName} recorded their move-in status.`);
-    }
-    await writeAudit(tx, { eventType: "move_in.confirmed", actorId: user.id, subjectId: otherId, resourceType: "household", resourceId: hh.id, action: "move_in_confirm", safeAfter: { response } }, rid);
-    await writeOutbox(tx, "move_in_confirmed", { householdId: hh.id, response });
-    return state;
-  });
-
-  return ok({ householdState: result }, rid);
+  await recordMoveIn({ householdId: hh.id, userId: user.id, actualDate: actualDate ?? "", response, rid });
+  if (response === "moved_in") await afterMoveIn(hh.id, actualDate);
+  const fresh = await prisma.household.findUnique({ where: { id: hh.id } });
+  return ok({ householdState: fresh?.state }, rid);
 });

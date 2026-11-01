@@ -3,13 +3,25 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { api, ApiClientError } from "@/lib/client";
-import { formatMoney, formatPeriodPrice, monthlyEquivalentMinor } from "@/lib/money";
+import { formatMoney, formatPeriodPrice } from "@/lib/money";
 import { formatDateRange } from "@/lib/dates";
 import { CITIES } from "@/lib/constants";
 
 const STAGES = ["planning", "viewing", "application", "move_in_pending"];
 const STAGE_LABEL: Record<string, string> = {
   planning: "Planning", viewing: "Viewing", application: "Application", move_in_pending: "Move-in",
+  needs_reagreement: "Re-agree plan",
+};
+const NOTICE_OPTIONS = [
+  { weeks: 2, label: "2 weeks" },
+  { weeks: 4, label: "4 weeks (about a month)" },
+  { weeks: 6, label: "6 weeks" },
+  { weeks: 8, label: "8 weeks (about 2 months)" },
+  { weeks: 12, label: "12 weeks (about 3 months)" },
+];
+const BILLS_LABEL: Record<string, string> = {
+  equal: "Split equally",
+  same_as_rent: "Same ratio as rent",
 };
 
 export default function HouseholdPage() {
@@ -27,10 +39,10 @@ export default function HouseholdPage() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  async function call(fn: () => Promise<any>, okMsg?: string) {
+  async function call(fn: () => Promise<any>, okMsg?: string): Promise<boolean> {
     setMsg(null);
-    try { await fn(); if (okMsg) setMsg(okMsg); await load(); }
-    catch (e) { setMsg(e instanceof ApiClientError ? e.message : "Something went wrong."); }
+    try { await fn(); if (okMsg) setMsg(okMsg); await load(); return true; }
+    catch (e) { setMsg(e instanceof ApiClientError ? e.message : "Something went wrong."); return false; }
   }
 
   if (loading) return <div className="h-64 animate-pulse rounded-xl bg-stone-200" />;
@@ -39,36 +51,31 @@ export default function HouseholdPage() {
     <div className="card mx-auto max-w-lg p-8 text-center">
       <p className="text-3xl">🏠</p>
       <h1 className="mt-3 text-xl font-bold text-stone-900">No active household</h1>
-      <p className="mt-2 text-sm text-stone-600">Once you accept an introduction, you can propose forming a household from the chat.</p>
+      <p className="mt-2 text-sm text-stone-600">Once someone accepts your introduction, use &quot;Form household&quot; in your chat with them. Then you&apos;ll agree rent split, bills and notice here.</p>
       <Link href="/messages" className="btn-primary mt-5">Go to messages</Link>
     </div>
   );
 
-  const me = hh.members.find((m: any) => m.userId === meId);
   const other = hh.members.find((m: any) => m.userId !== meId);
   const plan = hh.currentPlan;
   const iAcceptedPlan = plan?.acceptedBy?.includes(meId);
+  const acceptPlan = () =>
+    call(() => api(`/households/${hh.id}`, { body: { action: hh.state === "proposed" ? "accept" : "accept_plan", plan_version_id: plan.versionNo } }),
+      hh.state === "proposed" ? "Household formed!" : "Agreement accepted.");
 
   // ---------- Proposed state ----------
   if (hh.state === "proposed") {
     return (
-      <div className="mx-auto max-w-lg">
+      <div className="mx-auto max-w-2xl">
         <StatusMsg msg={msg} />
-        <div className="card p-6">
+        <div className="mb-4">
           <span className="chip bg-amber-100 text-amber-800">Proposal</span>
-          <h1 className="mt-3 text-xl font-bold text-stone-900">Household with {other?.name}</h1>
-          <PlanSummary plan={plan} members={hh.members} />
-          <div className="mt-4">
-            {iAcceptedPlan ? (
-              <p className="rounded-lg bg-stone-50 p-3 text-sm text-stone-600">You&apos;ve accepted. Waiting for {other?.name} to accept the same plan.</p>
-            ) : (
-              <button className="btn-primary w-full" onClick={() => call(() => api(`/households/${hh.id}`, { body: { action: "accept", expected_version: hh.version, plan_version_id: plan.versionNo } }), "Household formed!")}>
-                Accept &amp; form household
-              </button>
-            )}
-            <button className="btn-ghost mt-2 w-full text-red-600" onClick={() => confirm("Leave this proposal?") && call(() => api(`/households/${hh.id}`, { body: { action: "leave" } }))}>Decline</button>
-          </div>
+          <h1 className="mt-2 text-2xl font-bold text-stone-900">Household with {other?.name} <SampleChip member={other} /></h1>
         </div>
+        <AgreementCard hh={hh} meId={meId} onAction={call} onAccept={acceptPlan} />
+        {!iAcceptedPlan && (
+          <button className="btn-ghost mt-3 w-full text-red-600" onClick={() => confirm("Decline this household proposal? You can keep chatting.") && call(() => api(`/households/${hh.id}`, { body: { action: "leave" } }))}>Decline proposal</button>
+        )}
       </div>
     );
   }
@@ -76,11 +83,13 @@ export default function HouseholdPage() {
   // ---------- Completed ----------
   if (hh.state === "completed") {
     return (
-      <div className="card mx-auto max-w-lg p-8 text-center">
-        <p className="text-4xl">🎉</p>
-        <h1 className="mt-3 text-xl font-bold text-stone-900">You&apos;ve moved in together!</h1>
-        <p className="mt-2 text-sm text-stone-600">Both members confirmed the move-in for your household with {other?.name}. That completes the journey.</p>
-        <PlanSummary plan={plan} members={hh.members} />
+      <div className="mx-auto max-w-2xl">
+        <div className="card mb-4 p-8 text-center">
+          <p className="text-4xl">🎉</p>
+          <h1 className="mt-3 text-xl font-bold text-stone-900">You&apos;ve moved in together!</h1>
+          <p className="mt-2 text-sm text-stone-600">Both of you confirmed the move-in with {other?.name}. That completes the journey.</p>
+        </div>
+        <AgreementCard hh={hh} meId={meId} onAction={call} readOnly />
       </div>
     );
   }
@@ -98,8 +107,8 @@ export default function HouseholdPage() {
   // ---------- Active ----------
   const stageIdx = STAGES.indexOf(hh.derivedStage);
   const tabs = [
-    { id: "overview", label: "Overview" },
-    { id: "properties", label: "Properties" },
+    { id: "overview", label: "Agreement" },
+    { id: "properties", label: "Homes" },
     { id: "viewings", label: "Viewings" },
     { id: "application", label: "Application" },
     { id: "movein", label: "Move-in" },
@@ -107,26 +116,22 @@ export default function HouseholdPage() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-stone-900">Household with {other?.name}</h1>
-          <p className="text-sm text-stone-500">You &amp; {other?.name}</p>
+          <h1 className="text-2xl font-bold text-stone-900">Household with {other?.name} <SampleChip member={other} /></h1>
+          <p className="text-sm text-stone-500">Agree how you&apos;ll live together, then find a home.</p>
         </div>
-        <span className="chip bg-brand-100 text-brand-800">{STAGE_LABEL[hh.derivedStage]}</span>
+        <span className={`chip shrink-0 ${hh.derivedStage === "needs_reagreement" ? "bg-amber-100 text-amber-800" : "bg-brand-100 text-brand-800"}`}>{STAGE_LABEL[hh.derivedStage]}</span>
       </div>
 
-      {/* Stage progress */}
-      <div className="mb-4 flex items-center gap-1">
+      <div className="mb-4 flex items-center gap-1" aria-hidden>
         {STAGES.map((s, i) => (
-          <div key={s} className="flex flex-1 items-center gap-1">
-            <div className={`h-1.5 flex-1 rounded-full ${i <= stageIdx ? "bg-brand-500" : "bg-stone-200"}`} />
-          </div>
+          <div key={s} className={`h-1.5 flex-1 rounded-full ${stageIdx >= 0 && i <= stageIdx ? "bg-brand-500" : "bg-stone-200"}`} />
         ))}
       </div>
 
       <StatusMsg msg={msg} />
 
-      {/* Tabs */}
       <div className="mb-4 flex gap-1 overflow-x-auto border-b border-stone-200">
         {tabs.map((t) => (
           <button key={t.id} onClick={() => setTab(t.id)}
@@ -137,56 +142,240 @@ export default function HouseholdPage() {
       </div>
 
       {tab === "overview" && (
-        <div className="card p-6">
-          <PlanSummary plan={plan} members={hh.members} />
-          <div className="mt-4 rounded-lg bg-stone-50 p-4 text-sm text-stone-600">
+        <>
+          <AgreementCard hh={hh} meId={meId} onAction={call} onAccept={acceptPlan} />
+          <div className="card mt-4 p-5 text-sm text-stone-600">
             <p className="font-medium text-stone-800">Next step</p>
             <p className="mt-1">{nextStepText(hh)}</p>
           </div>
-          <button className="btn-ghost mt-4 text-sm text-red-600" onClick={() => confirm("Leaving closes the household for both of you and cancels viewings/application. Continue?") && call(() => api(`/households/${hh.id}`, { body: { action: "leave" } }))}>Leave household</button>
-        </div>
+          <button className="btn-ghost mt-3 text-sm text-red-600" onClick={() => confirm("Leaving closes the household for both of you and cancels viewings and the application. Continue?") && call(() => api(`/households/${hh.id}`, { body: { action: "leave" } }))}>Leave household</button>
+        </>
       )}
 
       {tab === "properties" && <PropertiesTab hh={hh} meId={meId} onAction={call} />}
-      {tab === "viewings" && <ViewingsTab hh={hh} meId={meId} onAction={call} />}
-      {tab === "application" && <ApplicationTab hh={hh} meId={meId} onAction={call} />}
+      {tab === "viewings" && <AgreedGate hh={hh} onOpen={() => setTab("overview")}><ViewingsTab hh={hh} meId={meId} onAction={call} /></AgreedGate>}
+      {tab === "application" && <AgreedGate hh={hh} onOpen={() => setTab("overview")}><ApplicationTab hh={hh} meId={meId} onAction={call} /></AgreedGate>}
       {tab === "movein" && <MoveInTab hh={hh} meId={meId} onAction={call} />}
     </div>
   );
 }
 
+function SampleChip({ member }: { member: any }) {
+  if (!member?.isSample) return null;
+  return <span className="chip ml-1 align-middle bg-stone-100 text-xs font-medium text-stone-500">Sample housemate · replies automatically</span>;
+}
+
 function StatusMsg({ msg }: { msg: string | null }) {
   if (!msg) return null;
-  return <div className="mb-4 rounded-lg border border-brand-200 bg-brand-50 px-4 py-2.5 text-sm text-brand-800">{msg}</div>;
+  return <div className="mb-4 rounded-lg border border-brand-200 bg-brand-50 px-4 py-2.5 text-sm text-brand-800" role="status">{msg}</div>;
+}
+
+function AgreedGate({ hh, onOpen, children }: { hh: any; onOpen: () => void; children: React.ReactNode }) {
+  if (hh.currentPlan?.agreed) return <>{children}</>;
+  return (
+    <div className="card p-6 text-sm text-stone-600">
+      <p className="font-medium text-stone-900">Agree your plan first</p>
+      <p className="mt-1">Your household agreement changed. Both of you need to accept the latest version before booking viewings or applying.</p>
+      <button className="btn-secondary mt-3" onClick={onOpen}>Review the agreement</button>
+    </div>
+  );
 }
 
 function nextStepText(hh: any) {
-  if (hh.derivedStage === "planning") return "Shortlist a home you both like, then mark it interested to book a viewing.";
-  if (hh.derivedStage === "viewing") return "Confirm your viewing time, then each report the outcome after visiting.";
-  if (hh.derivedStage === "application") return "Both members consent to the rental handoff to submit the demo application.";
+  if (!hh.currentPlan?.agreed) return "Both of you need to accept the latest agreement before you can book viewings or apply.";
+  if (hh.derivedStage === "planning") return "Check the agreement looks right, then go to Homes: shortlist a place you both like and book a viewing.";
+  if (hh.derivedStage === "viewing") return "Confirm your viewing time, then each report how it went.";
+  if (hh.derivedStage === "application") return "Both of you consent to the demo application to submit it.";
   if (hh.derivedStage === "move_in_pending") return "Confirm your move-in date to complete the journey.";
   return "";
 }
 
-function PlanSummary({ plan, members }: { plan: any; members: any[] }) {
+function money(minor: number, currency: string) {
+  return formatMoney(minor, currency);
+}
+
+function AgreementCard({ hh, meId, onAction, onAccept, readOnly }: { hh: any; meId: string; onAction: any; onAccept?: () => void; readOnly?: boolean }) {
+  const [editing, setEditing] = useState(false);
+  const plan = hh.currentPlan;
   if (!plan) return null;
+  const members: any[] = hh.members.filter((m: any) => m.state === "active");
+  const total = members.reduce((sum, m) => sum + (plan.contributions[m.userId] ?? 0), 0);
+  const iAccepted = plan.acceptedBy.includes(meId);
+  const waitingFor = members.filter((m) => !plan.acceptedBy.includes(m.userId));
+
+  if (editing) return <AgreementEditor hh={hh} onCancel={() => setEditing(false)} onSaved={() => setEditing(false)} onAction={onAction} />;
+
   return (
-    <div className="mt-4 grid gap-3 sm:grid-cols-2">
-      <div className="rounded-lg bg-stone-50 p-3 text-sm">
-        <p className="text-stone-500">Move-in window</p>
-        <p className="font-medium text-stone-900">{formatDateRange(plan.earliestDate, plan.latestDate)}</p>
+    <div className="card p-6">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-stone-900">Household agreement</h2>
+          <p className="text-xs text-stone-500">Version {plan.versionNo} · written down so you both know what was agreed</p>
+        </div>
+        {plan.agreed ? (
+          <span className="chip shrink-0 bg-brand-100 text-brand-800">✓ Agreed by both</span>
+        ) : (
+          <span className="chip shrink-0 bg-amber-100 text-amber-800">Waiting for {waitingFor.map((m) => (m.userId === meId ? "you" : m.name.split(" ")[0])).join(" & ")}</span>
+        )}
       </div>
-      <div className="rounded-lg bg-stone-50 p-3 text-sm">
-        <p className="text-stone-500">Stay</p>
-        <p className="font-medium text-stone-900">{plan.stayMin}–{plan.stayMax} months</p>
+
+      <dl className="mt-5 space-y-4 text-sm">
+        <div>
+          <dt className="text-stone-500">Rent split (per month)</dt>
+          <dd className="mt-1 space-y-1">
+            {members.map((m) => {
+              const c = plan.contributions[m.userId] ?? 0;
+              const pct = total > 0 ? Math.round((c / total) * 100) : 0;
+              return (
+                <div key={m.userId} className="flex items-center justify-between gap-2">
+                  <span className="text-stone-700">{m.userId === meId ? "You" : m.name}</span>
+                  <span className="font-medium text-stone-900">
+                    {money(c, plan.currency)}/mo <span className="font-normal text-stone-400">· {pct}%</span>
+                    {plan.currency === "NGN" && <span className="block text-right text-xs font-normal text-stone-400">≈ {money(c * 12, plan.currency)}/yr</span>}
+                  </span>
+                </div>
+              );
+            })}
+            <div className="flex justify-between border-t border-stone-100 pt-1 text-stone-500">
+              <span>Total rent you can cover</span>
+              <span>{money(total, plan.currency)}/mo</span>
+            </div>
+          </dd>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div><dt className="text-stone-500">Bills</dt><dd className="font-medium text-stone-900">{BILLS_LABEL[plan.billsSplit] ?? plan.billsSplit}</dd></div>
+          <div><dt className="text-stone-500">Notice if someone leaves</dt><dd className="font-medium text-stone-900">{NOTICE_OPTIONS.find((n) => n.weeks === plan.noticePeriodWeeks)?.label ?? `${plan.noticePeriodWeeks} weeks`}</dd></div>
+          <div><dt className="text-stone-500">Stay</dt><dd className="font-medium text-stone-900">{plan.stayMin}–{plan.stayMax} months</dd></div>
+        </div>
+        <div><dt className="text-stone-500">Move-in window</dt><dd className="font-medium text-stone-900">{formatDateRange(plan.earliestDate, plan.latestDate)}</dd></div>
+        {plan.notes && (
+          <div><dt className="text-stone-500">Also agreed</dt><dd className="whitespace-pre-wrap text-stone-800">{plan.notes}</dd></div>
+        )}
+      </dl>
+
+      {!readOnly && (
+        <div className="mt-5 flex flex-wrap gap-2 border-t border-stone-100 pt-4">
+          {!iAccepted && onAccept && (
+            <button className="btn-primary" onClick={onAccept}>{hh.state === "proposed" ? "Accept & form household" : `Accept version ${plan.versionNo}`}</button>
+          )}
+          <button className="btn-secondary" onClick={() => setEditing(true)}>Edit agreement</button>
+        </div>
+      )}
+      {!readOnly && iAccepted && !plan.agreed && (
+        <p className="mt-3 text-xs text-stone-500">You&apos;ve accepted this version. Changing anything creates a new version that both of you accept again.</p>
+      )}
+    </div>
+  );
+}
+
+function AgreementEditor({ hh, onCancel, onSaved, onAction }: { hh: any; onCancel: () => void; onSaved: () => void; onAction: any }) {
+  const plan = hh.currentPlan;
+  const members: any[] = hh.members.filter((m: any) => m.state === "active");
+  const [amounts, setAmounts] = useState<Record<string, string>>(
+    Object.fromEntries(members.map((m) => [m.userId, String(Math.round((plan.contributions[m.userId] ?? 0) / 100))]))
+  );
+  const [notice, setNotice] = useState<number>(plan.noticePeriodWeeks);
+  const [bills, setBills] = useState<string>(plan.billsSplit);
+  const [stayMin, setStayMin] = useState(String(plan.stayMin));
+  const [stayMax, setStayMax] = useState(String(plan.stayMax));
+  const [notes, setNotes] = useState<string>(plan.notes ?? "");
+  const [saving, setSaving] = useState(false);
+  const symbol = plan.currency === "NGN" ? "₦" : "£";
+  const parsed: Record<string, number> = Object.fromEntries(
+    members.map((m) => [m.userId, Math.round(parseFloat(amounts[m.userId] || "0") * 100)])
+  );
+  const total: number = Object.values(parsed).reduce((a: number, b: number) => a + (Number.isFinite(b) ? b : 0), 0);
+
+  async function save() {
+    setSaving(true);
+    const saved = await onAction(
+      () => api(`/households/${hh.id}/plan`, {
+        method: "PATCH",
+        body: {
+          expected_plan_version: plan.versionNo,
+          contributions: parsed,
+          noticePeriodWeeks: notice,
+          billsSplit: bills,
+          notes,
+          stayMin: parseInt(stayMin, 10),
+          stayMax: parseInt(stayMax, 10),
+        },
+      }),
+      "New version saved. Your housemate needs to accept it."
+    );
+    setSaving(false);
+    if (saved) onSaved();
+    else window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  return (
+    <div className="card p-6">
+      <h2 className="text-lg font-semibold text-stone-900">Edit agreement</h2>
+      <p className="text-sm text-stone-500">Saving creates version {plan.versionNo + 1}. Your housemate will be asked to accept it.</p>
+
+      <fieldset className="mt-5">
+        <legend className="label">How much rent will each of you pay per month?</legend>
+        <div className="space-y-3">
+          {members.map((m) => {
+            const v = parsed[m.userId];
+            const band = m.rentBand;
+            const outside = band && Number.isFinite(v) && (v < band.minMonthly || v > band.maxMonthly);
+            return (
+              <div key={m.userId}>
+                <div className="flex items-center gap-3">
+                  <label className="w-28 shrink-0 text-sm text-stone-700" htmlFor={`c-${m.userId}`}>{m.name.split(" ")[0]}</label>
+                  <div className="relative flex-1">
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-stone-400">{symbol}</span>
+                    <input id={`c-${m.userId}`} inputMode="decimal" className="input pl-7" value={amounts[m.userId]}
+                      onChange={(e) => setAmounts((a) => ({ ...a, [m.userId]: e.target.value.replace(/[^\d.]/g, "") }))} />
+                  </div>
+                  <span className="w-12 text-right text-sm text-stone-400">{total > 0 && Number.isFinite(v) ? Math.round((v / total) * 100) : 0}%</span>
+                </div>
+                {outside && (
+                  <p className="ml-[7.75rem] mt-1 text-xs text-amber-700">
+                    Outside {m.name.split(" ")[0]}&apos;s saved budget ({formatMoney(band.minMonthly, plan.currency)}–{formatMoney(band.maxMonthly, plan.currency)}/mo).
+                  </p>
+                )}
+              </div>
+            );
+          })}
+          <p className="text-sm text-stone-500">Total: <span className="font-medium text-stone-900">{formatMoney(total, plan.currency)}/mo</span>{plan.currency === "NGN" && <> · ≈ {formatMoney(total * 12, plan.currency)}/yr</>}</p>
+        </div>
+      </fieldset>
+
+      <div className="mt-5 grid gap-4 sm:grid-cols-2">
+        <div>
+          <label className="label" htmlFor="bills">Bills</label>
+          <select id="bills" className="input" value={bills} onChange={(e) => setBills(e.target.value)}>
+            {Object.entries(BILLS_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="label" htmlFor="notice">Notice if someone leaves</label>
+          <select id="notice" className="input" value={notice} onChange={(e) => setNotice(parseInt(e.target.value, 10))}>
+            {NOTICE_OPTIONS.map((n) => <option key={n.weeks} value={n.weeks}>{n.label}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="label" htmlFor="smin">Minimum stay (months)</label>
+          <input id="smin" inputMode="numeric" className="input" value={stayMin} onChange={(e) => setStayMin(e.target.value)} />
+        </div>
+        <div>
+          <label className="label" htmlFor="smax">Maximum stay (months)</label>
+          <input id="smax" inputMode="numeric" className="input" value={stayMax} onChange={(e) => setStayMax(e.target.value)} />
+        </div>
       </div>
-      <div className="rounded-lg bg-stone-50 p-3 text-sm sm:col-span-2">
-        <p className="text-stone-500">Contributions</p>
-        {members.map((m: any) => (
-          <p key={m.userId} className="font-medium text-stone-900">
-            {m.name}: {formatMoney(plan.contributions[m.userId] ?? 0, plan.currency)} ({formatMoney(monthlyEquivalentMinor(plan.contributions[m.userId] ?? 0, "month"), plan.currency)}/mo)
-          </p>
-        ))}
+
+      <div className="mt-5">
+        <label className="label" htmlFor="notes">Anything else you want in writing? <span className="font-normal text-stone-400">(optional)</span></label>
+        <textarea id="notes" className="input min-h-[90px]" maxLength={500} value={notes} onChange={(e) => setNotes(e.target.value)}
+          placeholder="e.g. Caution fee split 50/50. Guests max 2 nights. Rent paid by the 1st." />
+        <p className="mt-1 text-xs text-stone-400">{notes.length} / 500</p>
+      </div>
+
+      <div className="mt-5 flex gap-2">
+        <button className="btn-primary" disabled={saving} onClick={save}>{saving ? "Saving…" : "Save new version"}</button>
+        <button className="btn-ghost" onClick={onCancel}>Cancel</button>
       </div>
     </div>
   );

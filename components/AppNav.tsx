@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/client";
+import { FeedbackLink } from "@/components/ResearchTools";
 
 const NAV = [
   { href: "/discover", label: "Discover", icon: "🔍" },
@@ -83,6 +84,8 @@ export default function AppNav({
           </nav>
 
           <div className="flex items-center gap-3">
+            <FeedbackLink className="hidden rounded-lg px-2 py-2 text-sm font-medium text-stone-600 hover:bg-stone-100 sm:inline-flex">Feedback</FeedbackLink>
+            <FeedbackLink className="rounded-lg p-2 hover:bg-stone-100 sm:hidden"><span aria-label="Give feedback" className="text-lg">💬</span></FeedbackLink>
             <Link href="/notifications" className="relative rounded-lg p-2 hover:bg-stone-100" aria-label="Notifications">
               <span className="text-lg">🔔</span>
               {unread > 0 && (

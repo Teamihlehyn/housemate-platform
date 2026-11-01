@@ -3,6 +3,8 @@ import { handler, ok, fail } from "@/lib/api";
 import { requireUser } from "@/lib/guard";
 import { prisma } from "@/lib/db";
 import { writeAudit, writeOutbox, notify } from "@/lib/audit";
+import { requirePlanAgreed } from "@/lib/household";
+import { afterHandoffActivity } from "@/lib/demoBots";
 
 // POST /api/v1/households/[id]/handoffs {property_id?, plan_version?}
 // Starts a rental application handoff to the mock partner, awaiting both consents.
@@ -17,6 +19,7 @@ export const POST = handler(async (req: NextRequest, { rid, params }) => {
     return fail("NOT_FOUND", "Household not found.", 404, rid);
   if (hh.state !== "active")
     return fail("STATE_CONFLICT", "Household must be active.", 409, rid);
+  await requirePlanAgreed(hh.id);
 
   // Require a completed viewing OR explicit remote-review acknowledgement.
   const hasCompletedViewing = hh.viewings.some((v) => v.state === "completed");
@@ -50,5 +53,6 @@ export const POST = handler(async (req: NextRequest, { rid, params }) => {
     return h;
   });
 
+  await afterHandoffActivity(handoff.id);
   return ok({ id: handoff.id, state: handoff.state }, rid);
 });

@@ -128,12 +128,16 @@ export async function getRecommendations(viewerId: string): Promise<MatchResult>
   });
   const housedIds = new Set(activeMembers.map((m) => m.userId));
 
+  // User-testing sandboxes: a world only sees itself; shared users never see sandboxes.
+  const viewerUser = await prisma.user.findUnique({ where: { id: viewerId }, select: { sandboxWorldId: true } });
+
   // Candidate pool: published, active searches in the same city.
   const pool = await prisma.user.findMany({
     where: {
       id: { not: viewerId },
       accountStatus: "active",
       role: "member",
+      sandboxWorldId: viewerUser?.sandboxWorldId ?? null,
       profile: { publicationStatus: "published" },
       search: { status: "active", cityId: viewer.cityId },
       // Pilot: only team-verified identities are discoverable.

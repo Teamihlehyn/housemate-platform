@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/guard";
 import { prisma } from "@/lib/db";
 import { writeAudit, writeOutbox, notify } from "@/lib/audit";
 import { formatPeriodPrice } from "@/lib/money";
+import { afterShortlistAdded } from "@/lib/demoBots";
 
 // POST /api/v1/households/[id]/shortlist — add a sample property or a user link.
 export const POST = handler(async (req: NextRequest, { rid, params }) => {
@@ -82,5 +83,6 @@ export const POST = handler(async (req: NextRequest, { rid, params }) => {
     return created;
   });
 
+  await afterShortlistAdded(item.id);
   return ok({ id: item.id }, rid);
 });

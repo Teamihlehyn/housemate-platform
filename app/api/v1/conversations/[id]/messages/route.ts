@@ -3,6 +3,7 @@ import { handler, ok, fail } from "@/lib/api";
 import { requireUser } from "@/lib/guard";
 import { prisma } from "@/lib/db";
 import { writeAudit, writeOutbox, notify } from "@/lib/audit";
+import { afterMessage } from "@/lib/demoBots";
 
 function escapeBody(raw: string): string {
   // Server strips unsafe markup; render escapes on the client too.
@@ -34,6 +35,7 @@ export const GET = handler(async (req: NextRequest, { rid, params }) => {
       otherUserId: otherId,
       otherName: other?.displayName ?? "Member",
       otherInitials: other?.profile?.avatarInitials ?? "?",
+      otherIsSample: !!other?.isDemoBot,
       messages: messages.map((m) => ({
         id: m.id,
         senderId: m.senderId,
@@ -99,6 +101,8 @@ export const POST = handler(async (req: NextRequest, { rid, params }) => {
     await notify(tx, otherId, "message_received", "New message", `${user.displayName} sent you a message.`);
     return msg;
   });
+
+  await afterMessage(convo.id, user.id);
 
   return ok(
     { id: result.id, sequence: result.serverSequence, sentAt: result.sentAt, caution },

@@ -3,6 +3,8 @@ import { handler, ok, fail } from "@/lib/api";
 import { requireUser } from "@/lib/guard";
 import { prisma } from "@/lib/db";
 import { writeAudit, writeOutbox, notify } from "@/lib/audit";
+import { monthlyEquivalentMinor } from "@/lib/money";
+import { afterPlanProposedOrChanged } from "@/lib/demoBots";
 
 // POST /api/v1/households {introduction_id, plan:{earliestDate,latestDate,contributions,stayMin,stayMax,propertyId?}}
 // Creates a proposal; creator's submit counts as their acceptance.
@@ -43,12 +45,11 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
   if (!earliestDate || !latestDate)
     return fail("VALIDATION", "A shared move-in window is required.", 422, rid);
 
-  // Default contributions = each user's rent maximum (editable within band client-side).
-  const contributions =
-    plan.contributions ?? {
-      [user.id]: meSearch.rentMaxMinor,
-      [otherId]: otherSearch.rentMaxMinor,
-    };
+  // Default contributions = each person's rent maximum as a monthly equivalent
+  // (Lagos budgets are annual). Both can edit the split in the agreement.
+  const monthly = (s: typeof meSearch) =>
+    s.rentMaxMinor != null && s.rentPeriod ? monthlyEquivalentMinor(s.rentMaxMinor, s.rentPeriod) : 0;
+  const contributions = plan.contributions ?? { [user.id]: monthly(meSearch), [otherId]: monthly(otherSearch) };
 
   const result = await prisma.$transaction(async (tx) => {
     const hh = await tx.household.create({
@@ -82,5 +83,7 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
     return { householdId: hh.id, planVersion: p.versionNo };
   });
 
-  return ok({ id: result.householdId, state: "proposed", planVersion: result.planVersion }, rid);
+  await afterPlanProposedOrChanged(result.householdId);
+  const fresh = await prisma.household.findUnique({ where: { id: result.householdId } });
+  return ok({ id: result.householdId, state: fresh?.state ?? "proposed", planVersion: result.planVersion }, rid);
 });

@@ -8,18 +8,21 @@ interface VCase { userId: string; displayName: string; email: string | null; pho
 export default function Staff() {
   const [data, setData] = useState<any>(null);
   const [cases, setCases] = useState<VCase[]>([]);
+  const [research, setResearch] = useState<any>(null);
   const [denied, setDenied] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const [audit, vers] = await Promise.all([
+      const [audit, vers, res] = await Promise.all([
         api<any>("/staff/audit"),
         api<{ cases: VCase[] }>("/staff/verifications"),
+        api<any>("/staff/research"),
       ]);
       setData(audit);
       setCases(vers.cases);
+      setResearch(res);
     } catch (e) {
       if (e instanceof ApiClientError && e.status === 403) setDenied(true);
     }
@@ -70,6 +73,58 @@ export default function Staff() {
         )}
         <p className="mt-2 text-xs text-stone-400">Approve only after confirming identity out-of-band (live check). No ID documents are stored.</p>
       </section>
+
+      {/* User research */}
+      {research && (
+        <section className="mb-8">
+          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-stone-500">User research</h2>
+          <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Stat label="Testers" value={research.counts.testers} />
+            <Stat label="Via demo persona" value={research.counts.personas} />
+            <Stat label="Households formed" value={research.counts.households} />
+            <Stat label="Moved in (demo)" value={research.counts.completed} />
+          </div>
+
+          <h3 className="mb-2 mt-5 font-semibold text-stone-900">Feedback ({research.feedback.length})</h3>
+          {research.feedback.length === 0 ? (
+            <div className="card p-5 text-center text-sm text-stone-500">No feedback yet.</div>
+          ) : (
+            <div className="space-y-2">
+              {research.feedback.map((f: any) => (
+                <div key={f.id} className="card p-4 text-sm">
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-stone-400">
+                    <span className="font-mono">{f.testerId ?? "—"}</span>
+                    <span>· {f.page}</span>
+                    {f.source && <span className="chip bg-stone-100 text-stone-600">{f.source}</span>}
+                    {f.rating && <span>· {["😣", "🙁", "😐", "🙂", "😍"][f.rating - 1]}</span>}
+                    <span className="ml-auto">{new Date(f.createdAt).toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" })}</span>
+                  </div>
+                  <p className="mt-1.5 whitespace-pre-wrap text-stone-800">{f.message}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <h3 className="mb-2 mt-5 font-semibold text-stone-900">Safety reports ({research.reports.length})</h3>
+          {research.reports.length === 0 ? (
+            <div className="card p-5 text-center text-sm text-stone-500">No reports.</div>
+          ) : (
+            <div className="space-y-2">
+              {research.reports.map((r: any) => (
+                <div key={r.id} className="card p-4 text-sm">
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-stone-400">
+                    <span className="font-mono font-semibold text-stone-600">{r.caseId}</span>
+                    <span className="chip bg-red-50 text-red-700">{r.category.replaceAll("_", " ")}</span>
+                    <span>{r.reporter} → {r.target}</span>
+                    <span className="ml-auto">{new Date(r.createdAt).toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" })}</span>
+                  </div>
+                  <p className="mt-1.5 whitespace-pre-wrap text-stone-800">{r.description}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Audit explorer */}
       <section>

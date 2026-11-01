@@ -3,7 +3,8 @@ import { handler, ok, fail } from "@/lib/api";
 import { prisma } from "@/lib/db";
 import { createSession } from "@/lib/session";
 import { writeAudit } from "@/lib/audit";
-import { IS_BETA } from "@/lib/env";
+import { CONSENT_REQUIRED } from "@/lib/env";
+import { adminEmails } from "@/lib/guard";
 import { PRIVACY_VERSION } from "@/lib/constants";
 
 // POST /api/v1/auth/verify-code {email, code} → session + user.
@@ -32,6 +33,15 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
     return fail("INVALID_CODE", "That code is not correct.", 422, rid, {
       field_errors: { code: "Incorrect code." },
     });
+  }
+
+  // Privacy consent is required before anything is created (code stays valid until then).
+  if (CONSENT_REQUIRED && !accept_privacy) {
+    const prior = await prisma.user.findUnique({ where: { email: clean }, select: { privacyConsentAt: true } });
+    if (!prior?.privacyConsentAt)
+      return fail("CONSENT_REQUIRED", "Please accept the privacy notice to continue.", 422, rid, {
+        field_errors: { accept_privacy: "Required." },
+      });
   }
 
   // Consume the code.
@@ -64,24 +74,15 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
   }
 
   // Staff bootstrap: emails in ADMIN_EMAILS are granted the admin role on sign-in.
-  const adminEmails = (process.env.ADMIN_EMAILS || "")
-    .split(",")
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
-  if (adminEmails.includes(clean) && user.role !== "admin") {
+  if (adminEmails().includes(clean) && user.role !== "admin") {
     await prisma.user.update({ where: { id: user.id }, data: { role: "admin" } });
     user.role = "admin";
   }
 
-  // Privacy consent. Required in the real-user pilot before a session is granted.
   if (accept_privacy) {
     await prisma.user.update({
       where: { id: user.id },
       data: { privacyConsentAt: new Date(), privacyConsentVersion: PRIVACY_VERSION },
-    });
-  } else if (IS_BETA && !user.privacyConsentAt) {
-    return fail("CONSENT_REQUIRED", "Please accept the privacy notice to continue.", 422, rid, {
-      field_errors: { accept_privacy: "Required." },
     });
   }
 
