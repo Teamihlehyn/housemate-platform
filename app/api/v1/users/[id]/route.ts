@@ -28,7 +28,8 @@ export const GET = handler(async (_req: NextRequest, { rid, params }) => {
     block ||
     !target ||
     target.accountStatus !== "active" ||
-    target.profile?.publicationStatus !== "published"
+    target.profile?.publicationStatus !== "published" ||
+    (target.sandboxWorldId ?? null) !== (viewer.sandboxWorldId ?? null)
   ) {
     return fail("NOT_FOUND", "This profile is no longer available.", 404, rid);
   }
@@ -40,6 +41,7 @@ export const GET = handler(async (_req: NextRequest, { rid, params }) => {
     {
       id: target.id,
       displayName: target.displayName,
+      isSample: target.isDemoBot,
       avatarInitials: target.profile!.avatarInitials,
       bio: target.profile!.bio,
       journey: target.profile!.journey,

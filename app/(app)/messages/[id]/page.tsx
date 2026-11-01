@@ -3,6 +3,7 @@
 import { use, useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { api, ApiClientError, newIdempotencyKey } from "@/lib/client";
+import ReportDialog from "@/components/ReportDialog";
 
 interface Msg { id: string; sequence: number; body: string; mine: boolean; sentAt: string; pending?: boolean; failed?: boolean; clientMessageId?: string; }
 
@@ -10,7 +11,8 @@ export default function Chat({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
   const [messages, setMessages] = useState<Msg[]>([]);
-  const [meta, setMeta] = useState<{ status: string; otherName: string; otherInitials: string; introductionId: string; otherUserId: string } | null>(null);
+  const [meta, setMeta] = useState<{ status: string; otherName: string; otherInitials: string; introductionId: string; otherUserId: string; otherIsSample?: boolean } | null>(null);
+  const [reporting, setReporting] = useState(false);
   const [text, setText] = useState("");
   const [caution, setCaution] = useState(false);
   const [showHousehold, setShowHousehold] = useState(false);
@@ -20,7 +22,7 @@ export default function Chat({ params }: { params: Promise<{ id: string }> }) {
   const poll = useCallback(async () => {
     try {
       const d = await api<any>(`/conversations/${id}/messages?after_sequence=${lastSeq.current}`);
-      setMeta({ status: d.status, otherName: d.otherName, otherInitials: d.otherInitials, introductionId: d.introductionId, otherUserId: d.otherUserId });
+      setMeta({ status: d.status, otherName: d.otherName, otherInitials: d.otherInitials, introductionId: d.introductionId, otherUserId: d.otherUserId, otherIsSample: d.otherIsSample });
       if (d.messages.length > 0) {
         setMessages((prev) => {
           // drop any pending that now have a confirmed twin (by clientMessageId)
@@ -82,10 +84,14 @@ export default function Chat({ params }: { params: Promise<{ id: string }> }) {
         <div className="flex items-center gap-3">
           <button className="btn-ghost px-2" onClick={() => router.push("/messages")}>←</button>
           <span className="grid h-9 w-9 place-items-center rounded-full bg-brand-100 font-bold text-brand-700">{meta?.otherInitials}</span>
-          <p className="font-semibold text-stone-900">{meta?.otherName ?? "…"}</p>
+          <div>
+            <p className="font-semibold text-stone-900">{meta?.otherName ?? "…"}</p>
+            {meta?.otherIsSample && <p className="text-xs text-stone-400">Sample housemate · replies automatically</p>}
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           <button className="btn-secondary px-3 py-1.5 text-sm" onClick={() => setShowHousehold(true)}>Form household</button>
+          <button className="btn-ghost px-2 text-sm text-stone-600" onClick={() => setReporting(true)}>Report</button>
           <button className="btn-ghost px-2 text-sm text-red-600" onClick={block}>Block</button>
         </div>
       </div>
@@ -96,7 +102,7 @@ export default function Chat({ params }: { params: Promise<{ id: string }> }) {
         {messages.map((m) => (
           <div key={m.id} className={`flex ${m.mine ? "justify-end" : "justify-start"}`}>
             <div className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-sm ${m.mine ? "bg-brand-600 text-white" : "bg-stone-100 text-stone-800"}`}>
-              <p className="whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: m.body }} />
+              <p className="whitespace-pre-wrap" data-clarity-mask="true" dangerouslySetInnerHTML={{ __html: m.body }} />
               {m.pending && <span className="mt-0.5 block text-[10px] opacity-70">Sending…</span>}
               {m.failed && <span className="mt-0.5 block text-[10px] text-red-200">Failed — tap to retry</span>}
             </div>
@@ -121,13 +127,17 @@ export default function Chat({ params }: { params: Promise<{ id: string }> }) {
         </form>
       )}
 
+      {reporting && meta && (
+        <ReportDialog targetUserId={meta.otherUserId} targetName={meta.otherName} conversationId={id} onClose={() => setReporting(false)} />
+      )}
+
       {showHousehold && meta && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" onClick={() => setShowHousehold(false)}>
           <div className="card w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-bold text-stone-900">Form a household with {meta.otherName}?</h2>
             <p className="mt-2 text-sm text-stone-600">
-              This proposes a two-person household using your overlapping move-in window and each person&apos;s
-              budget as the default contribution. {meta.otherName} must accept before it becomes active.
+              This proposes a two-person household using your overlapping move-in window. Next you&apos;ll agree the
+              rent split, bills and notice period in writing. {meta.otherName} must accept before it becomes active.
             </p>
             <div className="mt-4 flex gap-2">
               <button className="btn-secondary flex-1" onClick={() => setShowHousehold(false)}>Cancel</button>

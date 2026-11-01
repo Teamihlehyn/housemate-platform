@@ -1,36 +1,41 @@
 // Central, environment-aware configuration.
 //
-// APP_ENV drives behaviour across the three environments:
-//   development  — local; seeded demo data, demo login sink, prototype banner.
-//   staging      — cloud QA mirror; seeded demo data, demo login sink.
-//   beta         — real users; NO demo sink, real email delivery required.
+// APP_ENV drives behaviour:
+//   development  — local; seeded demo data, on-screen login codes.
+//   staging      — cloud QA; seeded demo data, on-screen login codes.
+//   research     — user-testing prototype; on-screen codes, demo personas, and every
+//                  tester gets a private world of sample housemates that respond.
+//   beta         — real users; NO on-screen codes, real email, manual identity review.
 //
-// DEMO_MODE can be forced off in dev/staging but is ALWAYS off in beta.
+// DEMO_MODE can be forced off outside beta but is ALWAYS off in beta.
 
-export type AppEnv = "development" | "staging" | "beta";
+export type AppEnv = "development" | "staging" | "research" | "beta";
 
 export const APP_ENV: AppEnv =
   (process.env.APP_ENV as AppEnv) ||
   (process.env.NODE_ENV === "production" ? "staging" : "development");
 
 export const IS_BETA = APP_ENV === "beta";
+export const IS_RESEARCH = APP_ENV === "research";
 export const IS_STAGING = APP_ENV === "staging";
 export const IS_DEV = APP_ENV === "development";
 
-// Demo features (seeded personas, demo login sink) — never in beta.
+// Demo features (personas, on-screen login codes) — never in beta.
 export const DEMO_MODE = IS_BETA ? false : process.env.DEMO_MODE !== "false";
 
-// Real email delivery is required whenever the demo sink is off.
+// Real email delivery is required whenever on-screen codes are off.
 export const EMAIL_DELIVERY = !DEMO_MODE;
 
-// Honest banner per environment. Verification/property partners are still
-// simulated everywhere until real vendors are integrated (a production gate),
-// so even beta says so plainly.
-// Honest per-environment notice. In the beta pilot identity is really (manually)
-// verified by the team, but property viewings/handoff are still guided examples.
-export const BANNER =
-  IS_BETA
-    ? "Early access — identity is verified by our team; property listings and viewings are guided examples."
-    : "Prototype — sample people, simulated checks, no real bookings";
+// In research, every new account gets its own private world of sample housemates,
+// so concurrent testers never collide and every task can be completed solo.
+export const SANDBOX_ON_SIGNUP = IS_RESEARCH;
+
+// Privacy consent is required wherever real people use the site.
+export const CONSENT_REQUIRED = IS_BETA || IS_RESEARCH;
+
+// One honest message per environment.
+export const BANNER = IS_BETA
+  ? "Early access — identity is verified by our team; property listings and viewings are guided examples."
+  : "Prototype: all people, checks and homes are samples.";
 
 export const ENV_LABEL = APP_ENV;

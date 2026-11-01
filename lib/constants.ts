@@ -130,3 +130,13 @@ export const RUBRIC = {
   reference: 20,
   additional: 20,
 } as const;
+
+// Safety report categories (block/report flow).
+export const REPORT_CATEGORIES = [
+  { id: "scam_money_request", label: "Asked for money or seems like a scam" },
+  { id: "harassment", label: "Harassment or abusive messages" },
+  { id: "identity_issue", label: "Not who they say they are" },
+  { id: "unsafe_property", label: "Unsafe or fake property" },
+  { id: "threat", label: "Threat to someone's safety" },
+  { id: "other", label: "Something else" },
+] as const;

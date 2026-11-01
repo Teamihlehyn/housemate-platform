@@ -5,7 +5,8 @@ import { prisma } from "@/lib/db";
 import { writeAudit, writeOutbox, notify } from "@/lib/audit";
 import { snapshotScore } from "@/lib/credibility";
 import { RUBRIC } from "@/lib/constants";
-import { IS_BETA } from "@/lib/env";
+import { IS_BETA, SANDBOX_ON_SIGNUP } from "@/lib/env";
+import { ensureSandboxWorld } from "@/lib/sandbox";
 
 // POST /api/v1/me/search/publish — server-side completeness + core identity gate.
 // Simulated core identity is granted here (demo), producing the 60-point baseline.
@@ -104,8 +105,10 @@ export const POST = handler(async (_req: NextRequest, { rid }) => {
         ? "Your profile is saved. Our team will verify your identity before you appear in discovery — we'll email you to arrange a short check."
         : "Your profile is published and discovery is on."
     );
+    // User testing: give this tester a private world of sample housemates.
+    if (SANDBOX_ON_SIGNUP) await ensureSandboxWorld(tx, user.id);
     return bd;
-  });
+  }, { timeout: 20000 });
 
   return ok({ status: "published", pendingIdentity: IS_BETA, credibility: result }, rid);
 });

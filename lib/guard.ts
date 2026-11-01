@@ -2,6 +2,14 @@ import { getCurrentUser } from "./session";
 import { ApiError } from "./api";
 import { prisma } from "./db";
 
+// Emails granted the admin role on sign-in (comma-separated ADMIN_EMAILS).
+export function adminEmails(): string[] {
+  return (process.env.ADMIN_EMAILS || "")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+}
+
 // Server-side authorization — a hidden button is not authorization.
 export async function requireUser() {
   const user = await getCurrentUser();

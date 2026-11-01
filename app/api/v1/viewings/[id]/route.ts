@@ -3,6 +3,8 @@ import { handler, ok, fail } from "@/lib/api";
 import { requireUser } from "@/lib/guard";
 import { prisma } from "@/lib/db";
 import { writeAudit, writeOutbox, notify } from "@/lib/audit";
+import { recordViewingOutcome } from "@/lib/household";
+import { afterViewingOutcome } from "@/lib/demoBots";
 
 // POST /api/v1/viewings/[id] {action: accept|cancel|outcome, response?, expected_version?}
 export const POST = handler(async (req: NextRequest, { rid, params }) => {
@@ -11,7 +13,7 @@ export const POST = handler(async (req: NextRequest, { rid, params }) => {
   const action = body.action;
   const v = await prisma.viewing.findUnique({
     where: { id: params.id },
-    include: { household: { include: { memberships: true } }, outcomes: true },
+    include: { household: { include: { memberships: true } } },
   });
   if (!v || !v.household.memberships.some((m) => m.userId === user.id))
     return fail("NOT_FOUND", "Viewing not found.", 404, rid);
@@ -22,15 +24,11 @@ export const POST = handler(async (req: NextRequest, { rid, params }) => {
 
   if (action === "accept") {
     if (v.proposedBy === user.id)
-      return fail("FORBIDDEN", "Wait for your partner to confirm the slot.", 403, rid);
+      return fail("FORBIDDEN", "Wait for your housemate to confirm the slot.", 403, rid);
     if (v.state !== "awaiting_partner")
       return fail("STATE_CONFLICT", "This viewing can't be confirmed now.", 409, rid);
     await prisma.$transaction(async (tx) => {
-      // Simulator accepts the confirmed request.
-      await tx.viewing.update({
-        where: { id: v.id },
-        data: { state: "confirmed", version: v.version + 1 },
-      });
+      await tx.viewing.update({ where: { id: v.id }, data: { state: "confirmed", version: v.version + 1 } });
       await writeAudit(tx, { eventType: "viewing.confirmed", actorId: user.id, subjectId: otherId, resourceType: "viewing", resourceId: v.id, action: "confirm" }, rid);
       await writeOutbox(tx, "viewing_confirmed", { viewingId: v.id });
       await notify(tx, otherId, "viewing_change", "Viewing confirmed", "Your viewing is confirmed.");
@@ -51,31 +49,13 @@ export const POST = handler(async (req: NextRequest, { rid, params }) => {
   }
 
   if (action === "outcome") {
-    if (v.state !== "confirmed" && v.state !== "completed" && v.state !== "disputed")
-      return fail("STATE_CONFLICT", "Only a confirmed viewing has an outcome.", 409, rid);
     const response = body.response;
-    if (!["completed", "no_show", "cancelled"].includes(response))
+    if (!["completed", "no_show"].includes(response))
       return fail("VALIDATION", "Invalid outcome.", 422, rid);
-
-    const result = await prisma.$transaction(async (tx) => {
-      await tx.viewingOutcome.upsert({
-        where: { viewingId_userId: { viewingId: v.id, userId: user.id } },
-        create: { viewingId: v.id, userId: user.id, response },
-        update: { response },
-      });
-      const outcomes = await tx.viewingOutcome.findMany({ where: { viewingId: v.id } });
-      let newState = v.state;
-      if (outcomes.length >= 2) {
-        const all = outcomes.map((o) => o.response);
-        // Disagreements produce disputed, not automatic completion.
-        newState = all.every((r) => r === "completed") ? "completed" : "disputed";
-        await tx.viewing.update({ where: { id: v.id }, data: { state: newState, version: v.version + 1 } });
-      }
-      await writeAudit(tx, { eventType: "viewing.completed", actorId: user.id, resourceType: "viewing", resourceId: v.id, action: "outcome", safeAfter: { response } }, rid);
-      await writeOutbox(tx, "viewing_completed", { viewingId: v.id, response });
-      return newState;
-    });
-    return ok({ state: result }, rid);
+    await recordViewingOutcome({ viewingId: v.id, userId: user.id, response, rid });
+    await afterViewingOutcome(v.id, response);
+    const fresh = await prisma.viewing.findUnique({ where: { id: v.id } });
+    return ok({ state: fresh?.state }, rid);
   }
 
   return fail("VALIDATION", "Unknown action.", 422, rid);

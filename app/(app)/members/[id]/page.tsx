@@ -6,6 +6,7 @@ import { api, ApiClientError, newIdempotencyKey } from "@/lib/client";
 import { formatMoney } from "@/lib/money";
 import { formatDateRange } from "@/lib/dates";
 import { CITIES, QUESTIONNAIRE, answerLabel } from "@/lib/constants";
+import ReportDialog from "@/components/ReportDialog";
 
 export default function MemberProfile({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -14,6 +15,7 @@ export default function MemberProfile({ params }: { params: Promise<{ id: string
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [composer, setComposer] = useState(false);
+  const [reporting, setReporting] = useState(false);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,12 +66,13 @@ export default function MemberProfile({ params }: { params: Promise<{ id: string
               <h1 className="text-xl font-bold text-stone-900">{profile.displayName}</h1>
               <p className="text-sm text-stone-500">{profile.areas.map((a: string) => CITIES[city]?.areas.find((x) => x.id === a)?.label ?? a).join(", ")} · {CITIES[city]?.label}</p>
               <span className="chip mt-1 bg-brand-100 text-brand-800">Active search</span>
+              {profile.isSample && <span className="chip ml-1 mt-1 bg-stone-100 text-stone-500">Sample housemate · replies automatically</span>}
             </div>
           </div>
           <span className="chip bg-brand-100 text-brand-800">Demo {profile.credibility.score}/100</span>
         </div>
 
-        <p className="mt-4 text-stone-700">{profile.bio}</p>
+        <p className="mt-4 text-stone-700" data-clarity-mask="true">{profile.bio}</p>
 
         <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
           <div className="rounded-lg bg-stone-50 p-3">
@@ -117,8 +120,11 @@ export default function MemberProfile({ params }: { params: Promise<{ id: string
 
       <div className="mt-4 flex gap-2">
         <button className="btn-primary flex-1" onClick={() => setComposer(true)}>Send introduction</button>
+        <button className="btn-secondary" onClick={() => setReporting(true)}>Report</button>
         <button className="btn-danger" onClick={block}>Block</button>
       </div>
+
+      {reporting && <ReportDialog targetUserId={id} targetName={profile.displayName} onClose={() => setReporting(false)} />}
 
       {composer && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" onClick={() => setComposer(false)}>

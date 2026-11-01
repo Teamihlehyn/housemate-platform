@@ -2,9 +2,11 @@ import { NextRequest } from "next/server";
 import { handler, ok, fail } from "@/lib/api";
 import { prisma } from "@/lib/db";
 import { sendLoginCode } from "@/lib/email";
+import { adminEmails } from "@/lib/guard";
+import { IS_BETA, IS_RESEARCH } from "@/lib/env";
 
-// POST /api/v1/auth/request-code {email} → 202 generic.
-// Prototype: code is delivered to the demo "sink" (returned in body + logged), never a real inbox.
+// POST /api/v1/auth/request-code {email}
+// Where on-screen codes are allowed, the code comes back in `sink_code`; otherwise it is emailed.
 export const POST = handler(async (req: NextRequest, { rid }) => {
   const { email } = await req.json().catch(() => ({}));
   if (!email || typeof email !== "string" || !/^\S+@\S+\.\S+$/.test(email.trim())) {
@@ -29,8 +31,11 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
     data: { email: clean, code, expiresAt: new Date(Date.now() + 10 * 60 * 1000) },
   });
 
-  // Demo envs return a sink code; beta sends a real email.
-  const { sink, sinkCode } = await sendLoginCode(clean, code);
+  // On-screen codes where allowed — but never for staff, whose accounts open the
+  // ops console. Those always go to the real inbox.
+  const existing = await prisma.user.findUnique({ where: { email: clean }, select: { role: true } });
+  const isStaff = adminEmails().includes(clean) || (existing && existing.role !== "member" && (IS_RESEARCH || IS_BETA));
+  const { sink, sinkCode } = await sendLoginCode(clean, code, isStaff ? { allowOnScreen: false } : {});
 
   return ok({ status: "sent", sink_code: sink ? sinkCode : undefined }, rid);
 });

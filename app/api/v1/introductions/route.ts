@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { writeAudit, writeOutbox, notify } from "@/lib/audit";
 import { addDays, testToday } from "@/lib/dates";
 import { IS_BETA } from "@/lib/env";
+import { afterIntroduction } from "@/lib/demoBots";
 
 async function identityVerified(userId: string): Promise<boolean> {
   const c = await prisma.verificationCheck.findUnique({
@@ -77,7 +78,13 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
     where: { id: targetId },
     include: { profile: true, search: true },
   });
-  if (!target || target.accountStatus !== "active" || target.profile?.publicationStatus !== "published")
+  if (
+    !target ||
+    target.accountStatus !== "active" ||
+    target.profile?.publicationStatus !== "published" ||
+    // User-testing worlds are private: no introductions across them.
+    (target.sandboxWorldId ?? null) !== (user.sandboxWorldId ?? null)
+  )
     return fail("NOT_FOUND", "This member is not available.", 404, rid);
 
   const block = await prisma.block.findFirst({
@@ -160,7 +167,8 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
     });
 
   try {
-    const { result } = await withIdempotency(idemKey, user.id, "POST /introductions", body, run);
+    const { result, replayed } = await withIdempotency(idemKey, user.id, "POST /introductions", body, run);
+    if (!replayed && !result.already) await afterIntroduction(result.id);
     return ok(result, rid);
   } catch (e) {
     if ((e as { _cooldown?: boolean })._cooldown)

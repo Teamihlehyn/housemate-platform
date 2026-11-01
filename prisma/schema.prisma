@@ -31,6 +31,10 @@ model User {
   lastActiveDay  DateTime @default(now())
   privacyConsentAt      DateTime?
   privacyConsentVersion String?
+  // User testing: each tester gets a private world of sample housemates.
+  // Users in a world only see each other; users outside never see them.
+  sandboxWorldId String?
+  isDemoBot      Boolean  @default(false) // sample housemate that responds automatically
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -39,6 +43,8 @@ model User {
   sessions       Session[]
   checks         VerificationCheck[]
   scoreSnapshots ScoreSnapshot[]
+
+  @@index([sandboxWorldId])
 }
 
 model Session {
@@ -277,10 +283,13 @@ model HouseholdPlan {
   versionNo     Int
   earliestDate  String
   latestDate    String
-  contributions String   // JSON: { userId: minorAmount }
+  contributions String   // JSON: { userId: monthlyMinorAmount } — monthly equivalent rent per person
   currency      String
   stayMin       Int
   stayMax       Int
+  noticePeriodWeeks Int    @default(4)       // notice either member gives before leaving
+  billsSplit        String @default("equal") // equal|same_as_rent
+  notes             String?                  // other things agreed in writing (max 500)
   propertyId    String?
   changeReason  String?
   createdAt     DateTime @default(now())
@@ -427,6 +436,30 @@ model MoveInConfirmation {
 // ---------------------------------------------------------------------------
 // Notifications, audit, outbox
 // ---------------------------------------------------------------------------
+
+model Report {
+  id             String   @id @default(cuid())
+  reporterId     String
+  targetUserId   String
+  category       String   // scam_money_request|harassment|identity_issue|unsafe_property|threat|other
+  description    String
+  conversationId String?
+  status         String   @default("open") // open|triaged|resolved
+  createdAt      DateTime @default(now())
+
+  @@index([status, createdAt])
+}
+
+model TesterFeedback {
+  id        String   @id @default(cuid())
+  userId    String?
+  testerId  String?  // anonymous per-browser ID, also tagged in Clarity
+  source    String?  // recruitment channel from ?source=
+  page      String
+  rating    Int?     // 1–5
+  message   String
+  createdAt DateTime @default(now())
+}
 
 model Notification {
   id          String   @id @default(cuid())

@@ -3,6 +3,8 @@ import { handler, ok, fail } from "@/lib/api";
 import { requireUser } from "@/lib/guard";
 import { prisma } from "@/lib/db";
 import { writeAudit, writeOutbox, notify } from "@/lib/audit";
+import { requirePlanAgreed } from "@/lib/household";
+import { afterViewingProposed } from "@/lib/demoBots";
 
 // POST /api/v1/households/[id]/viewings {shortlist_item_id, starts_at, timezone}
 // Requires an active household + both members "interested" + fresh stock.
@@ -17,6 +19,7 @@ export const POST = handler(async (req: NextRequest, { rid, params }) => {
     return fail("NOT_FOUND", "Household not found.", 404, rid);
   if (hh.state !== "active")
     return fail("STATE_CONFLICT", "Household must be active.", 409, rid);
+  await requirePlanAgreed(hh.id);
 
   const item = await prisma.shortlistItem.findUnique({
     where: { id: body.shortlist_item_id },
@@ -64,5 +67,7 @@ export const POST = handler(async (req: NextRequest, { rid, params }) => {
     return v;
   });
 
-  return ok({ id: viewing.id, state: viewing.state }, rid);
+  await afterViewingProposed(viewing.id);
+  const fresh = await prisma.viewing.findUnique({ where: { id: viewing.id } });
+  return ok({ id: viewing.id, state: fresh?.state ?? viewing.state }, rid);
 });

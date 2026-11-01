@@ -355,6 +355,9 @@ export default function Onboarding() {
                   <>
                     <h2 className="mt-4 text-xl font-bold text-stone-900">You&apos;re live!</h2>
                     <p className="mt-2 text-stone-600">Your demo credibility is <strong>{published.score}/100</strong>. Discovery is on.</p>
+                    {process.env.NEXT_PUBLIC_APP_ENV === "research" && (
+                      <p className="mt-2 text-sm text-stone-500">We&apos;ve created sample housemates who match your search. They reply automatically, so you can try every step on your own.</p>
+                    )}
                   </>
                 )}
                 <button className="btn-primary mt-6" onClick={() => router.push("/discover")}>{published.pending ? "Look around" : "Start discovering"}</button>
