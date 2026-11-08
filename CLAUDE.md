@@ -415,6 +415,8 @@ Run with `psql "$(neon connection-string research)"` and confirm the count match
   `git push` doesn't trigger one.
 - **`git push` / `vercel env` against production are blocked by the sandbox** even after chat
   approval — prepare a script or command for the user instead of retrying or working around it.
+- **macOS `grep -E` has no `\s`** — use `[[:space:]]`. A wait loop like
+  `until vercel ls … | grep -qE "^\s+…"` never matches and silently runs to its timeout.
 - **Neon's `dev` branch auto-archives**; the first connection wakes it (slow, not broken).
 - **The Vercel CLI's stored token expires**; any `vercel` command refreshes it.
 - **Next 16 regenerates `AGENTS.md` and may rewrite `tsconfig.json`** on `next dev`/`build`
