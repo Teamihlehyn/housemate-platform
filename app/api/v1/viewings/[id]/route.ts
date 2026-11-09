@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { handler, ok, fail } from "@/lib/api";
-import { requireUser } from "@/lib/guard";
+import { requireUser, requireHomesEnabled } from "@/lib/guard";
 import { prisma } from "@/lib/db";
 import { writeAudit, writeOutbox, notify } from "@/lib/audit";
 import { recordViewingOutcome } from "@/lib/household";
@@ -9,6 +9,7 @@ import { afterViewingOutcome } from "@/lib/demoBots";
 // POST /api/v1/viewings/[id] {action: accept|cancel|outcome, response?, expected_version?}
 export const POST = handler(async (req: NextRequest, { rid, params }) => {
   const user = await requireUser();
+  requireHomesEnabled();
   const body = await req.json().catch(() => ({}));
   const action = body.action;
   const v = await prisma.viewing.findUnique({

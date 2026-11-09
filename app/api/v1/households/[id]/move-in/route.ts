@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { handler, ok, fail } from "@/lib/api";
-import { requireUser } from "@/lib/guard";
+import { requireUser, requireHomesEnabled } from "@/lib/guard";
 import { prisma } from "@/lib/db";
 import { recordMoveIn } from "@/lib/household";
 import { afterMoveIn } from "@/lib/demoBots";
@@ -9,6 +9,7 @@ import { afterMoveIn } from "@/lib/demoBots";
 // The household completes only after every member confirms moved_in.
 export const POST = handler(async (req: NextRequest, { rid, params }) => {
   const user = await requireUser();
+  requireHomesEnabled();
   const body = await req.json().catch(() => ({}));
   const hh = await prisma.household.findUnique({
     where: { id: params.id },

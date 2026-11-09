@@ -7,13 +7,8 @@ import { addDays, testToday } from "@/lib/dates";
 import { IS_BETA } from "@/lib/env";
 import { gendersCompatible, parseGenderPreference } from "@/lib/constants";
 import { afterIntroduction } from "@/lib/demoBots";
-
-async function identityVerified(userId: string): Promise<boolean> {
-  const c = await prisma.verificationCheck.findUnique({
-    where: { userId_category: { userId, category: "identity" } },
-  });
-  return c?.status === "verified";
-}
+import { identityVerified } from "@/lib/verification";
+import { assertNotBlocked } from "@/lib/blocks";
 
 // GET /api/v1/introductions?direction=incoming|outgoing
 export const GET = handler(async (req: NextRequest, { rid }) => {
@@ -62,6 +57,10 @@ export const GET = handler(async (req: NextRequest, { rid }) => {
 // POST /api/v1/introductions {target_user_id, text}
 export const POST = handler(async (req: NextRequest, { rid }) => {
   const user = await requireUser();
+  // Pilot: the sender must be team-verified before anything about the target is looked
+  // up, so an unverified account learns nothing about who exists (HM-01).
+  if (IS_BETA && !(await identityVerified(user.id)))
+    return fail("IDENTITY_PENDING", "Your identity check is still pending. We'll be in touch to arrange it.", 403, rid);
   const body = await req.json().catch(() => ({}));
   const idemKey = req.headers.get("idempotency-key");
   const targetId = body.target_user_id;
@@ -87,16 +86,11 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
     (target.sandboxWorldId ?? null) !== (user.sandboxWorldId ?? null)
   )
     return fail("NOT_FOUND", "This member is not available.", 404, rid);
+  // Pilot: the target must be team-verified too.
+  if (IS_BETA && !(await identityVerified(targetId)))
+    return fail("NOT_FOUND", "This member is not available.", 404, rid);
 
-  const block = await prisma.block.findFirst({
-    where: {
-      OR: [
-        { blockerId: user.id, blockedId: targetId },
-        { blockerId: targetId, blockedId: user.id },
-      ],
-    },
-  });
-  if (block) return fail("NOT_FOUND", "This member is not available.", 404, rid);
+  await assertNotBlocked(user.id, targetId);
 
   // Housemate gender preference applies both ways (generic response — no reason disclosed).
   const mine = await prisma.search.findUnique({ where: { userId: user.id } });
@@ -108,14 +102,6 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
     )
   )
     return fail("NOT_FOUND", "This member is not available.", 404, rid);
-
-  // Pilot: both people must be team-verified before any introduction.
-  if (IS_BETA) {
-    if (!(await identityVerified(user.id)))
-      return fail("IDENTITY_PENDING", "Your identity verification is still pending. We'll email you to arrange it.", 403, rid);
-    if (!(await identityVerified(targetId)))
-      return fail("NOT_FOUND", "This member is not available.", 404, rid);
-  }
 
   // Rate limits: 10 new / 24h; 20 pending.
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000);

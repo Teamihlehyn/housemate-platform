@@ -14,22 +14,22 @@ export default function Notifications() {
     api("/notifications", { body: {} }).catch(() => {}); // mark read
   }, []);
 
-  if (loading) return <div className="space-y-2">{[0,1,2].map(i => <div key={i} className="h-16 animate-pulse rounded-xl bg-stone-200" />)}</div>;
+  if (loading) return <div className="space-y-2">{[0,1,2].map(i => <div key={i} className="h-16 animate-pulse rounded-xl bg-ink-100" />)}</div>;
 
   return (
     <div className="mx-auto max-w-2xl">
-      <h1 className="mb-4 text-2xl font-bold text-stone-900">Notifications</h1>
+      <h1 className="mb-4 text-2xl font-bold text-ink">Notifications</h1>
       {items.length === 0 ? (
-        <div className="card p-8 text-center text-sm text-stone-500">Nothing yet. We&apos;ll let you know when something happens.</div>
+        <div className="card p-8 text-center text-sm text-ink-600">Nothing yet. We&apos;ll let you know when something happens.</div>
       ) : (
         <div className="space-y-2">
           {items.map((n) => (
             <div key={n.id} className={`card p-4 ${!n.readAt ? "border-brand-200 bg-brand-50/40" : ""}`}>
               <div className="flex items-start justify-between">
-                <p className="font-medium text-stone-900">{n.title}</p>
-                <time className="text-xs text-stone-400">{new Date(n.createdAt).toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" })}</time>
+                <p className="font-medium text-ink">{n.title}</p>
+                <time className="text-xs text-ink-500">{new Date(n.createdAt).toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" })}</time>
               </div>
-              <p className="mt-1 text-sm text-stone-600">{n.body}</p>
+              <p className="mt-1 text-sm text-ink-600">{n.body}</p>
             </div>
           ))}
         </div>

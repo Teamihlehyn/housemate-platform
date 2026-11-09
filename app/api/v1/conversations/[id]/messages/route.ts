@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/guard";
 import { prisma } from "@/lib/db";
 import { writeAudit, writeOutbox, notify } from "@/lib/audit";
 import { afterMessage } from "@/lib/demoBots";
+import { assertNotBlocked } from "@/lib/blocks";
 
 function escapeBody(raw: string): string {
   // Server strips unsafe markup; render escapes on the client too.
@@ -55,6 +56,7 @@ export const POST = handler(async (req: NextRequest, { rid, params }) => {
   const user = await requireUser();
   const convo = await loadConvo(params.id, user.id);
   if (!convo) return fail("NOT_FOUND", "Conversation not found.", 404, rid);
+  await assertNotBlocked(user.id, convo.userAId === user.id ? convo.userBId : convo.userAId); // HM-02
   if (convo.status === "closed")
     return fail("STATE_CONFLICT", "This conversation is closed.", 409, rid);
 

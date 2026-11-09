@@ -1,0 +1,871 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Peabudy design system</title>
+<meta name="description" content="Peabudy design system: tokens, components in every state, example screens, logo and mascots.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --canvas:#f6f4ef; --surface:#ffffff; --surface-soft:#faf9f5;
+  --fg:#23221e; --fg-700:#4a4740; --fg-600:#5f5b52; --fg-500:#6b675e;
+  --line-strong:#8f897c; --ink-300:#b9b3a5; --line:#e4e0d6; --muted:#efeae0;
+  --brand-50:#f0f7f4; --brand-100:#dbece4; --brand-200:#b9d9cd; --brand-300:#8dbfae; --brand-500:#3f8471; --brand-600:#2f6a5a; --brand-700:#28554a; --brand-800:#22453d;
+  --apricot-100:#fbe7d6; --apricot-500:#e7965f; --apricot-800:#8a3f14;
+  --lilac-100:#ece6fb; --lilac-500:#9b86e0; --lilac-800:#4f3794;
+  --sky-100:#e1ecfa; --sky-500:#5b8fd6; --sky-800:#17518f;
+  --caution-50:#fdf1d8; --caution-200:#f0d39a; --caution-800:#7a4b00;
+  --danger-50:#fdecea; --danger-200:#f5c2bd; --danger-600:#b42318; --danger-700:#9f1d14;
+  --primary:#23221e; --primary-fg:#faf9f5; --primary-hover:#000;
+  --confirm:#2f6a5a; --confirm-fg:#fff; --confirm-hover:#28554a;
+  --mine:#28554a; --mine-fg:#faf9f5;
+  --focus:#3f8471;
+  --e1:0 1px 2px rgb(35 34 30 / .06);
+  --e2:0 8px 16px -8px rgb(35 34 30 / .18);
+  --ease:cubic-bezier(.2,0,0,1); --ease-gentle:cubic-bezier(.3,0,0,1);
+  --display:"Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --sans:"Inter", ui-sans-serif, system-ui, sans-serif;
+  color-scheme: light;
+}
+/* Dark: a proposal only (design-system.md §5). Toggle with the button in the header. */
+:root[data-theme="dark"]{
+  --canvas:#161512; --surface:#1f1e1a; --surface-soft:#272621;
+  --fg:#f3f1ea; --fg-700:#d6d2c7; --fg-600:#b5b0a4; --fg-500:#a09b8f;
+  --line-strong:#787368; --ink-300:#5a564d; --line:#34322c; --muted:#2c2a25;
+  --brand-50:#1c2a25; --brand-100:#21362f; --brand-200:#2d4a41; --brand-800:#b9d9cd; --brand-700:#8dbfae; --brand-600:#8dbfae;
+  --apricot-100:#3a2a1d; --apricot-800:#f3c9a6; --lilac-100:#2c2640; --lilac-800:#cfc2f5; --sky-100:#1d2a3b; --sky-800:#b5cdf0;
+  --caution-50:#33270f; --caution-200:#5c4719; --caution-800:#f2c46b;
+  --danger-50:#3a1c19; --danger-200:#6b2c26; --danger-600:#e98b8b; --danger-700:#f0a39d;
+  --primary:#8dbfae; --primary-fg:#161512; --primary-hover:#a5cfc0;
+  --confirm:#8dbfae; --confirm-fg:#161512; --confirm-hover:#a5cfc0;
+  --mine:#2d4a41; --mine-fg:#f3f1ea; --focus:#8dbfae;
+  --e1:none; --e2:0 8px 16px -8px rgb(0 0 0 / .6);
+  color-scheme: dark;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--canvas);color:var(--fg);font:400 16px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
+.num{font-variant-numeric:tabular-nums}
+a{color:var(--brand-600)}
+h1,h2,h3,.display{font-family:var(--display);margin:0}
+p{margin:0}
+.wrap{max-width:1120px;margin:0 auto;padding:0 16px}
+@media (min-width:768px){.wrap{padding:0 24px}}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex:none}
+svg.i.lg{width:24px;height:24px}
+
+/* page chrome */
+.banner{background:#fef3c7;color:#78350f;border-bottom:1px solid #fde68a;font-size:13px;font-weight:500;text-align:center;padding:6px 16px}
+.top{padding-top:28px;padding-bottom:8px;display:flex;gap:16px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
+.lockup{display:flex;align-items:center;gap:10px;font:800 22px/1 var(--display);letter-spacing:-.04em;color:var(--fg)}
+.lockup svg{width:36px;height:36px}
+.lead{max-width:62ch;color:var(--fg-700);margin-top:14px;font-size:18px;line-height:1.55}
+section{padding:40px 0;border-top:1px solid var(--line)}
+section>.wrap>h2{font-size:24px;line-height:30px;letter-spacing:-.015em;font-weight:700}
+.sub{color:var(--fg-600);margin-top:6px;max-width:68ch;font-size:15px}
+.grid{display:grid;gap:12px;margin-top:20px}
+@media (min-width:640px){.g2{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:repeat(3,1fr)}}
+@media (min-width:960px){.g4{grid-template-columns:repeat(4,1fr)}.g3l{grid-template-columns:repeat(3,1fr)}}
+@media (min-width:640px) and (max-width:959px){.g4{grid-template-columns:repeat(2,1fr)}}
+.label-sm{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--fg-600)}
+.state-label{font-size:13px;color:var(--fg-500);font-weight:500;margin-bottom:6px}
+
+/* components */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:24px;padding:20px}
+.card.raised{box-shadow:var(--e1)}
+.soft{background:var(--surface-soft);border-radius:20px;padding:14px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 22px;border-radius:999px;font:600 15px/1 var(--sans);border:1px solid transparent;cursor:pointer;transition:background-color 160ms var(--ease),border-color 160ms var(--ease),transform 100ms linear;text-decoration:none;white-space:nowrap}
+.btn:active,.btn.is-active{transform:scale(.98)}
+.btn.compact{min-height:44px;padding:0 18px;font-size:14px}
+.btn.block{width:100%}
+.btn-primary{background:var(--primary);color:var(--primary-fg)}
+.btn-primary:hover,.btn-primary.is-hover{background:var(--primary-hover)}
+.btn-confirm{background:var(--confirm);color:var(--confirm-fg)}
+.btn-confirm:hover,.btn-confirm.is-hover{background:var(--confirm-hover)}
+.btn-secondary{background:var(--surface);color:var(--fg);border-color:var(--line-strong)}
+.btn-secondary:hover,.btn-secondary.is-hover{background:var(--muted)}
+.btn-ghost{background:transparent;color:var(--fg-700)}
+.btn-ghost:hover,.btn-ghost.is-hover{background:var(--muted)}
+.btn-danger{background:var(--surface);color:var(--danger-600);border-color:var(--danger-200)}
+.btn-danger:hover,.btn-danger.is-hover{background:var(--danger-50)}
+.btn.is-focus{outline:2px solid var(--focus);outline-offset:2px}
+.btn[aria-disabled="true"]{background:var(--muted);color:var(--fg-500);border-color:var(--line);cursor:not-allowed}
+.btn-icon{width:44px;height:44px;min-height:44px;padding:0;border-radius:999px;background:transparent;color:var(--fg-700);border:0}
+.btn-icon:hover{background:var(--muted)}
+.spin{width:16px;height:16px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:spin 800ms linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.btn-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.state-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;margin-top:14px}
+
+.field{display:flex;flex-direction:column;gap:6px}
+.lbl{font-size:14px;font-weight:600;color:var(--fg-700)}
+.help{font-size:13px;color:var(--fg-600)}
+.input{min-height:48px;border-radius:14px;border:1px solid var(--line-strong);background:var(--surface);color:var(--fg);font:400 16px/1.4 var(--sans);padding:12px 14px;width:100%;transition:border-color 160ms var(--ease),box-shadow 160ms var(--ease)}
+.input::placeholder{color:var(--fg-500)}
+.input:focus,.input.is-focus{outline:none;border-color:var(--brand-600);box-shadow:0 0 0 2px var(--brand-200)}
+.input.is-error{border-color:var(--danger-600)}
+.input:disabled{background:var(--muted);color:var(--fg-500);border-color:var(--line)}
+.ferr{display:flex;gap:6px;align-items:flex-start;color:var(--danger-600);font-size:13px;font-weight:500}
+.ferr svg{width:16px;height:16px;margin-top:1px}
+
+.chip{display:inline-flex;align-items:center;gap:6px;border-radius:999px;font:500 13px/1.2 var(--sans);padding:6px 11px}
+.choice{min-height:44px;padding:0 16px;border:1px solid var(--line-strong);background:var(--surface);color:var(--fg);font-size:14px;cursor:pointer;transition:background-color 160ms var(--ease),color 160ms var(--ease)}
+.choice:hover{background:var(--muted)}
+.choice[aria-pressed="true"]{background:var(--fg);color:var(--canvas);border-color:var(--fg)}
+.choice .ck{display:none}.choice[aria-pressed="true"] .ck{display:block}
+.choice svg{width:16px;height:16px}
+.t-apricot{background:var(--apricot-100);color:var(--apricot-800)}
+.t-lilac{background:var(--lilac-100);color:var(--lilac-800)}
+.t-sky{background:var(--sky-100);color:var(--sky-800)}
+.sample{background:var(--muted);color:var(--fg-700);border:1px dashed var(--line-strong)}
+.verified{background:var(--surface);color:var(--brand-800);border:1px solid var(--brand-200)}
+.ok{background:var(--brand-100);color:var(--brand-800)}
+.wait{background:var(--caution-50);color:var(--caution-800)}
+.bad{background:var(--danger-50);color:var(--danger-700)}
+.chip svg{width:14px;height:14px}
+.cred{display:inline-flex;align-items:center;gap:6px;min-height:44px;border:1px solid var(--line-strong);color:var(--fg);background:var(--surface);border-radius:999px;padding:4px 12px;font-size:13px;font-weight:600;text-decoration:none}
+.cred svg{width:16px;height:16px}
+
+.avatar{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;font:700 15px/1 var(--display);flex:none}
+.row{display:flex;align-items:center;gap:12px}
+.between{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.meta{font-size:14px;color:var(--fg-600)}
+.cap{font-size:13px;color:var(--fg-500);font-weight:500}
+.reasons{list-style:none;padding:0;margin:12px 0 0;display:grid;gap:6px;font-size:15px;color:var(--fg-700)}
+.reasons li{display:flex;gap:8px}
+.reasons svg{color:var(--brand-600);width:18px;height:18px;margin-top:2px}
+.facts{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:12px;font-size:14px;color:var(--fg-700)}
+.facts span{display:inline-flex;gap:6px;align-items:center}
+.facts svg{width:16px;height:16px;color:var(--fg-500)}
+
+.credlist{list-style:none;margin:12px 0 0;padding:0;display:grid}
+.credlist li{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);font-size:15px}
+.dot{width:14px;height:14px;border-radius:50%;border:2px solid var(--line-strong);flex:none}
+.dot.on{background:var(--brand-600);border-color:var(--brand-600)}
+
+.stepper{display:flex;gap:6px;margin-top:10px}
+.stepper i{flex:1;height:6px;border-radius:99px;background:var(--line)}
+.stepper i.done{background:var(--fg)} .stepper i.cur{background:var(--brand-500)}
+.stages{list-style:none;padding:0;margin:14px 0 0;display:grid;grid-template-columns:repeat(4,1fr);position:relative}
+.stages:before{content:"";position:absolute;left:12.5%;right:12.5%;top:11px;height:2px;background:var(--line)}
+.stages li{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12px;color:var(--fg-600);text-align:center;position:relative}
+.stages .b{width:24px;height:24px;border-radius:50%;background:var(--surface);border:2px solid var(--line-strong);display:grid;place-items:center}
+.stages .done .b{background:var(--fg);border-color:var(--fg);color:var(--canvas)}
+.stages .cur .b{border-color:var(--brand-500);box-shadow:0 0 0 3px var(--brand-100)}
+.stages .cur{color:var(--fg);font-weight:700}
+.stages svg{width:14px;height:14px}
+
+.skel{background:var(--muted);border-radius:12px;animation:shimmer 2.2s ease-in-out infinite}
+@keyframes shimmer{0%,100%{opacity:.55}50%{opacity:1}}
+.empty-ic{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;margin:0 auto}
+
+.toast{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#23221e;color:#faf9f5;border-radius:20px;padding:10px 10px 10px 16px;box-shadow:var(--e2);font-size:15px;min-height:52px}
+.toast .btn-ghost{color:#faf9f5;min-height:44px}
+.toast .btn-ghost:hover{background:#3a3833}
+:root[data-theme="dark"] .toast{background:#f3f1ea;color:#161512}
+:root[data-theme="dark"] .toast .btn-ghost{color:#161512}
+:root[data-theme="dark"] .toast .btn-ghost:hover{background:#e4e0d6}
+.toast-live{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);width:min(420px,calc(100% - 32px));z-index:60;animation:rise 240ms var(--ease) both}
+@keyframes rise{from{opacity:0;transform:translate(-50%,8px)}to{opacity:1;transform:translate(-50%,0)}}
+
+/* sheet */
+.scrim{position:fixed;inset:0;background:rgb(35 34 30 / .48);z-index:70;display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--surface);width:100%;max-width:480px;border-radius:32px 32px 0 0;padding:12px 20px 24px;max-height:90vh;overflow:auto;animation:sheet 320ms var(--ease-gentle) both}
+.handle{width:40px;height:4px;border-radius:9px;background:var(--line-strong);margin:0 auto 14px}
+@media (min-width:768px){.scrim{align-items:center}.sheet{border-radius:24px;padding:24px}.handle{display:none}}
+@keyframes sheet{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}
+
+/* swatches */
+.sw{border-radius:20px;overflow:hidden;border:1px solid var(--line);background:var(--surface)}
+.sw .c{height:72px;display:flex;align-items:flex-end;padding:10px 12px;font:600 14px var(--sans)}
+.sw .t{padding:10px 12px;font-size:13px;color:var(--fg-600);display:grid;gap:2px}
+.sw .t b{color:var(--fg);font-weight:600;font-size:14px}
+.ramp{display:flex;border-radius:16px;overflow:hidden;margin-top:12px;border:1px solid var(--line)}
+.ramp div{flex:1;height:48px;display:flex;align-items:flex-end;justify-content:center;font-size:11px;font-weight:600;padding-bottom:4px}
+
+/* type */
+.spec{display:grid;grid-template-columns:1fr;gap:4px;padding:14px 0;border-bottom:1px solid var(--line)}
+@media (min-width:768px){.spec{grid-template-columns:180px 1fr;align-items:baseline}}
+.spec code{font:500 13px/1.4 ui-monospace,Menlo,monospace;color:var(--fg-600)}
+
+/* phones */
+.phones{display:grid;gap:24px;margin-top:24px;grid-template-columns:1fr;justify-items:center}
+@media (min-width:820px){.phones{grid-template-columns:repeat(2,1fr)}}
+@media (min-width:1180px){.phones{grid-template-columns:repeat(4,1fr)}}
+.phone-wrap{width:100%;max-width:343px}
+.phone-cap{font-size:14px;font-weight:600;margin-bottom:8px;color:var(--fg-700)}
+.phone{width:100%;height:700px;border-radius:36px;border:8px solid #23221e;background:var(--canvas);overflow:hidden;position:relative;display:flex;flex-direction:column}
+.phone .scroll{flex:1;overflow:auto;padding:14px 14px 20px}
+.p-banner{background:#fef3c7;color:#78350f;font-size:11px;font-weight:500;text-align:center;padding:5px 8px}
+.p-top{display:flex;align-items:center;justify-content:space-between;padding:8px 10px 8px 14px;background:var(--surface);border-bottom:1px solid var(--line)}
+.p-top .lockup{font-size:17px}.p-top .lockup svg{width:28px;height:28px}
+.bnav{display:grid;grid-template-columns:repeat(4,1fr);background:var(--surface);border-top:1px solid var(--line);height:64px}
+.bnav a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:12px;font-weight:500;color:var(--fg-600);text-decoration:none;position:relative}
+.bnav a .pill{display:grid;place-items:center;width:52px;height:28px;border-radius:99px}
+.bnav a[aria-current="page"]{color:var(--fg);font-weight:700}
+.bnav a[aria-current="page"] .pill{background:var(--muted)}
+.badge{position:absolute;top:6px;left:calc(50% + 6px);min-width:18px;height:18px;border-radius:99px;background:var(--danger-600);color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center;padding:0 4px}
+.bubble{max-width:80%;padding:10px 14px;border-radius:20px;font-size:15px;line-height:1.45}
+.bubble.them{background:var(--surface);border:1px solid var(--line);border-bottom-left-radius:6px}
+.bubble.me{background:var(--mine);color:var(--mine-fg);border-bottom-right-radius:6px;margin-left:auto}
+.sys{margin:4px auto;max-width:90%;text-align:center;background:var(--muted);color:var(--fg-600);font-size:13px;border-radius:14px;padding:8px 12px}
+.composer{display:flex;gap:8px;align-items:flex-end;padding:10px;background:var(--surface);border-top:1px solid var(--line)}
+.composer .input{min-height:44px;border-radius:22px;padding:10px 14px;font-size:16px}
+.send{width:44px;height:44px;border-radius:50%;background:var(--primary);color:var(--primary-fg);display:grid;place-items:center;border:0;flex:none}
+.caution{border:1px solid var(--caution-200);background:var(--caution-50);color:var(--caution-800);border-radius:16px;padding:10px 12px;font-size:13px;display:flex;gap:8px}
+.caution svg{width:18px;height:18px;flex:none;margin-top:1px}
+.money-xl{font:700 34px/1.1 var(--display);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.split{display:flex;height:10px;border-radius:99px;overflow:hidden;margin-top:12px;gap:2px}
+.split span:first-child{background:var(--brand-600)}.split span:last-child{background:var(--apricot-500)}
+.kv{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.kv div{background:var(--surface-soft);border-radius:16px;padding:10px 12px}
+.kv p:first-child{font-size:12px;color:var(--fg-600)}
+.kv p:last-child{font-weight:600;font-size:14px}
+.accept{display:flex;gap:10px;margin-top:12px}
+.accept>div{flex:1;display:flex;gap:8px;align-items:center;font-size:13px;border:1px solid var(--line);border-radius:16px;padding:8px}
+.accept .avatar{width:32px;height:32px;font-size:12px}
+.tick path{stroke-dasharray:24;stroke-dashoffset:0}
+.tick.draw path{animation:tick 320ms var(--ease-gentle) both}
+@keyframes tick{from{stroke-dashoffset:24}to{stroke-dashoffset:0}}
+.hero-h{font:800 34px/1.05 var(--display);letter-spacing:-.035em}
+.pillnote{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--line);background:var(--surface);border-radius:99px;padding:6px 12px;font-size:13px;font-weight:500}
+
+/* logos */
+.logo-card{background:var(--surface);border:1px solid var(--line);border-radius:24px;padding:18px;display:flex;flex-direction:column;gap:12px}
+.logo-art{display:flex;gap:14px;align-items:center}
+.logo-art .big{width:96px;height:96px;border-radius:24px;background:var(--surface-soft);display:grid;place-items:center}
+.logo-art .big svg{width:72px;height:72px}
+.logo-art .smalls{display:flex;gap:10px;align-items:center}
+.logo-art .app{width:48px;height:48px;border-radius:12px;background:#23221e;display:grid;place-items:center}
+.logo-art .app svg{width:34px;height:34px}
+.logo-art .fav{width:16px;height:16px}
+.logo-card h3{font-size:17px}
+.logo-card p{font-size:14px;color:var(--fg-700)}
+.lg-ink{stroke:var(--fg)} .lg-ink-f{fill:var(--fg)}
+.app .lg-ink{stroke:#faf9f5}.app .lg-ink-f{fill:#faf9f5}
+
+.do{border-left:4px solid var(--brand-600)} .dont{border-left:4px solid var(--danger-600)}
+footer{padding:32px 0 48px;color:var(--fg-600);font-size:14px;border-top:1px solid var(--line)}
+
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:1ms!important;animation-iteration-count:1!important;transition-duration:1ms!important;scroll-behavior:auto!important}
+  .skel{animation:none!important;opacity:1}
+  .spin{animation:none!important;border-right-color:currentColor;opacity:.6}
+  .btn:active{transform:none}
+}
+</style>
+</head>
+<body>
+<!-- Icon sprite: original outline icons on a 24px grid, 1.75 stroke (Lucide-style; the app would use Lucide). -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5 21 21"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 24 24"><path d="M5 5h14a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H10l-5 4v-4H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M3.5 11 12 4l8.5 7"/><path d="M5.5 9.5V20h4.5v-5.5h4V20h4.5V9.5"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5c1.4-3.6 4.2-5.5 7.5-5.5s6.1 1.9 7.5 5.5"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5 9.5 17 19 7.5"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
+  <symbol id="i-cash" viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="12" rx="2.5"/><circle cx="12" cy="12" r="2.5"/><path d="M6 9.5v5M18 9.5v5"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></symbol>
+  <symbol id="i-beaker" viewBox="0 0 24 24"><path d="M9 3h6M10 3v6.2L5 18a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-8.8V3"/><path d="M7.5 15h9"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="m4 7 2 2 3.5-3.5M4 16l2 2 3.5-3.5M13 8h7M13 17h7"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18" cy="12" r="1.2"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M4 12 20 4l-5.5 16-3-6.5z"/><path d="M11.5 13.5 20 4"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3.5 21.5 20h-19z"/><path d="M12 10v4.5M12 17.2v.1"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.8v.1"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5 8 12l7 7"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 16.5V11a6 6 0 1 1 12 0v5.5l1.5 1.5h-15z"/><path d="M10 21h4"/></symbol>
+  <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5.5 21V4h11l-2 4 2 4h-11"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-wifi-off" viewBox="0 0 24 24"><path d="M3 3l18 18M8.5 16a5 5 0 0 1 7 0M5 12.5a10 10 0 0 1 5-2.6M14.5 10a10 10 0 0 1 4.5 2.5M2 9a15 15 0 0 1 4.5-2.8M12 19.5v.1"/></symbol>
+</svg>
+
+<div class="banner" role="note">Design system preview: every person and amount on this page is made up.</div>
+
+<header class="wrap top">
+  <div>
+    <div class="lockup"><svg viewBox="0 0 250 64" style="width:190px;height:49px" role="img" aria-label="Peabudy">
+  <rect width="64" height="64" rx="18" fill="#2f6a5a"/>
+  <path d="M8 34 C16 18 48 18 56 34 C48 46 16 46 8 34 Z" fill="#dbece4"/>
+  <path d="M54 30 c4 -3 6 -7 5 -12" stroke="#dbece4" stroke-width="3.2" stroke-linecap="round" fill="none"/>
+  <circle cx="23.5" cy="33" r="9.5" fill="#7cb24a"/><circle cx="22.8" cy="32.3" r="8.7" fill="#97c964"/>
+  <circle cx="40.5" cy="33" r="9.5" fill="#7cb24a"/><circle cx="39.8" cy="32.3" r="8.7" fill="#97c964"/>
+  <g fill="#23221e"><circle cx="20.2" cy="31.4" r="1.35"/><circle cx="25.6" cy="31.4" r="1.35"/><circle cx="37.2" cy="31.4" r="1.35"/><circle cx="42.6" cy="31.4" r="1.35"/></g>
+  <g stroke="#23221e" stroke-width="1.1" stroke-linecap="round" fill="none"><path d="M21 35.2 q1.9 1.8 3.8 0"/><path d="M38 35.2 q1.9 1.8 3.8 0"/></g>
+<g transform="translate(80 22) scale(0.5)"><g fill="none" stroke="#23221e" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 4.5V57.5M4.5 20a15.5 15.5 0 1 0 31 0a15.5 15.5 0 1 0 -31 0"/><path d="M50.5 20H81.5A15.5 15.5 0 1 0 77 31"/><path d="M96.5 20a15.5 15.5 0 1 0 31 0a15.5 15.5 0 1 0 -31 0M127.5 4.5V35.5"/><path d="M142.5 -17.5V35.5M142.5 20a15.5 15.5 0 1 0 31 0a15.5 15.5 0 1 0 -31 0"/><path d="M188.5 4.5V20A15.5 15.5 0 0 0 219.5 20M219.5 4.5V35.5"/><path d="M234.5 20a15.5 15.5 0 1 0 31 0a15.5 15.5 0 1 0 -31 0M265.5 -17.5V35.5"/><path d="M280.5 4.5V20A15.5 15.5 0 0 0 311.5 20M311.5 4.5V45A13 13 0 0 1 298.5 58H287"/></g></g></svg></div>
+    <h1 class="display" style="font-size:clamp(32px,6vw,52px);line-height:1.05;letter-spacing:-.035em;margin-top:22px">Calm ledger</h1>
+    <p class="lead">The Peabudy design system: the calm, caring warmth of a wellness app with the clear, confident money display of a good banking app. Warm paper, ink type, sage green for agreement, and one big number per money card.</p>
+  </div>
+  <button class="btn btn-secondary compact" id="themeBtn" aria-pressed="false" type="button">Preview dark (proposed)</button>
+</header>
+
+<!-- Principles -->
+<section aria-labelledby="h-principles" style="border-top:0">
+  <div class="wrap">
+    <h2 id="h-principles">Principles</h2>
+    <div class="grid g3">
+      <div class="card"><h3 style="font-size:17px">Show what's true</h3><p class="meta" style="margin-top:6px">Every check, sample and demo carries its fixed honesty phrase, at full size.</p></div>
+      <div class="card"><h3 style="font-size:17px">One screen, one job</h3><p class="meta" style="margin-top:6px">One primary action. Quiet secondary actions. Destructive actions set apart.</p></div>
+      <div class="card"><h3 style="font-size:17px">Money at a glance</h3><p class="meta" style="margin-top:6px">The amount is the biggest thing on the card, in tabular figures, with its period.</p></div>
+      <div class="card"><h3 style="font-size:17px">Calm by default</h3><p class="meta" style="margin-top:6px">Warm space, soft corners. No countdowns, streaks or "3 people viewing".</p></div>
+      <div class="card"><h3 style="font-size:17px">Mutual, not one-sided</h3><p class="meta" style="margin-top:6px">Every shared decision shows both people's status side by side.</p></div>
+      <div class="card"><h3 style="font-size:17px">Everyone can use it</h3><p class="meta" style="margin-top:6px">WCAG 2.2 AA, 44 px targets, 16 px body, fast on a low-end phone.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- Colour -->
+<section aria-labelledby="h-colour">
+  <div class="wrap">
+    <h2 id="h-colour">Colour</h2>
+    <p class="sub">Ratios use the WCAG 2.x formula. Text needs 4.5:1; controls and focus rings need 3:1. Colour never carries meaning alone.</p>
+    <div class="grid g4">
+      <div class="sw"><div class="c" style="background:#f6f4ef;color:#23221e">Canvas</div><div class="t"><b>#f6f4ef</b>Page background (paper)</div></div>
+      <div class="sw"><div class="c" style="background:#ffffff;color:#23221e;border-bottom:1px solid #e4e0d6">Surface</div><div class="t"><b>#ffffff</b>Cards, sheets, inputs</div></div>
+      <div class="sw"><div class="c" style="background:#23221e;color:#faf9f5">Ink 900</div><div class="t"><b>#23221e</b>Text 14.48:1 on canvas · primary button</div></div>
+      <div class="sw"><div class="c" style="background:#2f6a5a;color:#fff">Brand 600</div><div class="t"><b>#2f6a5a</b>Confirm, links · white on it 6.31:1</div></div>
+    </div>
+    <p class="label-sm" style="margin-top:24px">Ink (warm neutrals)</p>
+    <div class="ramp" role="img" aria-label="Ink scale from 900 to 50">
+      <div style="background:#23221e;color:#fff">900</div><div style="background:#4a4740;color:#fff">700</div><div style="background:#5f5b52;color:#fff">600</div><div style="background:#6b675e;color:#fff">500</div><div style="background:#8f897c;color:#fff">400</div><div style="background:#b9b3a5;color:#23221e">300</div><div style="background:#e4e0d6;color:#23221e">100</div><div style="background:#efeae0;color:#23221e">50</div>
+    </div>
+    <p class="cap" style="margin-top:8px">Ink 500 #6b675e is the lowest text colour (5.13:1 on canvas). Ink 400 is for borders and icons (3.48:1 on white). 300 and below are decorative only.</p>
+    <p class="label-sm" style="margin-top:20px">Brand (sage)</p>
+    <div class="ramp" role="img" aria-label="Brand scale from 50 to 900">
+      <div style="background:#f0f7f4;color:#22453d">50</div><div style="background:#dbece4;color:#22453d">100</div><div style="background:#b9d9cd;color:#22453d">200</div><div style="background:#8dbfae;color:#1e3a33">300</div><div style="background:#5e9f8b;color:#fff">400</div><div style="background:#3f8471;color:#fff">500</div><div style="background:#2f6a5a;color:#fff">600</div><div style="background:#28554a;color:#fff">700</div><div style="background:#22453d;color:#fff">800</div><div style="background:#1e3a33;color:#fff">900</div>
+    </div>
+    <div class="grid g3" style="margin-top:20px">
+      <div class="sw"><div class="c t-apricot">Apricot</div><div class="t"><b>#fbe7d6 · #e7965f · #8a3f14</b>"Worth discussing" chips · 6.25:1</div></div>
+      <div class="sw"><div class="c t-lilac">Lilac</div><div class="t"><b>#ece6fb · #9b86e0 · #4f3794</b>Category tint · 7.49:1</div></div>
+      <div class="sw"><div class="c t-sky">Sky</div><div class="t"><b>#e1ecfa · #5b8fd6 · #17518f</b>Info, category tint · 6.74:1</div></div>
+    </div>
+    <div class="grid g3" style="margin-top:12px">
+      <div class="sw"><div class="c ok">Agreed</div><div class="t"><b>#dbece4 / #22453d</b>Success · 8.62:1</div></div>
+      <div class="sw"><div class="c wait">Waiting · needs re-agreement</div><div class="t"><b>#fdf1d8 / #7a4b00</b>Caution · 6.62:1</div></div>
+      <div class="sw"><div class="c bad">Error · destructive</div><div class="t"><b>#fdecea / #9f1d14 · #b42318</b>Danger · 6.90:1 / 6.57:1</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- Type -->
+<section aria-labelledby="h-type">
+  <div class="wrap">
+    <h2 id="h-type">Typography</h2>
+    <p class="sub">Plus Jakarta Sans for display, Inter for everything people must read precisely. Both include ₦, £, Yoruba dot-below letters and tabular figures (checked with fontTools).</p>
+    <div style="margin-top:12px">
+      <div class="spec"><code>display-xl · Jakarta 800</code><p class="display" style="font-size:clamp(34px,7vw,56px);line-height:1.05;letter-spacing:-.035em;font-weight:800">Agree the money first.</p></div>
+      <div class="spec"><code>h1 · Jakarta 700 · 26/32</code><p style="font:700 26px/32px var(--display);letter-spacing:-.02em">Household with Ṣadé</p></div>
+      <div class="spec"><code>h2 · Jakarta 700 · 20/26</code><p style="font:700 20px/26px var(--display);letter-spacing:-.015em">Why you match</p></div>
+      <div class="spec"><code>money-xl · Jakarta 700 tnum</code><p class="money-xl">₦200,000<span style="font-size:16px;font-weight:600;color:var(--fg-600)"> /mo each</span></p></div>
+      <div class="spec"><code>money · Inter 600 tnum</code><p class="num" style="font-weight:600;font-size:20px">£950.00 &nbsp; ₦2,400,000 &nbsp; £1,111.11</p></div>
+      <div class="spec"><code>body · Inter 400 · 16/24</code><p>Adébáyọ̀ Ọlásùnkànmí and Ṣadé Ẹniọlá both want Yaba, move in between 1 and 20 December, and keep quiet weeknights.</p></div>
+      <div class="spec"><code>body-sm · 14/20</code><p style="font-size:14px;color:var(--fg-600)">Sorted by shared dates, areas and habits.</p></div>
+      <div class="spec"><code>caption · 13/18 · 500</code><p class="cap">Sent 14:02 · Version 3</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- Buttons -->
+<section aria-labelledby="h-buttons">
+  <div class="wrap">
+    <h2 id="h-buttons">Buttons</h2>
+    <p class="sub">Ink pill for the main action. Green "confirm" only for agreement acts, so green comes to mean "we agree". Buttons stay enabled and explain on press. Try them: they are live.</p>
+    <div class="card" style="margin-top:20px">
+      <div class="btn-row">
+        <button class="btn btn-primary" type="button">Send introduction</button>
+        <button class="btn btn-confirm" type="button"><svg class="i"><use href="#i-check"/></svg>Accept version 3</button>
+        <button class="btn btn-secondary" type="button">View profile</button>
+        <button class="btn btn-ghost" type="button">Not for me</button>
+        <button class="btn btn-danger" type="button"><svg class="i"><use href="#i-flag"/></svg>Report</button>
+        <button class="btn-icon" type="button" aria-label="More options"><svg class="i lg"><use href="#i-more"/></svg></button>
+      </div>
+      <p class="label-sm" style="margin-top:22px">Primary in every state</p>
+      <div class="state-grid">
+        <div><p class="state-label">Default</p><span class="btn btn-primary compact">Continue</span></div>
+        <div><p class="state-label">Hover</p><span class="btn btn-primary compact is-hover">Continue</span></div>
+        <div><p class="state-label">Active (press)</p><span class="btn btn-primary compact is-active">Continue</span></div>
+        <div><p class="state-label">Focus-visible</p><span class="btn btn-primary compact is-focus">Continue</span></div>
+        <div><p class="state-label">Unavailable</p><span class="btn compact" aria-disabled="true">Continue</span><p class="cap" style="margin-top:6px">Press explains: "Add at least one area."</p></div>
+        <div><p class="state-label">Loading</p><span class="btn btn-primary compact" aria-busy="true"><span class="spin" aria-hidden="true"></span>Sending…</span></div>
+      </div>
+      <p class="label-sm" style="margin-top:22px">Secondary and danger</p>
+      <div class="state-grid">
+        <div><p class="state-label">Secondary</p><span class="btn btn-secondary compact">Back</span></div>
+        <div><p class="state-label">Secondary hover</p><span class="btn btn-secondary compact is-hover">Back</span></div>
+        <div><p class="state-label">Secondary focus</p><span class="btn btn-secondary compact is-focus">Back</span></div>
+        <div><p class="state-label">Danger</p><span class="btn btn-danger compact">Block</span></div>
+        <div><p class="state-label">Danger hover</p><span class="btn btn-danger compact is-hover">Block</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Inputs and chips -->
+<section aria-labelledby="h-inputs">
+  <div class="wrap">
+    <h2 id="h-inputs">Inputs and chips</h2>
+    <div class="grid g2">
+      <div class="card" style="display:grid;gap:16px">
+        <div class="field"><label class="lbl" for="f1">Display name</label><input class="input" id="f1" placeholder="How housemates will see you"><span class="help">Default. First name and initial is enough.</span></div>
+        <div class="field"><label class="lbl" for="f2">Email</label><input class="input is-focus" id="f2" value="amara@example.com"><span class="help">Focus</span></div>
+        <div class="field"><label class="lbl" for="f3">Introduction</label><textarea class="input is-error" id="f3" rows="2" aria-invalid="true" aria-describedby="f3e">Hi, I saw we both</textarea><span class="ferr" id="f3e" role="alert"><svg class="i"><use href="#i-alert"/></svg>Write at least 30 characters (17 so far). Mention your dates and areas.</span></div>
+        <div class="field"><label class="lbl" for="f4">City</label><input class="input" id="f4" value="Lagos" disabled><span class="help">Disabled: city is set during onboarding.</span></div>
+      </div>
+      <div class="card">
+        <p class="lbl" id="chip-h">Overnight guests: which answers can you live with?</p>
+        <div class="btn-row" role="group" aria-labelledby="chip-h" style="margin-top:10px">
+          <button class="chip choice" type="button" aria-pressed="true"><svg class="i ck"><use href="#i-check"/></svg>Rarely</button>
+          <button class="chip choice" type="button" aria-pressed="true"><svg class="i ck"><use href="#i-check"/></svg>Sometimes</button>
+          <button class="chip choice" type="button" aria-pressed="false"><svg class="i ck"><use href="#i-check"/></svg>Often</button>
+        </div>
+        <p class="cap" style="margin-top:8px">Selected chips are filled <em>and</em> carry a tick, so colour isn't the only signal. Tap to toggle.</p>
+        <p class="label-sm" style="margin-top:20px">Labels and status</p>
+        <div class="btn-row" style="margin-top:10px">
+          <span class="chip sample"><svg class="i"><use href="#i-beaker"/></svg>Sample housemate · replies automatically</span>
+          <span class="chip verified"><svg class="i"><use href="#i-check"/></svg>Demo verified</span>
+          <span class="chip ok"><svg class="i"><use href="#i-check"/></svg>Agreed by both</span>
+          <span class="chip wait">Waiting for Ben</span>
+          <span class="chip wait"><svg class="i"><use href="#i-alert"/></svg>Needs re-agreement</span>
+          <span class="chip t-sky"><svg class="i"><use href="#i-pin"/></svg>Hackney</span>
+          <span class="chip t-apricot">Discuss: overnight guests</span>
+        </div>
+        <p class="label-sm" style="margin-top:20px">Credibility (compact)</p>
+        <div class="btn-row" style="margin-top:10px">
+          <a class="cred" href="#cred"><svg class="i"><use href="#i-list"/></svg><span class="num">Demo checks 60/100</span></a>
+          <span class="cap">Neutral, never green or a shield. Links to the breakdown.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Cards and states -->
+<section aria-labelledby="h-cards">
+  <div class="wrap">
+    <h2 id="h-cards">Cards, credibility and progress</h2>
+    <div class="grid g3l">
+      <div class="card" id="cred">
+        <h3 style="font-size:17px">Demo checks <span class="num">60/100</span></h3>
+        <p class="meta" style="margin-top:2px">Checks completed — not a guarantee of safety</p>
+        <ul class="credlist">
+          <li><span class="row" style="gap:10px"><span class="dot on" aria-hidden="true"></span>Identity</span><span><span class="chip verified">Demo verified</span> <span class="num cap">40</span></span></li>
+          <li><span class="row" style="gap:10px"><span class="dot on" aria-hidden="true"></span>Email</span><span><span class="chip verified">Demo verified</span> <span class="num cap">10</span></span></li>
+          <li><span class="row" style="gap:10px"><span class="dot on" aria-hidden="true"></span>Phone</span><span><span class="chip verified">Demo verified</span> <span class="num cap">10</span></span></li>
+          <li><span class="row" style="gap:10px"><span class="dot" aria-hidden="true"></span>Reference</span><span class="meta">Not checked <span class="num cap">0</span></span></li>
+          <li style="border:0"><span class="row" style="gap:10px"><span class="dot" aria-hidden="true"></span>Additional evidence</span><span class="meta">Not checked <span class="num cap">0</span></span></li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3 style="font-size:17px">Onboarding progress</h3>
+        <p class="meta" style="margin-top:4px">Step 3 of 6 · Budget &amp; dates</p>
+        <div class="stepper" role="img" aria-label="Step 3 of 6"><i class="done"></i><i class="done"></i><i class="cur"></i><i></i><i></i><i></i></div>
+        <h3 style="font-size:17px;margin-top:24px">Household stages</h3>
+        <ol class="stages" aria-label="Household progress">
+          <li class="done"><span class="b"><svg class="i"><use href="#i-check"/></svg></span>Planning</li>
+          <li class="cur" aria-current="step"><span class="b"></span>Viewing</li>
+          <li><span class="b"></span>Application</li>
+          <li><span class="b"></span>Move-in</li>
+        </ol>
+      </div>
+      <div class="card" style="display:grid;gap:14px">
+        <div>
+          <p class="state-label">Loading</p>
+          <div class="row"><div class="skel" style="width:44px;height:44px;border-radius:50%"></div><div style="flex:1;display:grid;gap:8px"><div class="skel" style="height:14px;width:60%"></div><div class="skel" style="height:12px;width:40%"></div></div></div>
+          <div class="skel" style="height:12px;margin-top:12px"></div><div class="skel" style="height:12px;width:80%;margin-top:8px"></div>
+        </div>
+        <div class="caution"><svg class="i"><use href="#i-wifi-off"/></svg><span>You're offline. We'll try again when you're back.</span></div>
+        <div style="border:1px solid var(--danger-200);background:var(--danger-50);border-radius:16px;padding:12px">
+          <p style="font-weight:600;color:var(--danger-700)">We couldn't load your matches.</p>
+          <p style="font-size:14px;color:var(--danger-700);margin-top:2px">Check your connection, then try again.</p>
+          <button class="btn btn-secondary compact" type="button" style="margin-top:10px">Try again</button>
+        </div>
+      </div>
+    </div>
+    <div class="grid g2" style="margin-top:12px">
+      <div class="card" style="text-align:center;padding:28px 20px">
+        <div class="empty-ic t-sky"><svg class="i lg"><use href="#i-search"/></svg></div>
+        <h3 style="font-size:20px;margin-top:12px">No one fits all your essentials yet</h3>
+        <p class="meta" style="margin:6px auto 0;max-width:36ch">We checked 9 people nearby. Your narrowest filters are <strong>move-in dates</strong> and <strong>budget</strong>.</p>
+        <button class="btn btn-secondary compact" type="button" style="margin-top:14px">Adjust my search</button>
+      </div>
+      <div class="card" style="display:grid;gap:12px;align-content:start">
+        <p class="state-label">Toasts (shown above the bottom nav)</p>
+        <div class="toast" role="status"><span>Intro sent to Amara</span></div>
+        <div class="toast"><span>Hidden for this session</span><button class="btn btn-ghost compact" type="button">Undo</button></div>
+        <div class="btn-row">
+          <button class="btn btn-secondary compact" type="button" id="toastBtn">Show a live toast</button>
+          <button class="btn btn-primary compact" type="button" id="sheetBtn">Open a dialog</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Screens -->
+<section aria-labelledby="h-screens">
+  <div class="wrap">
+    <h2 id="h-screens">Example screens at phone width</h2>
+    <p class="sub">Each frame is 343 px of content (a 375 px phone minus gutters). Sample data only. "Not for me" and "Accept" are live.</p>
+    <div class="phones">
+
+      <!-- Landing -->
+      <div class="phone-wrap">
+        <p class="phone-cap">1 · Landing hero</p>
+        <div class="phone" role="region" aria-label="Landing screen example">
+          <div class="p-banner">Research preview: everyone you meet is a sample</div>
+          <div class="p-top"><span class="lockup"><svg viewBox="0 0 250 64" style="width:120px;height:31px" role="img" aria-label="Peabudy">
+  <rect width="64" height="64" rx="18" fill="#2f6a5a"/>
+  <path d="M8 34 C16 18 48 18 56 34 C48 46 16 46 8 34 Z" fill="#dbece4"/>
+  <path d="M54 30 c4 -3 6 -7 5 -12" stroke="#dbece4" stroke-width="3.2" stroke-linecap="round" fill="none"/>
+  <circle cx="23.5" cy="33" r="9.5" fill="#7cb24a"/><circle cx="22.8" cy="32.3" r="8.7" fill="#97c964"/>
+  <circle cx="40.5" cy="33" r="9.5" fill="#7cb24a"/><circle cx="39.8" cy="32.3" r="8.7" fill="#97c964"/>
+  <g fill="#23221e"><circle cx="20.2" cy="31.4" r="1.35"/><circle cx="25.6" cy="31.4" r="1.35"/><circle cx="37.2" cy="31.4" r="1.35"/><circle cx="42.6" cy="31.4" r="1.35"/></g>
+  <g stroke="#23221e" stroke-width="1.1" stroke-linecap="round" fill="none"><path d="M21 35.2 q1.9 1.8 3.8 0"/><path d="M38 35.2 q1.9 1.8 3.8 0"/></g>
+<g transform="translate(80 22) scale(0.5)"><g fill="none" stroke="#23221e" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 4.5V57.5M4.5 20a15.5 15.5 0 1 0 31 0a15.5 15.5 0 1 0 -31 0"/><path d="M50.5 20H81.5A15.5 15.5 0 1 0 77 31"/><path d="M96.5 20a15.5 15.5 0 1 0 31 0a15.5 15.5 0 1 0 -31 0M127.5 4.5V35.5"/><path d="M142.5 -17.5V35.5M142.5 20a15.5 15.5 0 1 0 31 0a15.5 15.5 0 1 0 -31 0"/><path d="M188.5 4.5V20A15.5 15.5 0 0 0 219.5 20M219.5 4.5V35.5"/><path d="M234.5 20a15.5 15.5 0 1 0 31 0a15.5 15.5 0 1 0 -31 0M265.5 -17.5V35.5"/><path d="M280.5 4.5V20A15.5 15.5 0 0 0 311.5 20M311.5 4.5V45A13 13 0 0 1 298.5 58H287"/></g></g></svg></span><a class="btn btn-primary compact" href="#h-screens" style="padding:0 16px">Sign in</a></div>
+          <div class="scroll" style="padding-top:28px">
+            <span class="pillnote"><svg class="i" style="width:14px;height:14px;color:var(--brand-600)"><use href="#i-pin"/></svg>London &amp; Lagos</span>
+            <h3 class="hero-h" style="margin-top:16px">Find someone to live with. Agree the money first.</h3>
+            <p style="margin-top:14px;color:var(--fg-700)">Match on move-in dates, areas and living habits. Then agree rent split, bills and notice in writing, before anyone signs anything.</p>
+            <div style="display:grid;gap:10px;margin-top:22px">
+              <a class="btn btn-primary block" href="#h-screens">Get started</a>
+              <a class="btn btn-secondary block" href="#h-screens">See how it works</a>
+            </div>
+            <div class="card" style="margin-top:22px;padding:16px">
+              <p class="label-sm">Rent split · version 2</p>
+              <div class="between" style="margin-top:8px"><span>Amara</span><span class="num" style="font-weight:600">£950/mo</span></div>
+              <div class="between" style="margin-top:6px"><span>Ben</span><span class="num" style="font-weight:600">£950/mo</span></div>
+              <span class="chip ok" style="margin-top:10px"><svg class="i"><use href="#i-check"/></svg>Agreed by both</span>
+            </div>
+            <ul class="reasons" style="font-size:14px;margin-top:18px">
+              <li><svg class="i"><use href="#i-check"/></svg>No swiping and no compatibility scores</li>
+              <li><svg class="i"><use href="#i-check"/></svg>See exactly what's been checked</li>
+              <li><svg class="i"><use href="#i-check"/></svg>Report or block in one tap</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Discover -->
+      <div class="phone-wrap">
+        <p class="phone-cap">2 · Discover match card</p>
+        <div class="phone" role="region" aria-label="Discover screen example">
+          <div class="p-banner">Research preview: everyone you meet is a sample</div>
+          <div class="p-top"><span class="lockup"><svg viewBox="0 0 64 64" aria-hidden="true" fill="none" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path class="lg-ink" d="M8 30 32 11l24 19"/><path class="lg-ink" d="M15 54V40a7 7 0 0 1 14 0v14M35 54V40a7 7 0 0 1 14 0v14M9 54h46"/></svg></span><button class="btn-icon" type="button" aria-label="Notifications, 1 unread"><svg class="i lg"><use href="#i-bell"/></svg></button></div>
+          <div class="scroll">
+            <h3 style="font:700 26px/32px var(--display);letter-spacing:-.02em">Discover</h3>
+            <p class="meta" style="margin-top:2px">4 people fit your essentials · sorted by shared dates, areas and habits</p>
+            <div id="matchCard" class="card raised" style="margin-top:14px;padding:16px">
+              <div class="row">
+                <span class="avatar t-lilac">AO</span>
+                <div style="min-width:0">
+                  <p style="font-weight:600;font-size:17px">Amara O.</p>
+                  <p class="meta">Hackney · Camden</p>
+                </div>
+              </div>
+              <span class="chip sample" style="margin-top:10px"><svg class="i"><use href="#i-beaker"/></svg>Sample housemate · replies automatically</span>
+              <div class="facts"><span><svg class="i"><use href="#i-cash"/></svg><span class="num">£850–1,150/mo</span></span><span><svg class="i"><use href="#i-cal"/></svg>1 Nov – 10 Dec</span></div>
+              <p class="label-sm" style="margin-top:14px">Why you match</p>
+              <ul class="reasons" style="margin-top:6px">
+                <li><svg class="i"><use href="#i-check"/></svg>Your move-in windows overlap by 40 days</li>
+                <li><svg class="i"><use href="#i-check"/></svg>You both want Hackney</li>
+                <li><svg class="i"><use href="#i-check"/></svg>Same answer on quiet weeknights</li>
+              </ul>
+              <p class="label-sm" style="margin-top:12px">Worth discussing</p>
+              <div class="btn-row" style="margin-top:6px"><span class="chip t-apricot">Overnight guests</span></div>
+              <div style="display:grid;gap:8px;margin-top:16px">
+                <button class="btn btn-primary block" type="button">Introduce</button>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                  <button class="btn btn-secondary compact" type="button">View profile</button>
+                  <button class="btn btn-ghost compact" type="button" id="passBtn">Not for me</button>
+                </div>
+              </div>
+            </div>
+            <div class="card" style="margin-top:12px;padding:16px;opacity:.9"><div class="row"><span class="avatar t-sky">TB</span><div><p style="font-weight:600">Tom B.</p><p class="meta">Islington</p></div></div></div>
+          </div>
+          <nav class="bnav" aria-label="Main">
+            <a href="#h-screens" aria-current="page"><span class="pill"><svg class="i lg"><use href="#i-search"/></svg></span>Discover</a>
+            <a href="#h-screens"><span class="pill"><svg class="i lg"><use href="#i-chat"/></svg></span>Messages<span class="badge" aria-hidden="true">2</span><span class="sr">, 2 unread</span></a>
+            <a href="#h-screens"><span class="pill"><svg class="i lg"><use href="#i-home"/></svg></span>Household</a>
+            <a href="#h-screens"><span class="pill"><svg class="i lg"><use href="#i-user"/></svg></span>Profile</a>
+          </nav>
+        </div>
+      </div>
+
+      <!-- Chat -->
+      <div class="phone-wrap">
+        <p class="phone-cap">3 · Chat thread</p>
+        <div class="phone" role="region" aria-label="Chat screen example">
+          <div class="p-banner">Research preview: everyone you meet is a sample</div>
+          <div class="p-top" style="padding-left:4px">
+            <div class="row" style="gap:6px;min-width:0">
+              <button class="btn-icon" type="button" aria-label="Back to messages"><svg class="i lg"><use href="#i-back"/></svg></button>
+              <span class="avatar t-apricot" style="width:36px;height:36px;font-size:13px">ṢE</span>
+              <div style="min-width:0"><p style="font-weight:600;line-height:1.2">Ṣadé E.</p><p class="cap" style="font-size:12px">Sample · replies automatically</p></div>
+            </div>
+            <button class="btn-icon" type="button" aria-label="More: report or block"><svg class="i lg"><use href="#i-more"/></svg></button>
+          </div>
+          <div class="scroll" style="display:flex;flex-direction:column;gap:8px;background:var(--canvas)">
+            <p class="sys">Ṣadé accepted your intro. This is a sample housemate who replies automatically.</p>
+            <div class="bubble them" data-clarity-mask="true">Hi! Yaba works for me too. Are you flexible on the move-in date?</div>
+            <div class="bubble me" data-clarity-mask="true">Yes, anytime from 1 to 20 December. Shall we draft the household agreement?</div>
+            <p class="cap" style="text-align:right">Sent 14:02</p>
+            <div class="bubble them" data-clarity-mask="true">Sure. My agent says we pay the inspection fee first, can you send half?</div>
+            <div class="caution" role="note"><svg class="i"><use href="#i-alert"/></svg><span>Never send money before you've seen a home and signed a real tenancy. Peabudy never asks you to pay.</span></div>
+            <div class="bubble me" style="opacity:.7" data-clarity-mask="true">Let's view it together first.</div>
+            <p class="cap" style="text-align:right">Sending…</p>
+          </div>
+          <div class="composer">
+            <label class="sr" for="msg">Message</label>
+            <textarea class="input" id="msg" rows="1" placeholder="Write a message"></textarea>
+            <button class="send" type="button" aria-label="Send message"><svg class="i"><use href="#i-send"/></svg></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Household -->
+      <div class="phone-wrap">
+        <p class="phone-cap">4 · Household agreement (Lagos)</p>
+        <div class="phone" role="region" aria-label="Household agreement screen example">
+          <div class="p-banner">Research preview: everyone you meet is a sample</div>
+          <div class="p-top"><span class="lockup"><svg viewBox="0 0 64 64" aria-hidden="true" fill="none" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path class="lg-ink" d="M8 30 32 11l24 19"/><path class="lg-ink" d="M15 54V40a7 7 0 0 1 14 0v14M35 54V40a7 7 0 0 1 14 0v14M9 54h46"/></svg></span><button class="btn-icon" type="button" aria-label="Notifications"><svg class="i lg"><use href="#i-bell"/></svg></button></div>
+          <div class="scroll">
+            <p class="meta">Household with</p>
+            <h3 style="font:700 24px/30px var(--display);letter-spacing:-.02em">Ṣadé E.</h3>
+            <ol class="stages" aria-label="Household progress">
+              <li class="cur" aria-current="step"><span class="b"></span>Planning</li>
+              <li><span class="b"></span>Viewing</li>
+              <li><span class="b"></span>Application</li>
+              <li><span class="b"></span>Move-in</li>
+            </ol>
+            <div class="card" style="margin-top:16px;padding:16px">
+              <div class="between"><p style="font-weight:600">Agreement · v3</p><span class="chip wait" id="agreeStatus">Waiting for you</span></div>
+              <p class="money-xl" style="margin-top:12px">₦200,000<span style="font:600 15px var(--sans);color:var(--fg-600)"> /mo each</span></p>
+              <p class="meta num">Monthly equivalent of ₦2,400,000/yr each</p>
+              <div class="split" aria-hidden="true"><span style="flex:1"></span><span style="flex:1"></span></div>
+              <div class="between cap" style="margin-top:6px"><span>You · 50%</span><span>Ṣadé · 50%</span></div>
+              <div class="kv">
+                <div><p>Bills</p><p>Split equally</p></div>
+                <div><p>Notice if someone leaves</p><p>4 weeks</p></div>
+              </div>
+              <div class="accept">
+                <div><span class="avatar t-apricot">ṢE</span><span>Ṣadé<br><strong style="color:var(--brand-700)">Accepted v3</strong></span></div>
+                <div id="meAccept"><span class="avatar t-lilac">AO</span><span>You<br><strong style="color:var(--caution-800)">Not yet</strong></span></div>
+              </div>
+              <div style="display:grid;gap:8px;margin-top:14px">
+                <button class="btn btn-confirm block" type="button" id="acceptBtn"><svg class="i tick" id="tick"><path d="M5 12.5 9.5 17 19 7.5"/></svg>Accept version 3</button>
+                <button class="btn btn-secondary compact block" type="button">Propose a change</button>
+              </div>
+              <p class="cap" style="margin-top:10px;text-align:center">No money moves through Peabudy.</p>
+            </div>
+          </div>
+          <nav class="bnav" aria-label="Main">
+            <a href="#h-screens"><span class="pill"><svg class="i lg"><use href="#i-search"/></svg></span>Discover</a>
+            <a href="#h-screens"><span class="pill"><svg class="i lg"><use href="#i-chat"/></svg></span>Messages</a>
+            <a href="#h-screens" aria-current="page"><span class="pill"><svg class="i lg"><use href="#i-home"/></svg></span>Household</a>
+            <a href="#h-screens"><span class="pill"><svg class="i lg"><use href="#i-user"/></svg></span>Profile</a>
+          </nav>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Logos -->
+<section aria-labelledby="h-logos">
+  <div class="wrap">
+    <h2 id="h-logos">Peabudy logo and mascots</h2>
+    <p class="sub">Chosen direction (Nov 2026): <strong>the Pod</strong>. Two peas in one pod: two housemates, one home. The mark is a sage tile with an open pod and two peas. The wordmark is a custom monoline drawn from circles and stems, so it needs no font file. Exports: <code>public/peabudy-logo.svg</code>, <code>peabudy-logo-light.svg</code>, <code>peabudy-mark.svg</code>, <code>peabudy-wordmark.svg</code> and <code>app/icon.svg</code> (faces removed at favicon size). Run a trademark search before final adoption.</p>
+    <div class="grid g3">
+      <div class="logo-card"><div class="logo-art"><div class="big"><svg viewBox="0 0 64 64" role="img" aria-label="Pod mark">
+  <rect width="64" height="64" rx="18" fill="#2f6a5a"/>
+  <path d="M8 34 C16 18 48 18 56 34 C48 46 16 46 8 34 Z" fill="#dbece4"/>
+  <path d="M54 30 c4 -3 6 -7 5 -12" stroke="#dbece4" stroke-width="3.2" stroke-linecap="round" fill="none"/>
+  <circle cx="23.5" cy="33" r="9.5" fill="#7cb24a"/><circle cx="22.8" cy="32.3" r="8.7" fill="#97c964"/>
+  <circle cx="40.5" cy="33" r="9.5" fill="#7cb24a"/><circle cx="39.8" cy="32.3" r="8.7" fill="#97c964"/>
+  <g fill="#23221e"><circle cx="20.2" cy="31.4" r="1.35"/><circle cx="25.6" cy="31.4" r="1.35"/><circle cx="37.2" cy="31.4" r="1.35"/><circle cx="42.6" cy="31.4" r="1.35"/></g>
+  <g stroke="#23221e" stroke-width="1.1" stroke-linecap="round" fill="none"><path d="M21 35.2 q1.9 1.8 3.8 0"/><path d="M38 35.2 q1.9 1.8 3.8 0"/></g>
+</svg></div><div class="smalls"><div class="app"><svg viewBox="0 0 64 64" aria-hidden="true">
+  <rect width="64" height="64" rx="18" fill="#2f6a5a"/>
+  <path d="M8 34 C16 18 48 18 56 34 C48 46 16 46 8 34 Z" fill="#dbece4"/>
+  <path d="M54 30 c4 -3 6 -7 5 -12" stroke="#dbece4" stroke-width="3.2" stroke-linecap="round" fill="none"/>
+  <circle cx="23.5" cy="33" r="9.5" fill="#7cb24a"/><circle cx="22.8" cy="32.3" r="8.7" fill="#97c964"/>
+  <circle cx="40.5" cy="33" r="9.5" fill="#7cb24a"/><circle cx="39.8" cy="32.3" r="8.7" fill="#97c964"/>
+  <g fill="#23221e"><circle cx="20.2" cy="31.4" r="1.35"/><circle cx="25.6" cy="31.4" r="1.35"/><circle cx="37.2" cy="31.4" r="1.35"/><circle cx="42.6" cy="31.4" r="1.35"/></g>
+  <g stroke="#23221e" stroke-width="1.1" stroke-linecap="round" fill="none"><path d="M21 35.2 q1.9 1.8 3.8 0"/><path d="M38 35.2 q1.9 1.8 3.8 0"/></g>
+</svg></div><svg class="fav" viewBox="0 0 64 64" aria-hidden="true">
+  <rect width="64" height="64" rx="18" fill="#2f6a5a"/>
+  <path d="M8 34 C16 18 48 18 56 34 C48 46 16 46 8 34 Z" fill="#dbece4"/>
+  <path d="M54 30 c4 -3 6 -7 5 -12" stroke="#dbece4" stroke-width="3.2" stroke-linecap="round" fill="none"/>
+  <circle cx="23.5" cy="33" r="9.5" fill="#7cb24a"/><circle cx="22.8" cy="32.3" r="8.7" fill="#97c964"/>
+  <circle cx="40.5" cy="33" r="9.5" fill="#7cb24a"/><circle cx="39.8" cy="32.3" r="8.7" fill="#97c964"/>
+</svg></div></div><h3>Pod mark <span class="chip ok" style="margin-left:4px">In use</span></h3><p>Works in colour at 16 px; the faces drop out below 24 px.</p></div>
+      <div class="logo-card"><div class="logo-art" style="display:flex;gap:6px;justify-content:center;align-items:center;padding:16px 0"><svg viewBox="0 0 100 100" width="72" height="72" role="img" aria-label="Pea, awake"><circle cx="50" cy="50" r="42" fill="#7cb24a"/><circle cx="47" cy="47" r="39" fill="#97c964"/><ellipse cx="34" cy="28" rx="11" ry="7" fill="#d3ecb4" opacity=".8" transform="rotate(-30 34 28)"/><ellipse cx="27" cy="60" rx="7" ry="4.5" fill="#f28b8b" opacity=".45"/><ellipse cx="71" cy="60" rx="7" ry="4.5" fill="#f28b8b" opacity=".45"/><ellipse cx="37" cy="48" rx="4.6" ry="6" fill="#23221e"/><ellipse cx="63" cy="48" rx="4.6" ry="6" fill="#23221e"/><path d="M43 63 q7 7 14 0" stroke="#23221e" stroke-width="3.4" stroke-linecap="round" fill="none"/></svg><svg viewBox="0 0 100 100" width="72" height="72" role="img" aria-label="Pea, happy"><circle cx="50" cy="50" r="42" fill="#97c964"/><circle cx="47" cy="47" r="39" fill="#b3da86"/><ellipse cx="34" cy="28" rx="11" ry="7" fill="#d3ecb4" opacity=".8" transform="rotate(-30 34 28)"/><ellipse cx="27" cy="60" rx="7" ry="4.5" fill="#f28b8b" opacity=".45"/><ellipse cx="71" cy="60" rx="7" ry="4.5" fill="#f28b8b" opacity=".45"/><path d="M31 51 q6 -7 12 0M57 51 q6 -7 12 0" stroke="#23221e" stroke-width="3.6" stroke-linecap="round" fill="none"/><path d="M41 61 q9 12 18 0 z" fill="#23221e"/></svg></div><h3>Pea and Bud</h3><p>The two mascots. Pea asks the onboarding questions. On the landing page, tapping either one makes it say something true about how Peabudy works.</p></div>
+      <div class="logo-card"><div class="logo-art" style="display:flex;gap:6px;justify-content:center;align-items:center;padding:16px 0"><svg viewBox="0 0 100 100" width="72" height="72" role="img" aria-label="Pea, sleep"><circle cx="50" cy="50" r="42" fill="#7cb24a"/><circle cx="47" cy="47" r="39" fill="#97c964"/><ellipse cx="34" cy="28" rx="11" ry="7" fill="#d3ecb4" opacity=".8" transform="rotate(-30 34 28)"/><ellipse cx="27" cy="60" rx="7" ry="4.5" fill="#f28b8b" opacity=".45"/><ellipse cx="71" cy="60" rx="7" ry="4.5" fill="#f28b8b" opacity=".45"/><path d="M31 50 q6 5 12 0M57 50 q6 5 12 0" stroke="#23221e" stroke-width="3.6" stroke-linecap="round" fill="none"/><path d="M46 66 h8" stroke="#23221e" stroke-width="3" stroke-linecap="round"/></svg><svg viewBox="0 0 100 100" width="72" height="72" role="img" aria-label="Pea, awake"><circle cx="50" cy="50" r="42" fill="#7cb24a"/><circle cx="47" cy="47" r="39" fill="#97c964"/><ellipse cx="34" cy="28" rx="11" ry="7" fill="#d3ecb4" opacity=".8" transform="rotate(-30 34 28)"/><ellipse cx="27" cy="60" rx="7" ry="4.5" fill="#f28b8b" opacity=".45"/><ellipse cx="71" cy="60" rx="7" ry="4.5" fill="#f28b8b" opacity=".45"/><ellipse cx="37" cy="48" rx="4.6" ry="6" fill="#23221e"/><ellipse cx="63" cy="48" rx="4.6" ry="6" fill="#23221e"/><path d="M43 63 q7 7 14 0" stroke="#23221e" stroke-width="3.4" stroke-linecap="round" fill="none"/></svg><svg viewBox="0 0 100 100" width="72" height="72" role="img" aria-label="Pea, wow"><circle cx="50" cy="50" r="42" fill="#5e9f8b"/><circle cx="47" cy="47" r="39" fill="#8dbfae"/><ellipse cx="34" cy="28" rx="11" ry="7" fill="#d3ecb4" opacity=".8" transform="rotate(-30 34 28)"/><ellipse cx="27" cy="60" rx="7" ry="4.5" fill="#f28b8b" opacity=".45"/><ellipse cx="71" cy="60" rx="7" ry="4.5" fill="#f28b8b" opacity=".45"/><ellipse cx="37" cy="48" rx="4.6" ry="6" fill="#23221e"/><ellipse cx="63" cy="48" rx="4.6" ry="6" fill="#23221e"/><ellipse cx="50" cy="66" rx="5" ry="6" fill="#23221e"/></svg></div><h3>Moods</h3><p>sleep, awake, happy, wow, wink. Sleeping peas wake as living-habit questions are answered. Never used to signal safety or compatibility.</p></div>
+    </div>
+    <details style="margin-top:24px"><summary>Earlier concepts (superseded by the Pod)</summary>
+    <div class="grid g3">
+
+      <div class="logo-card">
+        <div class="logo-art">
+          <div class="big"><svg viewBox="0 0 64 64" fill="none" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Two doors concept"><path class="lg-ink" d="M8 30 32 11l24 19"/><path class="lg-ink" d="M15 54V40a7 7 0 0 1 14 0v14M35 54V40a7 7 0 0 1 14 0v14M9 54h46"/></svg></div>
+          <div class="smalls"><div class="app"><svg viewBox="0 0 64 64" fill="none" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="lg-ink" d="M8 30 32 11l24 19"/><path class="lg-ink" d="M15 54V40a7 7 0 0 1 14 0v14M35 54V40a7 7 0 0 1 14 0v14M9 54h46"/></svg></div><svg class="fav" viewBox="0 0 64 64" fill="none" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="lg-ink" d="M8 30 32 11l24 19"/><path class="lg-ink" d="M15 54V40a7 7 0 0 1 14 0v14M35 54V40a7 7 0 0 1 14 0v14"/></svg></div>
+        </div>
+        <h3>1 · Two doors <span class="chip ok" style="margin-left:4px">Recommended</span></h3>
+        <p>Two arched doorways under one roof: two people with their own space, one shared home.</p>
+      </div>
+
+      <div class="logo-card">
+        <div class="logo-art">
+          <div class="big"><svg viewBox="0 0 64 64" fill="none" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Gable H concept"><path class="lg-ink" d="M16 56V27L32 12l16 15v29M16 39h32"/></svg></div>
+          <div class="smalls"><div class="app"><svg viewBox="0 0 64 64" fill="none" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="lg-ink" d="M16 56V27L32 12l16 15v29M16 39h32"/></svg></div><svg class="fav" viewBox="0 0 64 64" fill="none" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="lg-ink" d="M16 56V27L32 12l16 15v29M16 39h32"/></svg></div>
+        </div>
+        <h3>2 · Gable H</h3>
+        <p>An H whose stems meet in a roof. The initial and the house in one stroke, and the clearest at 16 px.</p>
+      </div>
+
+      <div class="logo-card">
+        <div class="logo-art">
+          <div class="big"><svg viewBox="0 0 64 64" fill="none" role="img" aria-label="Common ground concept"><defs><clipPath id="cgL"><circle cx="25" cy="34" r="17"/></clipPath></defs><circle cx="39" cy="34" r="17" fill="var(--brand-600)" clip-path="url(#cgL)"/><circle class="lg-ink" cx="25" cy="34" r="17" stroke-width="4.5"/><circle class="lg-ink" cx="39" cy="34" r="17" stroke-width="4.5"/></svg></div>
+          <div class="smalls"><div class="app"><svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><defs><clipPath id="cgL2"><circle cx="25" cy="34" r="17"/></clipPath></defs><circle cx="39" cy="34" r="17" fill="#8dbfae" clip-path="url(#cgL2)"/><circle class="lg-ink" cx="25" cy="34" r="17" stroke-width="4.5"/><circle class="lg-ink" cx="39" cy="34" r="17" stroke-width="4.5"/></svg></div><svg class="fav" viewBox="0 0 64 64" fill="none" aria-hidden="true"><circle class="lg-ink" cx="24" cy="34" r="16" stroke-width="7"/><circle class="lg-ink" cx="40" cy="34" r="16" stroke-width="7"/></svg></div>
+        </div>
+        <h3>3 · Common ground</h3>
+        <p>Two circles overlapping, with the shared part filled. It shows how we match: on what overlaps, never a score.</p>
+      </div>
+
+      <div class="logo-card">
+        <div class="logo-art">
+          <div class="big"><svg viewBox="0 0 64 64" fill="none" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Signed roof concept"><path class="lg-ink" d="M8 36 27 18l13 12c5 5 10 4 16-3"/><path class="lg-ink" d="M10 50c10-4 20 3 30-1 5-2 9-3 14-1"/></svg></div>
+          <div class="smalls"><div class="app"><svg viewBox="0 0 64 64" fill="none" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="lg-ink" d="M8 36 27 18l13 12c5 5 10 4 16-3"/><path class="lg-ink" d="M10 50c10-4 20 3 30-1 5-2 9-3 14-1"/></svg></div><svg class="fav" viewBox="0 0 64 64" fill="none" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="lg-ink" d="M8 36 27 18l13 12c5 5 10 4 16-3"/><path class="lg-ink" d="M10 50c10-4 20 3 30-1 5-2 9-3 14-1"/></svg></div>
+        </div>
+        <h3>4 · Signed roof</h3>
+        <p>A roofline that runs on into a signature, with a line beneath it: agree in writing before you move in.</p>
+      </div>
+
+      <div class="logo-card">
+        <div class="logo-art">
+          <div class="big"><svg viewBox="0 0 64 64" fill="none" role="img" aria-label="Lights on concept"><rect x="14" y="12" width="17" height="17" rx="4" fill="var(--brand-600)"/><rect x="33" y="35" width="17" height="17" rx="4" fill="var(--apricot-500)"/><rect class="lg-ink" x="11" y="9" width="42" height="46" rx="8" stroke-width="4.5"/><path class="lg-ink" d="M32 9v46M11 32h42" stroke-width="4.5"/></svg></div>
+          <div class="smalls"><div class="app"><svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><rect x="14" y="12" width="17" height="17" rx="4" fill="#8dbfae"/><rect x="33" y="35" width="17" height="17" rx="4" fill="#e7965f"/><rect class="lg-ink" x="11" y="9" width="42" height="46" rx="8" stroke-width="4.5"/><path class="lg-ink" d="M32 9v46M11 32h42" stroke-width="4.5"/></svg></div><svg class="fav" viewBox="0 0 64 64" fill="none" aria-hidden="true"><rect x="11" y="9" width="21" height="23" fill="var(--brand-600)"/><rect x="32" y="32" width="21" height="23" fill="var(--apricot-500)"/><rect class="lg-ink" x="11" y="9" width="42" height="46" rx="8" stroke-width="7"/></svg></div>
+        </div>
+        <h3>5 · Lights on</h3>
+        <p>A four-pane window with two panes lit: two people at home, each in their own room.</p>
+      </div>
+
+      <div class="logo-card">
+        <div class="logo-art">
+          <div class="big"><svg viewBox="0 0 64 64" fill="none" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Talk first concept"><path class="lg-ink" d="M10 28 32 11l22 17v19a5 5 0 0 1-5 5H26l-10 8v-8h-1a5 5 0 0 1-5-5z"/><circle class="lg-ink-f" cx="25" cy="37" r="3" stroke="none"/><circle class="lg-ink-f" cx="39" cy="37" r="3" stroke="none"/></svg></div>
+          <div class="smalls"><div class="app"><svg viewBox="0 0 64 64" fill="none" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="lg-ink" d="M10 28 32 11l22 17v19a5 5 0 0 1-5 5H26l-10 8v-8h-1a5 5 0 0 1-5-5z"/><circle class="lg-ink-f" cx="25" cy="37" r="3" stroke="none"/><circle class="lg-ink-f" cx="39" cy="37" r="3" stroke="none"/></svg></div><svg class="fav" viewBox="0 0 64 64" fill="none" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="lg-ink" d="M10 28 32 11l22 17v19a5 5 0 0 1-5 5H26l-10 8v-8h-1a5 5 0 0 1-5-5z"/></svg></div>
+        </div>
+        <h3>6 · Talk first</h3>
+        <p>A house shaped like a speech bubble, with two people in it: talk it through before you share a home.</p>
+      </div>
+    </div>
+  </div>
+</details>
+</section>
+
+<!-- Do / don't -->
+<section aria-labelledby="h-dd">
+  <div class="wrap">
+    <h2 id="h-dd">Do and don't</h2>
+    <div class="grid g2">
+      <div class="card do"><p style="font-weight:600">Do</p><ul class="reasons"><li><svg class="i"><use href="#i-check"/></svg>"Checks completed — not a guarantee of safety" next to every score</li><li><svg class="i"><use href="#i-check"/></svg>£950/mo with tabular figures and a period</li><li><svg class="i"><use href="#i-check"/></svg>"Not for me", quiet and undoable</li><li><svg class="i"><use href="#i-check"/></svg>Both people's acceptance shown side by side</li></ul></div>
+      <div class="card dont"><p style="font-weight:600">Don't</p><ul class="reasons"><li><svg class="i" style="color:var(--danger-600)"><use href="#i-x"/></svg>"92% compatible" or "Verified & safe"</li><li><svg class="i" style="color:var(--danger-600)"><use href="#i-x"/></svg>Swipe stacks, streaks, countdowns</li><li><svg class="i" style="color:var(--danger-600)"><use href="#i-x"/></svg>Red for decline, or asking why someone declined</li><li><svg class="i" style="color:var(--danger-600)"><use href="#i-x"/></svg>backdrop-blur and heavy blurred shadows</li></ul></div>
+    </div>
+  </div>
+</section>
+
+<footer><div class="wrap">Peabudy design system, applied 9 Nov 2026. Specs in docs/design/design-system.md; live tokens in tailwind.config.ts and app/globals.css.</div></footer>
+
+<script>
+(function(){
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // Theme preview
+  var tb=document.getElementById('themeBtn');
+  tb.addEventListener('click',function(){
+    var dark=document.documentElement.getAttribute('data-theme')==='dark';
+    if(dark){document.documentElement.removeAttribute('data-theme');}else{document.documentElement.setAttribute('data-theme','dark');}
+    tb.setAttribute('aria-pressed',String(!dark));
+    tb.textContent=dark?'Preview dark (proposed)':'Back to light';
+  });
+  // Choice chips
+  document.querySelectorAll('.choice').forEach(function(b){
+    b.addEventListener('click',function(){b.setAttribute('aria-pressed',b.getAttribute('aria-pressed')==='true'?'false':'true');});
+  });
+  // Toast
+  var live=null;
+  function toast(msg,undo){
+    if(live){live.remove();}
+    live=document.createElement('div');
+    live.className='toast toast-live';
+    live.setAttribute('role','status');
+    var s=document.createElement('span');s.textContent=msg;live.appendChild(s);
+    if(undo){var u=document.createElement('button');u.type='button';u.className='btn btn-ghost compact';u.textContent='Undo';u.onclick=function(){undo();live.remove();live=null;};live.appendChild(u);}
+    document.body.appendChild(live);
+    var el=live;var t=setTimeout(function(){if(el.isConnected)el.remove();},5000);
+    el.addEventListener('mouseenter',function(){clearTimeout(t);});
+    el.addEventListener('focusin',function(){clearTimeout(t);});
+  }
+  document.getElementById('toastBtn').addEventListener('click',function(){toast('Intro sent to Amara');});
+  // Pass with undo
+  var card=document.getElementById('matchCard');
+  document.getElementById('passBtn').addEventListener('click',function(){
+    card.style.display='none';
+    toast('Amara is hidden for this session',function(){card.style.display='';card.querySelector('#passBtn').focus();});
+  });
+  // Accept agreement
+  var acc=document.getElementById('acceptBtn');
+  acc.addEventListener('click',function(){
+    if(acc.dataset.done)return;
+    acc.dataset.done='1';
+    var tick=document.getElementById('tick');
+    if(!reduce){tick.classList.remove('draw');void tick.getBoundingClientRect();tick.classList.add('draw');}
+    acc.lastChild.textContent='You accepted version 3';
+    var st=document.getElementById('agreeStatus');st.className='chip ok';st.textContent='Agreed by both';
+    document.querySelector('#meAccept strong').textContent='Accepted v3';
+    document.querySelector('#meAccept strong').style.color='var(--brand-700)';
+    toast('Agreed by both. Next: shortlist a home.');
+  });
+  // Sheet dialog with focus management
+  var opener=document.getElementById('sheetBtn');
+  opener.addEventListener('click',function(){
+    var scrim=document.createElement('div');scrim.className='scrim';
+    scrim.innerHTML='<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="dlgT">'+
+      '<div class="handle" aria-hidden="true"></div>'+
+      '<h3 id="dlgT" style="font:700 20px/26px var(--display)">Introduce yourself to Amara</h3>'+
+      '<p class="meta" style="margin-top:4px">30 to 300 characters. Mention your dates and what you\'re looking for.</p>'+
+      '<label class="sr" for="dlgIn">Introduction</label><textarea id="dlgIn" class="input" rows="4" style="margin-top:12px" placeholder="Hi Amara, I\'m also looking in Hackney from early November…"></textarea>'+
+      '<p class="cap num" style="text-align:right;margin-top:4px" id="dlgCount">0 / 300</p>'+
+      '<div style="display:grid;gap:8px;margin-top:12px"><button class="btn btn-primary block" type="button" id="dlgSend">Send introduction</button><button class="btn btn-ghost block" type="button" id="dlgCancel">Cancel</button></div></div>';
+    document.body.appendChild(scrim);
+    var dlg=scrim.querySelector('.sheet');var input=scrim.querySelector('#dlgIn');
+    input.focus();
+    input.addEventListener('input',function(){scrim.querySelector('#dlgCount').textContent=input.value.length+' / 300';});
+    function close(){scrim.remove();document.removeEventListener('keydown',onKey);opener.focus();}
+    function onKey(e){
+      if(e.key==='Escape'){close();}
+      if(e.key==='Tab'){
+        var f=dlg.querySelectorAll('textarea,button');var first=f[0],last=f[f.length-1];
+        if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}
+        else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
+      }
+    }
+    document.addEventListener('keydown',onKey);
+    scrim.addEventListener('click',function(e){if(e.target===scrim)close();});
+    scrim.querySelector('#dlgCancel').onclick=close;
+    scrim.querySelector('#dlgSend').onclick=function(){
+      if(input.value.length<30){
+        var er=dlg.querySelector('.ferr');
+        if(!er){er=document.createElement('p');er.className='ferr';er.setAttribute('role','alert');er.id='dlgErr';input.setAttribute('aria-describedby','dlgErr');input.after(er);}
+        er.textContent='Write at least 30 characters ('+input.value.length+' so far).';input.classList.add('is-error');input.focus();return;
+      }
+      close();toast('Intro sent to Amara');
+    };
+  });
+})();
+</script>
+</body>
+</html>

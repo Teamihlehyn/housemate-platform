@@ -1,0 +1,2 @@
+- [Beta launch plan](project_beta_launch.md) — founder decisions, Peabudy rename + peabudy.com, Option B fast-track, name risk, beta-mode gaps
+- [Feedback tools](reference_feedback_tools.md) — Tally/Clarity facts checked 9 Nov 2026; built-in pill + Tally survey split

@@ -4,11 +4,20 @@ import { requireUser } from "@/lib/guard";
 import { prisma } from "@/lib/db";
 import { computeScore } from "@/lib/credibility";
 import { QUESTIONNAIRE } from "@/lib/constants";
+import { VERIFIED_ONLY_BROWSING } from "@/lib/env";
+import { canSeeEachOther, identityVerified } from "@/lib/verification";
 
 // GET /api/v1/users/[id] — public profile DTO only. Blocked/inaccessible → generic 404.
+// In beta, both the viewer and the target must be identity-checked (ENG-02).
 export const GET = handler(async (_req: NextRequest, { rid, params }) => {
   const viewer = await requireUser();
   const id = params.id;
+  const notFound = () => fail("NOT_FOUND", "This profile is no longer available.", 404, rid);
+
+  if (VERIFIED_ONLY_BROWSING) {
+    const [viewerVerified, targetVerified] = await Promise.all([identityVerified(viewer.id), identityVerified(id)]);
+    if (!canSeeEachOther({ verifiedOnly: true, viewerVerified, targetVerified })) return notFound();
+  }
 
   const block = await prisma.block.findFirst({
     where: {
@@ -31,7 +40,7 @@ export const GET = handler(async (_req: NextRequest, { rid, params }) => {
     target.profile?.publicationStatus !== "published" ||
     (target.sandboxWorldId ?? null) !== (viewer.sandboxWorldId ?? null)
   ) {
-    return fail("NOT_FOUND", "This profile is no longer available.", 404, rid);
+    return notFound();
   }
 
   const score = await computeScore(prisma, id);

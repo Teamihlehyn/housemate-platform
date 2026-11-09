@@ -1,4 +1,4 @@
-// Housemate platform — prototype schema (core end-to-end slice)
+// Peabudy (formerly Housemate) — Prisma schema
 // SQLite for zero-config local dev. JSON is stored as stringified text.
 
 generator client {

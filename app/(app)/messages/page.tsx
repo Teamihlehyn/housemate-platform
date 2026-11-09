@@ -43,23 +43,23 @@ export default function Messages() {
     } finally { setBusy(null); }
   }
 
-  if (loading) return <div className="space-y-3">{[0,1,2].map(i => <div key={i} className="h-20 animate-pulse rounded-xl bg-stone-200" />)}</div>;
+  if (loading) return <div className="space-y-3">{[0,1,2].map(i => <div key={i} className="h-20 animate-pulse rounded-xl bg-ink-100" />)}</div>;
 
   return (
     <div className="mx-auto max-w-2xl">
-      <h1 className="mb-4 text-2xl font-bold text-stone-900">Messages</h1>
+      <h1 className="mb-4 text-2xl font-bold text-ink">Messages</h1>
 
       {incoming.length > 0 && (
         <section className="mb-6">
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-stone-500">Introduction requests</h2>
+          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-ink-600">Introduction requests</h2>
           <div className="space-y-3">
             {incoming.map((i) => (
               <div key={i.id} className="card p-4">
                 <div className="flex items-center gap-3">
                   <span className="grid h-10 w-10 place-items-center rounded-full bg-brand-100 font-bold text-brand-700">{i.otherInitials}</span>
                   <div className="flex-1">
-                    <p className="font-semibold text-stone-900">{i.otherName}</p>
-                    <p className="text-sm text-stone-600">{i.text}</p>
+                    <p className="font-semibold text-ink">{i.otherName}</p>
+                    <p className="text-sm text-ink-600">{i.text}</p>
                   </div>
                 </div>
                 <div className="mt-3 flex gap-2">
@@ -74,13 +74,13 @@ export default function Messages() {
 
       {outgoing.length > 0 && (
         <section className="mb-6">
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-stone-500">Sent, awaiting reply</h2>
+          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-ink-600">Sent, awaiting reply</h2>
           <div className="space-y-2">
             {outgoing.map((i) => (
               <div key={i.id} className="card flex items-center justify-between p-4">
                 <div className="flex items-center gap-3">
-                  <span className="grid h-9 w-9 place-items-center rounded-full bg-stone-100 font-bold text-stone-600">{i.otherInitials}</span>
-                  <p className="font-medium text-stone-800">{i.otherName}</p>
+                  <span className="grid h-9 w-9 place-items-center rounded-full bg-ink-50 font-bold text-ink-600">{i.otherInitials}</span>
+                  <p className="font-medium text-ink">{i.otherName}</p>
                 </div>
                 <button className="btn-ghost text-sm" disabled={busy === i.id} onClick={() => act(i, "withdraw")}>Withdraw</button>
               </div>
@@ -90,22 +90,22 @@ export default function Messages() {
       )}
 
       <section>
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-stone-500">Conversations</h2>
+        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-ink-600">Conversations</h2>
         {convos.length === 0 ? (
-          <div className="card p-8 text-center text-sm text-stone-600">
+          <div className="card p-8 text-center text-sm text-ink-600">
             No conversations yet. Accept an introduction to start chatting.
             <div className="mt-4"><Link href="/discover" className="btn-secondary">Find housemates</Link></div>
           </div>
         ) : (
           <div className="space-y-2">
             {convos.map((c) => (
-              <Link key={c.id} href={`/messages/${c.id}`} className="card flex items-center gap-3 p-4 hover:bg-stone-50">
+              <Link key={c.id} href={`/messages/${c.id}`} className="card flex items-center gap-3 p-4 hover:bg-cream">
                 <span className="grid h-11 w-11 place-items-center rounded-full bg-brand-100 font-bold text-brand-700">{c.otherInitials}</span>
                 <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-stone-900">{c.otherName}</p>
-                  <p className="truncate text-sm text-stone-500">{c.lastMessage ?? "Say hello 👋"}</p>
+                  <p className="font-semibold text-ink">{c.otherName}</p>
+                  <p className="truncate text-sm text-ink-600">{c.lastMessage ?? "Say hello"}</p>
                 </div>
-                {c.status === "closed" && <span className="chip bg-stone-100 text-stone-500">Closed</span>}
+                {c.status === "closed" && <span className="chip bg-ink-50 text-ink-600">Closed</span>}
               </Link>
             ))}
           </div>

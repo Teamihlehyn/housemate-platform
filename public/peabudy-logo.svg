@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 250 64" role="img" aria-label="Peabudy">
+  <rect width="64" height="64" rx="18" fill="#2f6a5a"/>
+  <path d="M8 34 C16 18 48 18 56 34 C48 46 16 46 8 34 Z" fill="#dbece4"/>
+  <path d="M54 30 c4 -3 6 -7 5 -12" stroke="#dbece4" stroke-width="3.2" stroke-linecap="round" fill="none"/>
+  <circle cx="23.5" cy="33" r="9.5" fill="#7cb24a"/><circle cx="22.8" cy="32.3" r="8.7" fill="#97c964"/>
+  <circle cx="40.5" cy="33" r="9.5" fill="#7cb24a"/><circle cx="39.8" cy="32.3" r="8.7" fill="#97c964"/>
+  <g fill="#23221e"><circle cx="20.2" cy="31.4" r="1.35"/><circle cx="25.6" cy="31.4" r="1.35"/><circle cx="37.2" cy="31.4" r="1.35"/><circle cx="42.6" cy="31.4" r="1.35"/></g>
+  <g stroke="#23221e" stroke-width="1.1" stroke-linecap="round" fill="none"><path d="M21 35.2 q1.9 1.8 3.8 0"/><path d="M38 35.2 q1.9 1.8 3.8 0"/></g>
+  <g transform="translate(80 22) scale(0.5)"><g fill="none" stroke="#23221e" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 4.5V57.5M4.5 20a15.5 15.5 0 1 0 31 0a15.5 15.5 0 1 0 -31 0"/><path d="M50.5 20H81.5A15.5 15.5 0 1 0 77 31"/><path d="M96.5 20a15.5 15.5 0 1 0 31 0a15.5 15.5 0 1 0 -31 0M127.5 4.5V35.5"/><path d="M142.5 -17.5V35.5M142.5 20a15.5 15.5 0 1 0 31 0a15.5 15.5 0 1 0 -31 0"/><path d="M188.5 4.5V20A15.5 15.5 0 0 0 219.5 20M219.5 4.5V35.5"/><path d="M234.5 20a15.5 15.5 0 1 0 31 0a15.5 15.5 0 1 0 -31 0M265.5 -17.5V35.5"/><path d="M280.5 4.5V20A15.5 15.5 0 0 0 311.5 20M311.5 4.5V45A13 13 0 0 1 298.5 58H287"/></g></g>
+</svg>

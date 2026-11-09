@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { writeAudit, writeOutbox, notify } from "@/lib/audit";
 import { monthlyEquivalentMinor } from "@/lib/money";
 import { afterPlanProposedOrChanged } from "@/lib/demoBots";
+import { assertNotBlocked } from "@/lib/blocks";
 
 // POST /api/v1/households {introduction_id, plan:{earliestDate,latestDate,contributions,stayMin,stayMax,propertyId?}}
 // Creates a proposal; creator's submit counts as their acceptance.
@@ -22,6 +23,7 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
     return fail("NOT_FOUND", "No accepted introduction found.", 404, rid);
 
   const otherId = intro.lowUserId === user.id ? intro.highUserId : intro.lowUserId;
+  await assertNotBlocked(user.id, otherId); // HM-02: an old accepted intro can't bypass a block.
 
   // One active/proposed household per user.
   const busy = await prisma.membership.findFirst({

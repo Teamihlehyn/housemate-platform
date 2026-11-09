@@ -12,3 +12,23 @@
 .neon
 .vercel
 *.tsbuildinfo
+
+# Claude Code: per-machine settings and scratch. Agent memory (.claude/agent-memory/),
+# agents and hooks ARE committed: they're shared project context. Never put secrets,
+# connection strings or personal/tester data in them; this repo is public.
+.claude/settings.local.json
+.claude/worktrees/
+.claude/scratch/
+
+# Test and scratch artefacts
+__pycache__/
+*.pyc
+/coverage
+/test-results
+/playwright-report
+*.tmp
+*.orig
+*.rej
+
+# Security reports with open findings: never commit (public repo)
+docs/security/

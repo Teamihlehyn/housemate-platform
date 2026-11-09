@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Logo from "@/components/brand/Logo";
 
 export default function Safety() {
   const points = [
@@ -11,23 +12,23 @@ export default function Safety() {
   ];
   return (
     <div className="min-h-screen">
-      <header className="border-b border-stone-200 bg-white">
+      <header className="border-b border-ink-100 bg-white">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4">
-          <Link href="/" className="font-bold text-brand-700">← Housemate</Link>
+          <Logo size="sm" />
           <Link href="/signin" className="btn-primary">Get started</Link>
         </div>
       </header>
       <main className="mx-auto max-w-3xl px-4 py-12">
-        <h1 className="text-3xl font-bold text-stone-900">Our safety approach</h1>
-        <p className="mt-3 text-stone-600">
-          Housemate is designed to help you assess strangers and coordinate a move with clear,
+        <h1 className="text-3xl font-bold text-ink">Our safety approach</h1>
+        <p className="mt-3 text-ink-600">
+          Peabudy is designed to help you assess strangers and coordinate a move with clear,
           honest information. Here is how we think about trust and safety in this prototype.
         </p>
         <div className="mt-8 space-y-5">
           {points.map(([t, d]) => (
             <div key={t} className="card p-6">
-              <h2 className="font-semibold text-stone-900">{t}</h2>
-              <p className="mt-2 text-sm text-stone-600">{d}</p>
+              <h2 className="font-semibold text-ink">{t}</h2>
+              <p className="mt-2 text-sm text-ink-600">{d}</p>
             </div>
           ))}
         </div>

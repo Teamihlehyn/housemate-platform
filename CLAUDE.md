@@ -89,7 +89,9 @@ sample home look real. Every environment shows one truthful banner; sample peopl
 | New migration | `npm run db:migrate:dev -- --name short_snake_case` |
 | Apply migrations | `npm run db:migrate` |
 | Reset + reseed local DB | `npm run db:reset` |
+| E2E — beta gates (local beta server on another port, local DB only) | `python3 tests/e2e_beta.py http://localhost:3100 "postgresql://$USER@localhost:5432/<beta_test_db>"` |
 | Switch production to research mode / add Clarity or Tally, then deploy | `bash scripts/switch-to-research.sh` (user runs it) |
+| Switch production to beta (real users), then deploy | `bash scripts/switch-to-beta.sh` (user runs it; read its header) |
 
 `npm run lint` does not exist (Next 16 removed `next lint`). There is no ESLint config.
 
@@ -111,7 +113,11 @@ All flags live in `lib/env.ts` — import them, don't re-derive from `process.en
 | `beta` | dormant | **real email** (Resend) | no | no | required | **manual staff review** |
 
 Key flags: `IS_BETA`, `IS_RESEARCH`, `DEMO_MODE` (forced off in beta), `SANDBOX_ON_SIGNUP`,
-`CONSENT_REQUIRED`, `BANNER` (the one banner text — `PROTOTYPE_BANNER` in constants is unused).
+`CONSENT_REQUIRED`, `HOMES_ENABLED` and `VERIFIED_ONLY_BROWSING` (both beta gates), `CLARITY_ID`
+(null in beta), `BANNER` (the one banner text).
+**Mode resolution fails closed:** on `VERCEL_ENV=production` the server throws unless `APP_ENV` is
+one of the four values and equals `NEXT_PUBLIC_APP_ENV`; elsewhere an unset/unknown `APP_ENV`
+runs as `development` with on-screen codes **off**. Always set `APP_ENV` explicitly.
 
 ### Infrastructure
 
@@ -189,10 +195,13 @@ lib/
   demoBots.ts   Sample-housemate auto-responses (after* hooks)
   personas.ts   Persona templates (pure data; imported by the sign-in page)
   credibility.ts computeScore / snapshotScore
+  auth.ts       login codes (generate, constant-time compare, limits), consent, IP hashing
+  blocks.ts     isBlocked / assertNotBlocked
+  verification.ts identityVerified, canSeeEachOther (beta browsing gate)
   money.ts dates.ts email.ts db.ts client.ts ogImage.tsx
 prisma/         schema.prisma, migrations/, seed.ts
-scripts/        switch-to-research.sh (production mode switch + deploy)
-tests/          e2e_research.py, e2e_gender.py, gender.unit.ts
+scripts/        switch-to-research.sh, switch-to-beta.sh (production mode switch + deploy)
+tests/          e2e_research.py, e2e_gender.py, e2e_beta.py, *.unit.ts
 ```
 
 ---
@@ -310,7 +319,9 @@ per unordered pair; 30-day resend cooldown after decline/expiry. Accepting creat
 conversation for the pair. Messages ≤ 2,000 chars, HTML-escaped server-side (the client renders
 with `dangerouslySetInnerHTML` relying on that), chat polls every 2 s (no websockets). Money-
 request wording triggers a non-blocking caution. Block is immediate, bilateral and silent; it
-closes the conversation and any shared household. Reports never change anyone's score.
+closes the conversation and any shared household and expires pending intros for the pair
+(`reasonCode: "blocked"`). Every cross-user action (intro create/accept, household POST, message
+POST) calls `assertNotBlocked()` from `lib/blocks.ts` → 404. Reports never change anyone's score.
 
 ### Research mode: sample worlds and sample housemates
 - **Isolation invariant:** a user with `sandboxWorldId` only sees/introduces/reports users with
@@ -331,7 +342,10 @@ closes the conversation and any shared household. Reports never change anyone's 
   chat message says so.
 
 ### Auth, consent, privacy
-Email OTP: 6 digits, 10-minute expiry, 5 attempts, 5 requests/hour/email. Consent to the privacy
+Email OTP: 6 digits from `crypto.randomInt`, 10-minute expiry, 5 attempts per code (claimed
+atomically before a constant-time compare), 10 failed guesses/hour/email, 5 requests/hour/email;
+emailed codes are also capped per IP (10/h) and site-wide (300/h). `deletion_pending` accounts
+can't sign in and their sessions stop working; a new `PRIVACY_VERSION` forces re-consent. Consent to the privacy
 notice is checked **before** the code is consumed (so a missing tick doesn't burn the code).
 Settings offers data export (`/me/export`) and deletion (`/me/delete`: soft —
 `deletion_pending`, unpublished, sessions revoked; no purge job exists yet). Mark sensitive DOM
@@ -428,9 +442,10 @@ Run with `psql "$(neon connection-string research)"` and confirm the count match
 - **Shared persona logins collide.** That's why personas create fresh private accounts.
 - **Seeded `dev`/`staging` people are shared and don't auto-reply**; research behaviour (sample
   worlds) only happens with `APP_ENV=research`.
-- **Dead code to ignore:** `PROTOTYPE_BANNER`, `pairKey`, `ENV_LABEL`, `EMAIL_DELIVERY`,
-  `IS_STAGING`, `IS_DEV`, `formatMonthlyEquivalent`, `getSessionCookieName`. `Meeting` table has
-  no API.
+- **`Meeting` table has no API** (dead schema; the old dead exports were removed 9 Nov 2026).
+- **Two `next dev` servers can't share one checkout** (both write `.next/`). To test another mode
+  alongside the main dev server, copy the repo (APFS: `cp -cR node_modules`) and run it on another
+  port against its own local database.
 
 ---
 

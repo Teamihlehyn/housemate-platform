@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { createHash } from "crypto";
 import { handler, ok, fail } from "@/lib/api";
-import { requireUser } from "@/lib/guard";
+import { requireUser, requireHomesEnabled } from "@/lib/guard";
 import { prisma } from "@/lib/db";
 import { writeAudit, writeOutbox, notify } from "@/lib/audit";
 import { recordHandoffConsent, requirePlanAgreed } from "@/lib/household";
@@ -11,6 +11,7 @@ import { afterHandoffActivity } from "@/lib/demoBots";
 // Submission happens server-side only after every member consents.
 export const POST = handler(async (req: NextRequest, { rid, params }) => {
   const user = await requireUser();
+  requireHomesEnabled();
   const body = await req.json().catch(() => ({}));
   const action = body.action;
   const h = await prisma.handoff.findUnique({

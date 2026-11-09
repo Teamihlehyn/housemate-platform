@@ -2,21 +2,52 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Peabudy semantic colours as RGB triplets (so Tailwind opacity modifiers work). */
 :root {
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --pb-canvas: 246 244 239;       /* #f6f4ef */
+  --pb-surface: 255 255 255;
+  --pb-surface-soft: 250 249 245; /* #faf9f5 */
+  --pb-fg: 35 34 30;              /* #23221e  14.48:1 on canvas */
+  --pb-fg-muted: 74 71 64;        /* #4a4740   8.43:1 */
+  --pb-fg-subtle: 107 103 94;     /* #6b675e   5.13:1 */
+  --pb-line: 228 224 214;         /* #e4e0d6 decorative */
+  --pb-line-strong: 143 137 124;  /* #8f897c  3.48:1 on white (controls) */
+  --pb-primary: 35 34 30;         /* ink pill */
+  --pb-primary-fg: 250 249 245;   /* 15.11:1 */
+  --pb-confirm: 47 106 90;        /* brand-600 */
+  --pb-confirm-fg: 255 255 255;   /* 6.31:1 */
+  --pb-focus: 63 132 113;         /* brand-500, 4.02:1 on canvas */
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
   @apply bg-paper text-ink antialiased;
 }
 
-/* Respect reduced-motion for marquees and shimmer */
-@media (prefers-reduced-motion: reduce) {
-  .animate-marquee,
-  .animate-marquee-slow,
-  .animate-shimmer {
-    animation: none !important;
-  }
+/* Money and counts line up. */
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Soft pastel wash, built from plain radial gradients (no blur filters: they caused blank
+   areas while scrolling on phones). */
+.bg-pastel {
+  background-color: #f6f4ef;
+  background-image:
+    radial-gradient(60% 45% at 8% 6%, rgb(230 243 214 / 0.95), transparent 70%),
+    radial-gradient(50% 40% at 96% 12%, rgb(236 230 251 / 0.9), transparent 70%),
+    radial-gradient(55% 40% at 88% 92%, rgb(251 231 214 / 0.85), transparent 70%),
+    radial-gradient(45% 35% at 4% 88%, rgb(225 236 250 / 0.85), transparent 70%);
+}
+.bg-pastel-soft {
+  background-color: #f6f4ef;
+  background-image:
+    radial-gradient(70% 50% at 0% 0%, rgb(230 243 214 / 0.8), transparent 70%),
+    radial-gradient(60% 45% at 100% 100%, rgb(236 230 251 / 0.7), transparent 70%);
 }
 
 .marquee-mask {
@@ -24,35 +55,96 @@ body {
   mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
 }
 
+/* Mascot eyes blink from their own centre. */
+.pea-eyes {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+/* Reduced motion: no transforms or loops; fades are near-instant. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+  .animate-marquee,
+  .animate-marquee-slow,
+  .animate-shimmer,
+  .animate-bob,
+  .animate-bob-slow,
+  .animate-blink,
+  .animate-wiggle {
+    animation: none !important;
+  }
+}
+
 @layer components {
+  /* Buttons: pill, 48 px (44 px compact). Primary is ink; green (confirm) is only for
+     agreement acts so it comes to mean "we agree". */
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px];
+    @apply inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition duration-quick ease-standard focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-paper active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-60;
+  }
+  .btn-lg {
+    @apply min-h-[52px] px-7 text-base;
   }
   .btn-primary {
+    @apply btn bg-ink text-cream hover:bg-black;
+  }
+  .btn-confirm {
     @apply btn bg-brand-600 text-white hover:bg-brand-700;
   }
   .btn-secondary {
-    @apply btn border border-stone-300 bg-white text-stone-700 hover:bg-stone-50;
+    @apply btn border border-ink-400 bg-white text-ink hover:bg-ink-50;
   }
   .btn-ghost {
-    @apply btn text-stone-600 hover:bg-stone-100;
+    @apply btn text-ink-700 hover:bg-ink-50;
   }
   .btn-danger {
-    @apply btn border border-red-200 bg-white text-red-700 hover:bg-red-50;
+    @apply btn border border-danger-200 bg-white text-danger-600 hover:bg-danger-50 focus-visible:ring-danger-600;
   }
+  .btn-icon {
+    @apply inline-grid h-11 w-11 shrink-0 place-items-center rounded-full text-ink-700 transition duration-quick hover:bg-ink-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500;
+  }
+
   .card {
-    @apply rounded-xl border border-stone-200 bg-white shadow-sm;
+    @apply rounded-card border border-ink-100 bg-white;
   }
+  .card-soft {
+    @apply rounded-card bg-cream;
+  }
+
+  /* 16 px text stops iOS zooming on focus. */
   .input {
-    @apply w-full rounded-lg border border-stone-300 bg-white px-3 py-2.5 text-sm text-stone-800 placeholder:text-stone-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 min-h-[44px];
+    @apply min-h-[48px] w-full rounded-field border border-ink-400 bg-white px-4 py-3 text-base text-ink placeholder:text-ink-500 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/30;
   }
   .label {
-    @apply block text-sm font-medium text-stone-700 mb-1.5;
+    @apply mb-1.5 block text-sm font-semibold text-ink-700;
+  }
+  .helper {
+    @apply mt-1.5 text-caption text-ink-600;
   }
   .chip {
     @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium;
   }
+  /* Selectable chip: 44 px hit area, selection shown with fill AND a tick. */
+  .choice-chip {
+    @apply inline-flex min-h-[44px] items-center gap-1.5 rounded-full border border-ink-400 bg-white px-4 text-sm font-medium text-ink transition duration-quick hover:bg-ink-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2;
+  }
+  .choice-chip[aria-pressed="true"],
+  .choice-chip[aria-checked="true"] {
+    @apply border-ink bg-ink text-cream hover:bg-black;
+  }
+  .chip-sample {
+    @apply chip border border-dashed border-ink-400 bg-ink-50 text-ink-700;
+  }
   .field-error {
-    @apply mt-1 text-xs font-medium text-red-600;
+    @apply mt-1.5 text-sm font-medium text-danger-600;
+  }
+  .skeleton {
+    @apply animate-shimmer rounded-panel bg-ink-50;
   }
 }

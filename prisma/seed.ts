@@ -225,7 +225,7 @@ async function main() {
     );
     process.exit(1);
   }
-  console.log("Seeding Housemate prototype…  TEST_TODAY =", TEST_TODAY);
+  console.log("Seeding Peabudy sample data…  TEST_TODAY =", TEST_TODAY);
 
   // Clean slate (order respects FKs; SQLite cascades handle children)
   await prisma.$transaction([

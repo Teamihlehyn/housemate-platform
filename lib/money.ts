@@ -15,11 +15,6 @@ export function monthlyEquivalentMinor(minor: number, period: string): number {
   return minor;
 }
 
-export function formatMonthlyEquivalent(minor: number, period: string, currency: string): string {
-  const eq = monthlyEquivalentMinor(minor, period);
-  return `${formatMoney(eq, currency)}/mo equivalent`;
-}
-
 export function formatPeriodPrice(minor: number, period: string, currency: string): string {
   return `${formatMoney(minor, currency)}/${period === "year" ? "yr" : "mo"}`;
 }

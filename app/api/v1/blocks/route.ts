@@ -3,6 +3,7 @@ import { handler, ok, fail } from "@/lib/api";
 import { requireUser } from "@/lib/guard";
 import { prisma } from "@/lib/db";
 import { writeAudit, writeOutbox } from "@/lib/audit";
+import { OPEN_INTRO_STATES } from "@/lib/blocks";
 
 // POST /api/v1/blocks {target_user_id} — immediate, bilateral, no notification to the blocked.
 export const POST = handler(async (req: NextRequest, { rid }) => {
@@ -22,6 +23,12 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
     await tx.conversation.updateMany({
       where: { userAId: a, userBId: b },
       data: { status: "closed" },
+    });
+    // End every open intro for the pair (HM-02), so neither side can accept one later.
+    // "expired" rather than "declined": a block is silent.
+    await tx.introduction.updateMany({
+      where: { lowUserId: a, highUserId: b, state: { in: OPEN_INTRO_STATES } },
+      data: { state: "expired", reasonCode: "blocked", version: { increment: 1 } },
     });
     const hh = await tx.household.findFirst({
       where: {

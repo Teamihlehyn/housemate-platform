@@ -1,8 +1,8 @@
-import { renderAppleIcon } from "@/lib/ogImage";
+import { renderTouchIcon } from "@/components/brand/socialImage";
 
 export const size = { width: 180, height: 180 };
 export const contentType = "image/png";
 
 export default function AppleIcon() {
-  return renderAppleIcon();
+  return renderTouchIcon();
 }
