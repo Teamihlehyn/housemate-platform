@@ -65,8 +65,10 @@ export const VERIFIED_ONLY_BROWSING = IS_BETA;
 export const CONSENT_REQUIRED = IS_BETA || IS_RESEARCH;
 
 // One honest message per environment.
-export const BANNER = IS_BETA
-  ? "Early access — identity is verified by our team; property listings and viewings are guided examples."
+// The one honesty banner. Shown wherever sample people, checks or homes exist; null in beta,
+// where every person is real, identity is checked by staff and homes are switched off.
+export const BANNER: string | null = IS_BETA
+  ? null
   : "Prototype: all people, checks and homes are samples.";
 
 

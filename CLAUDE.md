@@ -36,7 +36,8 @@ and each tester gets a private world of sample housemates who reply automaticall
 spec is `~/Downloads/Housemate_MVP_PRD.docx` (P0 = required; most P1/P2 are out of scope).
 
 **The single most important principle: honesty.** Never let a simulated check, sample person or
-sample home look real. Every environment shows one truthful banner; sample people are labelled.
+sample home look real. Every mode with samples shows one truthful banner (`BANNER`; none in `beta`,
+where everyone is real); sample people are labelled.
 
 ---
 
@@ -368,7 +369,7 @@ with `data-clarity-mask="true"` (emails, codes, chat bodies, bios, report text).
 - Avoid `backdrop-blur` and heavy blurred shadows (they caused blank areas while scrolling on phones).
 - Copy: UK English, sentence case, plain words, no exclamation-mark marketing. Honesty labels are
   fixed phrases — "Demo verified", "Sample availability", "Checks completed — not a guarantee of
-  safety", "Demo application accepted; no home is reserved". The banner text comes from `BANNER`.
+  safety", "Demo application accepted; no home is reserved". The banner text comes from `BANNER` (null in beta).
 
 ---
 

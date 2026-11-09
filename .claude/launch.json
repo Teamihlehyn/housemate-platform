@@ -12,6 +12,12 @@
       "runtimeExecutable": "env",
       "runtimeArgs": ["APP_ENV=research", "NEXT_PUBLIC_APP_ENV=research", "npm", "run", "dev"],
       "port": 3000
+    },
+    {
+      "name": "housemate-beta",
+      "runtimeExecutable": "env",
+      "runtimeArgs": ["APP_ENV=beta", "NEXT_PUBLIC_APP_ENV=beta", "npm", "run", "dev"],
+      "port": 3000
     }
   ]
 }
