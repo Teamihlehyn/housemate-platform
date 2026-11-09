@@ -236,7 +236,7 @@ export default function Landing() {
             <FeedbackLink className="rounded-full px-3 py-2.5 hover:text-ink">Give feedback</FeedbackLink>
           </nav>
         </div>
-        <p className="px-4 pb-8 text-center text-xs text-ink-600">{BANNER}</p>
+        {BANNER && <p className="px-4 pb-8 text-center text-xs text-ink-600">{BANNER}</p>}
       </footer>
     </div>
   );

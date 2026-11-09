@@ -53,12 +53,20 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en-GB" className={`${display.variable} ${sans.variable}`}>
+    <html
+      lang="en-GB"
+      className={`${display.variable} ${sans.variable}`}
+      style={BANNER ? undefined : ({ "--banner-h": "0px" } as React.CSSProperties)}
+    >
       <body>
-        <div id="env-banner" role="note" className="sticky top-0 z-50 border-b border-amber-200 bg-amber-100 px-4 py-1.5 text-center text-xs font-medium leading-5 text-amber-900 min-h-[33px]">
-          {BANNER}
-        </div>
-        <BannerHeight />
+        {BANNER && (
+          <>
+            <div id="env-banner" role="note" className="sticky top-0 z-50 border-b border-amber-200 bg-amber-100 px-4 py-1.5 text-center text-xs font-medium leading-5 text-amber-900 min-h-[33px]">
+              {BANNER}
+            </div>
+            <BannerHeight />
+          </>
+        )}
         {children}
         <ResearchTools />
         {CLARITY_ID && (
