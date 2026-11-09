@@ -1,0 +1,1 @@
+- [Testing other modes](testing-other-modes.md) — run research/beta e2e on a scratch copy at :3100; never touch the designer's :3000

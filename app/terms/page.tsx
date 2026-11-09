@@ -1,20 +1,21 @@
 import Link from "next/link";
+import Logo from "@/components/brand/Logo";
 import { IS_BETA } from "@/lib/env";
 import { FeedbackLink } from "@/components/ResearchTools";
 
-export const metadata = { title: "Terms of use — Housemate" };
+export const metadata = { title: "Terms of use — Peabudy" };
 
 export default function Terms() {
   const sections: [string, string][] = [
     [
-      "What Housemate is",
+      "What Peabudy is",
       IS_BETA
         ? "An early-access service for finding compatible housemates and agreeing how you'll live together. Identity is checked by our team; property listings and viewings are guided examples."
         : "A prototype for testing an idea: finding compatible housemates and agreeing how you'll live together. All people, checks and homes inside are samples.",
     ],
     ["No bookings, payments or tenancies", "Nothing here reserves a home, takes money or creates a tenancy. An accepted application is a demo, and your household agreement is a record of what you both said — not a legal contract."],
     ["Using it responsibly", "Be respectful, don't impersonate anyone, don't ask anyone for money, and don't share other people's personal details. We may remove accounts that break these rules."],
-    ["Your content and feedback", "You own what you write. By sending feedback or taking part in research, you let us use your anonymised answers to improve Housemate. We won't publish anything that identifies you without asking."],
+    ["Your content and feedback", "You own what you write. By sending feedback or taking part in research, you let us use your anonymised answers to improve Peabudy. We won't publish anything that identifies you without asking."],
     ["Safety", "A verification score shows which checks are complete — it is never a guarantee that someone is safe. Support here is not an emergency service; if anyone is in danger, contact local emergency services."],
     ["No warranty", "This is an early version provided as-is. Features may change, break or disappear, and data in the test environment may be reset."],
     ["Your data", "How we handle personal data is explained in the privacy notice."],
@@ -23,7 +24,7 @@ export default function Terms() {
     <div className="min-h-screen font-sans">
       <header className="border-b border-ink/10 bg-white">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4">
-          <Link href="/" className="font-display font-semibold text-brand-700">← Housemate</Link>
+          <Logo size="sm" />
           <Link href="/signin" className="btn-primary">Get started</Link>
         </div>
       </header>

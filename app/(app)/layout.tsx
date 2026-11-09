@@ -12,7 +12,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const isStaff = ["verifier", "moderator", "admin"].includes(user.role);
 
   return (
-    <div className="min-h-screen pb-20 md:pb-0">
+    <div className="min-h-screen pb-[calc(env(safe-area-inset-bottom)+80px)] md:pb-0 has-[[data-no-bottom-nav]]:pb-0">
       <AppNav displayName={user.displayName} initials={initials} isStaff={isStaff} />
       <main className="mx-auto max-w-5xl px-4 py-6">{children}</main>
     </div>

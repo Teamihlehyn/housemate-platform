@@ -1,11 +1,12 @@
 import { NextRequest } from "next/server";
 import { handler, ok } from "@/lib/api";
-import { requireUser } from "@/lib/guard";
+import { requireUser, requireHomesEnabled } from "@/lib/guard";
 import { prisma } from "@/lib/db";
 
 // GET /api/v1/properties?city=london — authorised sample catalogue.
 export const GET = handler(async (req: NextRequest, { rid }) => {
   const user = await requireUser();
+  requireHomesEnabled();
   const url = new URL(req.url);
   let city = url.searchParams.get("city");
   if (!city) {

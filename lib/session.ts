@@ -36,10 +36,7 @@ export async function getCurrentUser() {
     where: { id: session.userId },
     include: { profile: true, search: true },
   });
-  if (!user || user.accountStatus === "deleted") return null;
+  // An account being deleted is treated as gone: its sessions stop working (HM-07).
+  if (!user || user.accountStatus === "deleted" || user.accountStatus === "deletion_pending") return null;
   return user;
-}
-
-export function getSessionCookieName() {
-  return COOKIE;
 }

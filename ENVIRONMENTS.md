@@ -1,86 +1,40 @@
 # Environments
 
-Three environments, isolated databases, env-aware behaviour. Everything is driven by `APP_ENV`.
+Behaviour is set by `APP_ENV` (server) and `NEXT_PUBLIC_APP_ENV` (browser, baked in at build).
+They must match. Every flag lives in `lib/env.ts`. Full detail: [`CLAUDE.md`](CLAUDE.md) §4.
 
-| Env | `APP_ENV` | Where | Database (Neon branch) | Demo sink / personas | Login email | Banner |
-|-----|-----------|-------|------------------------|----------------------|-------------|--------|
-| **development** | `development` | Local (`npm run dev`) | local Postgres `housemate_db` | on | console sink | Prototype |
-| **staging** | `staging` | Vercel (staging env) | `staging` (seeded demo data) | on | on-screen sink | Prototype |
-| **beta** | `beta` | Vercel (Production) | `beta` (clean, real users) | **off** | **real email (Resend)** | Beta (checks still simulated) |
+| `APP_ENV` | Where | Login codes | Personas and sample worlds | Identity check | Homes, viewings, move-in |
+|---|---|---|---|---|---|
+| `development` | local | on screen | personas | automatic (demo) | on |
+| `staging` | Vercel preview | on screen | personas | automatic (demo) | on |
+| `research` | production today | on screen (not for staff) | every account gets a sample world | automatic (demo) | on (sample homes) |
+| `beta` | production from launch | **emailed** (Resend) | off | **staff review** | **off** (agreement only) |
 
-- **Demo sink** returns the 6-digit code in the API response so it can be shown on-screen. It is **always off in beta** regardless of `DEMO_MODE`.
-- **Seeded personas** (the quick-login buttons) are hidden when `NEXT_PUBLIC_APP_ENV=beta`.
-- Verification and property partners are still **simulated in every environment** until real vendors are integrated — beta says so plainly in its banner.
+It fails closed: on the production deployment the server won't start unless `APP_ENV` is one of
+the four values and `NEXT_PUBLIC_APP_ENV` equals it. Anywhere else, an unset or unknown
+`APP_ENV` runs as `development` **without** on-screen codes. `DEMO_MODE=false` also turns
+on-screen codes off. Beta also limits browsing to identity-checked people.
 
-## Neon branches (project `muddy-unit-38565676`)
+## Variables
 
-```
-staging  [default]  — seeded demo data (24 members, 12 properties)
-dev                 — seeded copy, for PR preview deploys
-beta                — cleaned: 0 users, 12 sample properties kept
-```
+| Variable | Needed | Notes |
+|---|---|---|
+| `APP_ENV`, `NEXT_PUBLIC_APP_ENV` | always | One of the four modes, same value in both |
+| `DATABASE_URL`, `DIRECT_URL` | always | Pooled (runtime) and direct (migrations) Postgres |
+| `DEMO_MODE` | optional | `"false"` turns on-screen codes off outside beta |
+| `RESEND_API_KEY`, `EMAIL_FROM` | beta | `EMAIL_FROM` on a domain verified in Resend, e.g. `Peabudy <hello@peabudy.com>` |
+| `ADMIN_EMAILS` | beta | Comma-separated staff addresses; always emailed codes |
+| `NEXT_PUBLIC_CONTACT_EMAIL` | beta | Shown when someone needs a person (e.g. cancelling a deletion) |
+| `IP_HASH_SALT` | beta | Salt for hashing IPs in the code-request limit; set by `switch-to-beta.sh` |
+| `NEXT_PUBLIC_SITE_URL` | cloud | Absolute base URL for link previews |
+| `NEXT_PUBLIC_CLARITY_ID`, `NEXT_PUBLIC_FEEDBACK_URL` | research only | Clarity is never loaded in beta |
+| `TEST_TODAY` | tests | Pins "today" (`YYYY-MM-DD`) |
 
-Get a branch's connection strings:
-```bash
-neon connection-string <branch> --pooled   # runtime DATABASE_URL
-neon connection-string <branch>            # migrations DIRECT_URL
-```
+## Databases (Neon project `muddy-unit-38565676`)
 
-## Environment variable matrix
+`research` (production now) · `beta` (clean, for the real-user launch) · `staging` (seeded) ·
+`dev` (seeded, PR previews, auto-archives). Get connection strings with
+`neon connection-string <branch>` (direct) or `--pooled`. Never paste them into files.
 
-Set these per Vercel environment (Production = beta, custom "staging", Preview = dev):
-
-| Variable | development (`.env`) | staging | beta (Production) |
-|----------|----------------------|---------|-------------------|
-| `APP_ENV` | development | staging | beta |
-| `NEXT_PUBLIC_APP_ENV` | development | staging | beta |
-| `DATABASE_URL` | local Postgres | `staging` pooled | `beta` pooled |
-| `DIRECT_URL` | local Postgres | `staging` direct | `beta` direct |
-| `DEMO_MODE` | true | true | *(unset — forced off)* |
-| `RESEND_API_KEY` | — | — | **required** |
-| `EMAIL_FROM` | — | — | **required** (verified sender) |
-
-## Schema changes (migrations)
-
-Schema is managed with **Prisma Migrate** (not `db push`). Migrations live in `prisma/migrations/` and are committed.
-
-```bash
-# Author a new migration locally (edits schema.prisma first):
-npm run db:migrate:dev -- --name add_something
-
-# Apply pending migrations to an environment (also runs automatically on deploy):
-DATABASE_URL=... DIRECT_URL=... npm run db:migrate
-```
-
-`npm run build` runs `prisma migrate deploy` before `next build`, so every Vercel deploy applies pending migrations to that environment's branch automatically.
-
-## Local development
-
-```bash
-createdb housemate_db           # once
-cp .env.example .env            # APP_ENV=development, local Postgres
-npm install
-npm run setup                   # migrate deploy + seed
-npm run dev
-```
-
-## Deploying
-
-Once GitHub + Vercel Git is connected:
-- push to **`main`** → deploys **beta** (Production)
-- push to **`staging`** → deploys **staging**
-- open a **PR** → preview deploy on the `dev` branch DB
-
-## Beta go-live checklist (NOT just a deploy)
-
-Opening beta to real people requires non-code approvals from the PRD's production gates:
-
-- [ ] Privacy notice + lawful basis (UK GDPR & Nigeria NDPR)
-- [ ] Age / safety assessment
-- [ ] Security & access-control review
-- [ ] Retention policy + data-deletion flow operational
-- [ ] Housing/fee compliance (England Right to Rent scoped separately; NG market rules)
-- [ ] Incident / moderation coverage
-- [ ] **Real verification & listing vendors** — until these exist, beta must keep stating checks are simulated and must not be used for real tenancy decisions.
-
-The infrastructure is ready before these are done; **opening to users is gated on them.**
+Schema changes go through Prisma Migrate only (`npm run db:migrate:dev -- --name x`). Each Vercel
+build runs `prisma migrate deploy` against its own branch.

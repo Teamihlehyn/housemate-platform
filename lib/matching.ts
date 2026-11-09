@@ -302,7 +302,3 @@ export async function getRecommendations(viewerId: string): Promise<MatchResult>
     exclusions: { narrowFilters: [...reasonsWhyNarrow], excludedCount },
   };
 }
-
-export async function pairKey(a: string, b: string): Promise<[string, string]> {
-  return a < b ? [a, b] : [b, a];
-}

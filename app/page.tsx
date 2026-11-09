@@ -1,418 +1,242 @@
 import Link from "next/link";
 import { BANNER, IS_BETA } from "@/lib/env";
 import { FeedbackLink } from "@/components/ResearchTools";
+import Logo from "@/components/brand/Logo";
+import Pea from "@/components/brand/Pea";
+import HeroScene from "@/components/landing/HeroScene";
+import HowItWorks from "@/components/landing/HowItWorks";
+import WakeThePod from "@/components/landing/WakeThePod";
+import CitySwitch from "@/components/landing/CitySwitch";
+import { IconArrowRight, IconCheck, IconLock, IconShield, IconWallet } from "@/components/icons";
 
 /* ---------------------------------- bits ---------------------------------- */
 
-function Logo({ className = "" }: { className?: string }) {
+function SectionHead({ eyebrow, title, body, center = false }: { eyebrow: string; title: string; body?: string; center?: boolean }) {
   return (
-    <Link href="/" className={`flex items-center gap-2 font-display text-xl font-semibold tracking-tightest text-ink ${className}`}>
-      <span className="grid h-8 w-8 place-items-center rounded-full bg-brand-600 text-sm font-bold text-white">H</span>
-      Housemate
-    </Link>
-  );
-}
-
-function Pill({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="inline-flex items-center gap-2 rounded-full border border-ink/10 bg-white px-4 py-1.5 text-sm font-medium text-ink shadow-sm">
-      {children}
-    </span>
-  );
-}
-
-function CtaPrimary({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return (
-    <Link
-      href="/signin"
-      className={`inline-flex min-h-[52px] items-center justify-center rounded-full bg-ink px-7 text-base font-medium text-cream transition hover:bg-black ${className}`}
-    >
-      {children}
-    </Link>
-  );
-}
-
-function CtaSecondary({ href, children }: { href: string; children: React.ReactNode }) {
-  return (
-    <Link
-      href={href}
-      className="inline-flex min-h-[52px] items-center justify-center rounded-full border border-ink/15 bg-white px-7 text-base font-medium text-ink transition hover:bg-ink/5"
-    >
-      {children}
-    </Link>
-  );
-}
-
-/* --------------------------------- mockups -------------------------------- */
-
-function PhoneFrame({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="relative mx-auto w-[300px] max-w-full">
-      <div className="rounded-[2.8rem] border border-ink/10 bg-white p-3 shadow-[0_30px_80px_-30px_rgba(35,34,30,0.45)]">
-        <div className="relative overflow-hidden rounded-[2.1rem] bg-cream">
-          <div className="absolute left-1/2 top-2 z-10 h-5 w-24 -translate-x-1/2 rounded-full bg-ink/90" />
-          {children}
-        </div>
-      </div>
+    <div className={center ? "mx-auto max-w-2xl text-center" : "max-w-2xl"}>
+      <p className="text-caption font-semibold uppercase tracking-wide text-brand-700">{eyebrow}</p>
+      <h2 className="mt-2 font-display text-display text-ink md:text-display-md">{title}</h2>
+      {body && <p className="mt-3 text-body-lg text-ink-700">{body}</p>}
     </div>
   );
 }
 
-function MatchCardMock() {
+function ChecksMock({ isBeta }: { isBeta: boolean }) {
+  const rows = isBeta
+    ? [
+        { k: "Email", v: "Confirmed", done: true },
+        { k: "Identity", v: "Checked by our team", done: true },
+        { k: "Reference", v: "Not checked", done: false },
+      ]
+    : [
+        { k: "Email", v: "Confirmed", done: true },
+        { k: "Identity", v: "Demo verified", done: true },
+        { k: "Phone", v: "Demo verified", done: true },
+        { k: "Reference", v: "Not checked", done: false },
+      ];
   return (
-    <div className="px-4 pb-5 pt-10">
-      <p className="text-center text-xs font-medium text-ink/40">Discover</p>
-      <div className="mt-3 rounded-3xl border border-ink/10 bg-white p-4 shadow-sm">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <span className="grid h-11 w-11 place-items-center rounded-full bg-brand-100 font-semibold text-brand-700">BC</span>
-            <div>
-              <p className="font-semibold text-ink">Ben Carter</p>
-              <p className="text-xs text-ink/50">Hackney · Camden</p>
-            </div>
-          </div>
-          <span className="rounded-full bg-brand-100 px-2.5 py-1 text-xs font-semibold text-brand-800">Demo 80</span>
-        </div>
-        <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink/60">
-          <span>£850–1,150/mo</span>
-          <span>· 1 Nov – 10 Dec</span>
-        </div>
-        <ul className="mt-3 space-y-1.5 text-xs text-ink/70">
-          <li className="flex gap-1.5"><span className="text-brand-600">✓</span> Shared move-in window (40 days)</li>
-          <li className="flex gap-1.5"><span className="text-brand-600">✓</span> Both want Hackney</li>
-          <li className="flex gap-1.5"><span className="text-brand-600">✓</span> Same answer on quiet weeknights</li>
-        </ul>
-        <div className="mt-4 flex gap-2">
-          <span className="flex-1 rounded-full border border-ink/15 py-2 text-center text-xs font-medium text-ink">Profile</span>
-          <span className="flex-1 rounded-full bg-ink py-2 text-center text-xs font-medium text-cream">Introduce</span>
-        </div>
+    <div className="rounded-card bg-white p-5 ring-1 ring-ink-100">
+      <div className="flex items-center justify-between gap-2">
+        <p className="font-semibold text-ink">What&apos;s been checked</p>
+        <span className="rounded-full bg-ink-50 px-2.5 py-1 text-xs font-semibold text-ink-700">Example</span>
       </div>
-      <p className="mt-4 text-center text-xs font-medium text-ink/40 animate-shimmer">Finding people who fit your dates…</p>
-    </div>
-  );
-}
-
-function FloatingChip({ className = "", dot, label, value }: { className?: string; dot: string; label: string; value: string }) {
-  return (
-    <div className={`absolute hidden items-center gap-2 rounded-2xl border border-ink/10 bg-white px-3 py-2 shadow-lg sm:flex ${className}`}>
-      <span className="h-2.5 w-2.5 rounded-full" style={{ background: dot }} />
-      <div className="leading-tight">
-        <p className="text-[10px] font-medium uppercase tracking-wide text-ink/40">{label}</p>
-        <p className="text-sm font-semibold text-ink">{value}</p>
-      </div>
-    </div>
-  );
-}
-
-function AgreementMock() {
-  return (
-    <div className="rounded-4xl bg-cream p-6 ring-1 ring-ink/5">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="font-semibold text-ink">Household agreement</p>
-          <p className="text-xs text-ink/40">Version 2 · Amara &amp; Ben</p>
-        </div>
-        <span className="rounded-full bg-brand-100 px-3 py-1 text-xs font-semibold text-brand-800">✓ Agreed by both</span>
-      </div>
-      <div className="mt-5 space-y-2 text-sm">
-        <p className="text-ink/40">Rent split (per month)</p>
-        {[["Amara", "£950", "50%"], ["Ben", "£950", "50%"]].map(([n, a, p]) => (
-          <div key={n} className="flex justify-between rounded-2xl bg-white px-3 py-2.5 ring-1 ring-ink/5">
-            <span className="text-ink/80">{n}</span><span className="font-medium text-ink">{a}/mo <span className="font-normal text-ink/40">· {p}</span></span>
-          </div>
+      <ul className="mt-3 divide-y divide-ink-100">
+        {rows.map((r) => (
+          <li key={r.k} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+            <span className="flex items-center gap-2 text-ink">
+              <span
+                aria-hidden="true"
+                className={`grid h-5 w-5 place-items-center rounded-full ${r.done ? "bg-brand-600 text-white" : "border-2 border-ink-400"}`}
+              >
+                {r.done && <IconCheck size={13} strokeWidth={3} />}
+              </span>
+              {r.k}
+            </span>
+            <span className={r.done ? "font-semibold text-brand-800" : "text-ink-600"}>{r.v}</span>
+          </li>
         ))}
-      </div>
-      <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
-        <div className="rounded-2xl bg-white px-3 py-2.5 ring-1 ring-ink/5"><p className="text-xs text-ink/40">Bills</p><p className="font-medium text-ink">Split equally</p></div>
-        <div className="rounded-2xl bg-white px-3 py-2.5 ring-1 ring-ink/5"><p className="text-xs text-ink/40">Notice if someone leaves</p><p className="font-medium text-ink">4 weeks</p></div>
-      </div>
-      <div className="mt-2 rounded-2xl bg-white px-3 py-2.5 text-sm ring-1 ring-ink/5">
-        <p className="text-xs text-ink/40">Also agreed</p>
-        <p className="text-ink/80">Caution deposit split 50/50. Rent paid by the 1st.</p>
-      </div>
+      </ul>
+      <p className="mt-3 rounded-field bg-cream px-3 py-2 text-sm font-medium text-ink-700">Checks completed — not a guarantee of safety.</p>
     </div>
   );
 }
-
-/* ---------------------------------- data ---------------------------------- */
-
-const MATCH_CHIPS = [
-  { label: "Move-in dates", dot: "#45b87c" },
-  { label: "Budget", dot: "#e4a33a" },
-  { label: "Areas", dot: "#5b8fd6" },
-  { label: "Cleaning", dot: "#8b7bd6" },
-  { label: "Quiet hours", dot: "#ff90b8" },
-  { label: "Overnight guests", dot: "#45b87c" },
-  { label: "Pets", dot: "#e4a33a" },
-  { label: "Smoking", dot: "#5b8fd6" },
-  { label: "Social vibe", dot: "#8b7bd6" },
-  { label: "Stay length", dot: "#ff90b8" },
-];
-
-const AREAS_ROW_1 = ["Hackney", "Islington", "Camden", "Lewisham", "Walthamstow", "Brixton"];
-const AREAS_ROW_2 = ["Yaba", "Lekki", "Ikeja", "Surulere", "Gbagada", "Ikoyi"];
-
-const STAGES = [
-  { n: "01", t: "Introduce", d: "Send a short intro to someone whose dates and habits fit." },
-  { n: "02", t: "Chat", d: "Message privately and arrange a quick video meet." },
-  { n: "03", t: "Agree in writing", d: "Rent split, bills and notice if someone leaves — both accept every version." },
-  { n: "04", t: "Shortlist & view", d: "Add sample homes, vote, and book a viewing." },
-  { n: "05", t: "Move in", d: "Complete a demo handoff and confirm your move-in." },
-];
-
-const TRUST = [
-  { t: "Grounded in research", d: "Built on housing research across the UK and Nigeria — explicit dates, verified evidence and household coordination, not another listings feed." },
-  { t: "Evidence, never guarantees", d: "The credibility score shows which checks are complete, always beside the breakdown. It is never a promise that someone is safe." },
-  { t: "Private by default", d: "Legal identity, contacts and exact addresses never appear on profile cards. Precise location is never shown on a map." },
-  { t: "No real money", d: "No payments, deposits or binding agreements. The rental handoff is a demo — no home is reserved." },
-];
-
-const SCENARIOS = [
-  { who: "Two students, London", quote: "We matched on the exact same move-in week and both wanted Hackney. Forming a household before we even found a flat just made sense.", tag: "Find together" },
-  { who: "Relocating professional, Lagos", quote: "It showed the annual rent as a monthly equivalent and spelled out the agency and caution fees up front. No surprises.", tag: "Candidate home" },
-  { who: "Room host, Lekki", quote: "I offered my spare room, authority got reviewed, and the address only unlocked once we'd both agreed a viewing.", tag: "Existing room" },
-];
 
 /* ---------------------------------- page ---------------------------------- */
 
 export default function Landing() {
+  const trust = [
+    {
+      Icon: IconShield,
+      t: "Evidence, never guarantees",
+      d: IS_BETA
+        ? "We show which checks someone has completed. It's never a promise that they're safe."
+        : "Profiles show which checks are complete. In this test every check is a demo, and it's never a promise that someone is safe.",
+    },
+    {
+      Icon: IconLock,
+      t: "Private by default",
+      d: "Your gender, email, phone and exact address never appear on your profile. People you match with see your areas and budget range.",
+    },
+    {
+      Icon: IconWallet,
+      t: "No money through Peabudy",
+      d: IS_BETA
+        ? "We never take payments or deposits, and your agreement isn't a tenancy. Never pay anyone before you've seen a home in person."
+        : "No payments, deposits or real bookings. Your agreement isn't a tenancy, and the rental step is a demo: no home is reserved.",
+    },
+    {
+      Icon: IconCheck,
+      t: "Report and block, one tap away",
+      d: "Blocking is instant and the other person isn't told. Reports never change anyone's checks.",
+    },
+  ];
+
   return (
-    <div className="min-h-screen font-sans">
+    <div className="min-h-screen overflow-x-clip font-sans">
       {/* Nav */}
-      <header className="sticky top-8 z-40 border-b border-ink/5 bg-paper">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3.5">
-          <Logo />
-          <nav className="hidden items-center gap-7 text-sm font-medium text-ink/70 sm:flex">
-            <Link href="/#how" className="hover:text-ink">How it works</Link>
-            <Link href="/#match" className="hover:text-ink">What we match on</Link>
-            <Link href="/safety" className="hover:text-ink">Safety</Link>
+      <header className="sticky top-[var(--banner-h,33px)] z-40 border-b border-ink-100/70 bg-paper">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-2">
+          <Logo size="sm" />
+          <nav className="hidden items-center gap-1 text-sm font-semibold text-ink-700 md:flex" aria-label="Sections">
+            <a href="#how" className="rounded-full px-3 py-2.5 hover:bg-ink-50">How it works</a>
+            <a href="#habits" className="rounded-full px-3 py-2.5 hover:bg-ink-50">What we match on</a>
+            <a href="#cities" className="rounded-full px-3 py-2.5 hover:bg-ink-50">London &amp; Lagos</a>
+            <Link href="/safety" className="rounded-full px-3 py-2.5 hover:bg-ink-50">Safety</Link>
           </nav>
-          <CtaPrimary className="!min-h-[44px] px-5 text-sm">Get started</CtaPrimary>
+          <div className="flex items-center gap-1">
+            <Link href="/signin" className="btn-ghost hidden px-4 sm:inline-flex">Sign in</Link>
+            <Link href="/signin" className="btn-primary px-5">Get started</Link>
+          </div>
         </div>
       </header>
 
       {/* Hero */}
-      <section className="mx-auto max-w-5xl px-4 pb-10 pt-14 text-center sm:pt-20">
-        <div className="flex justify-center">
-          <Pill>
-            <span className="text-brand-600">✦</span> London &amp; Lagos pilots
-          </Pill>
+      <section className="bg-pastel">
+        <div className="mx-auto grid max-w-6xl items-center gap-8 px-4 pb-14 pt-6 md:grid-cols-[1.05fr_1fr] md:gap-12 md:pb-20 md:pt-16">
+          <div className="text-center md:text-left">
+            <span className="inline-flex items-center gap-2 rounded-full border border-ink-100 bg-white px-3.5 py-1.5 text-sm font-semibold text-ink">
+              <span className="h-2 w-2 rounded-full bg-pea-500" aria-hidden="true" />
+              {IS_BETA ? "Early access in London and Lagos" : "Testing now in London and Lagos"}
+            </span>
+            <h1 className="mt-5 font-display text-display-xl text-ink md:text-display-xl-md">
+              Two peas.
+              <br />
+              One home.
+            </h1>
+            <p className="mx-auto mt-4 max-w-xl text-body-lg text-ink-700 md:mx-0">
+              Peabudy finds people whose move-in dates, budget, areas and living habits fit yours. Then it helps
+              you both agree rent, bills and notice in writing, before anyone moves in.
+            </p>
+            <div className="mt-7 flex flex-col items-stretch gap-3 sm:flex-row sm:justify-center md:justify-start">
+              <Link href="/signin" className="btn-primary btn-lg">
+                Get started <IconArrowRight size={18} />
+              </Link>
+              <a href="#how" className="btn-secondary btn-lg">See how it works</a>
+            </div>
+            <p className="mt-4 text-sm text-ink-600">No swiping. No compatibility scores. Just plans that fit.</p>
+          </div>
+          <div className="order-first md:order-last"><HeroScene /></div>
         </div>
-        <h1 className="mx-auto mt-7 max-w-4xl font-display text-[2.7rem] font-normal leading-[0.98] tracking-tightest text-ink sm:text-6xl md:text-7xl">
-          Find people whose
-          <br className="hidden sm:block" /> plans fit yours
-        </h1>
-        <p className="mx-auto mt-6 max-w-xl text-lg text-ink/60">
-          Match on move-in dates and living habits, see what&apos;s been checked, and agree rent split, bills
-          and notice in writing — before anyone moves in.
-        </p>
-        <div className="mt-8 flex flex-wrap justify-center gap-3">
-          <CtaPrimary>Start your search</CtaPrimary>
-          <CtaSecondary href="/#how">See how it works</CtaSecondary>
-        </div>
+      </section>
 
-        {/* Hero mockup */}
-        <div className="relative mx-auto mt-14 max-w-xl">
-          <FloatingChip className="-left-2 top-10 md:-left-10" dot="#45b87c" label="Dates" value="40-day overlap" />
-          <FloatingChip className="-right-2 top-24 md:-right-12" dot="#e4a33a" label="Budget" value="£850–1,150" />
-          <FloatingChip className="-left-4 bottom-10 md:-left-16" dot="#5b8fd6" label="Verified" value="Demo 80/100" />
-          <PhoneFrame>
-            <MatchCardMock />
-          </PhoneFrame>
+      {/* How it works */}
+      <section id="how" className="mx-auto max-w-6xl scroll-mt-28 px-4 py-14 md:py-20">
+        <SectionHead
+          eyebrow="How it works"
+          title={IS_BETA ? "From first hello to a written agreement" : "From first hello to moving day"}
+          body="One journey, and both of you agree at every step that matters."
+        />
+        <div className="mt-8">
+          <HowItWorks isBeta={IS_BETA} />
         </div>
       </section>
 
       {/* What we match on */}
-      <section id="match" className="mx-auto max-w-6xl px-4 py-16">
-        <div className="rounded-5xl bg-white p-8 shadow-sm ring-1 ring-ink/5 sm:p-14">
-          <div className="flex flex-wrap justify-center gap-3">
-            {MATCH_CHIPS.map((c) => (
-              <span key={c.label} className="inline-flex items-center gap-2 rounded-full border border-ink/10 bg-cream px-4 py-2 text-sm font-medium text-ink">
-                <span className="h-2.5 w-2.5 rounded-full" style={{ background: c.dot }} />
-                {c.label}
-              </span>
-            ))}
+      <section id="habits" className="scroll-mt-28 bg-pastel-soft py-14 md:py-20">
+        <div className="mx-auto max-w-6xl px-4">
+          <SectionHead
+            center
+            eyebrow="What we match on"
+            title="Matched on how you actually live"
+            body="Dates, budget, areas and stay length first. Then six living habits. Every rule works both ways, and every match tells you why."
+          />
+          <div className="mt-8">
+            <WakeThePod />
           </div>
-          <h2 className="mx-auto mt-10 max-w-2xl text-center font-display text-3xl font-normal leading-tight tracking-tightest text-ink sm:text-4xl">
-            Matched on what actually matters
-          </h2>
-          <p className="mx-auto mt-4 max-w-xl text-center text-ink/60">
-            A deterministic, explainable match — overlapping dates, shared areas, compatible habits and
-            budgets. No swiping, no mystery algorithm, no compatibility percentage dressed up as science.
-          </p>
         </div>
       </section>
 
-      {/* Two-up features */}
-      <section className="mx-auto grid max-w-6xl gap-5 px-4 md:grid-cols-2">
-        {/* Reasons */}
-        <div className="rounded-4xl bg-white p-8 shadow-sm ring-1 ring-ink/5">
-          <div className="rounded-3xl bg-cream p-5">
-            <p className="text-xs font-medium text-ink/40">Why you match</p>
-            <ul className="mt-3 space-y-2.5 text-sm">
-              {["Shared move-in window: 1 Nov → 10 Dec (40 days)", "Both want to live in Hackney", "Same answer on “Quiet before 10pm”"].map((r) => (
-                <li key={r} className="flex items-start gap-2 rounded-2xl bg-white px-3 py-2.5 text-ink/80 ring-1 ring-ink/5">
-                  <span className="mt-0.5 text-brand-600">✓</span> {r}
-                </li>
-              ))}
-              <li className="flex items-start gap-2 rounded-2xl bg-white px-3 py-2.5 text-ink/50 ring-1 ring-ink/5">
-                <span className="mt-0.5">💬</span> Discuss: overnight guests
-              </li>
-            </ul>
-          </div>
-          <h3 className="mt-7 font-display text-2xl font-normal tracking-tightest text-ink">See exactly why you match</h3>
-          <p className="mt-2 text-ink/60">Every recommendation explains itself — the dates, the areas, the habits you share, and the topics worth talking through.</p>
-        </div>
-
-        {/* Credibility */}
-        <div className="rounded-4xl bg-white p-8 shadow-sm ring-1 ring-ink/5">
-          <div className="rounded-3xl bg-cream p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-ink/40">Demo credibility</p>
-                <p className="font-display text-4xl font-normal tracking-tightest text-ink">80<span className="text-xl text-ink/30">/100</span></p>
-              </div>
-              <span className="rounded-full bg-brand-100 px-3 py-1 text-xs font-semibold text-brand-800">Demo verified</span>
-            </div>
-            <ul className="mt-4 space-y-1.5 text-sm">
-              {[["Identity", "40 / 40"], ["Email", "10 / 10"], ["Phone", "10 / 10"], ["Reference", "20 / 20"], ["Additional evidence", "0 / 20"]].map(([k, v]) => (
-                <li key={k} className="flex justify-between border-b border-ink/5 pb-1.5 text-ink/60">
-                  <span>{k}</span><span className="font-medium text-ink">{v}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <h3 className="mt-7 font-display text-2xl font-normal tracking-tightest text-ink">Trust, shown honestly</h3>
-          <p className="mt-2 text-ink/60">A transparent score with the full evidence breakdown. &ldquo;Checks completed — not a guarantee of safety.&rdquo;</p>
+      {/* Cities */}
+      <section id="cities" className="mx-auto max-w-6xl scroll-mt-28 px-4 py-14 md:py-20">
+        <SectionHead
+          eyebrow="London & Lagos"
+          title="Built for how each city rents"
+          body="Pounds and monthly rent in London. Naira and yearly rent in Lagos, with a fair monthly equivalent."
+        />
+        <div className="mt-8">
+          <CitySwitch />
         </div>
       </section>
 
-      {/* The money stuff */}
-      <section id="agreement" className="mx-auto max-w-6xl px-4 pt-20">
-        <div className="grid items-center gap-10 rounded-5xl bg-white p-8 shadow-sm ring-1 ring-ink/5 sm:p-14 md:grid-cols-2">
+      {/* Trust */}
+      <section className="mx-auto max-w-6xl px-4 pb-14 md:pb-20">
+        <div className="grid items-start gap-8 rounded-sheet bg-white p-5 ring-1 ring-ink-100 sm:p-10 md:grid-cols-[1fr_1.1fr]">
           <div>
-            <Pill><span className="text-brand-600">✦</span> No more surprise exits</Pill>
-            <h2 className="mt-6 font-display text-3xl font-normal leading-tight tracking-tightest text-ink sm:text-5xl">
-              Agree the money stuff before anyone moves in
-            </h2>
-            <p className="mt-4 text-ink/60">
-              Late rent, unpaid bills and flatmates who leave with a week&apos;s notice are what make sharing stressful.
-              Housemate gets you both to agree, in writing, who pays what, how bills are split and how much notice to give.
-            </p>
-            <ul className="mt-6 space-y-2 text-ink/80">
-              {["A rent split you both accept", "Bills split equally or by rent share", "Notice period if someone leaves", "Every change is a new version you both accept"].map((t) => (
-                <li key={t} className="flex gap-2"><span className="text-brand-600">✓</span>{t}</li>
-              ))}
-            </ul>
-          </div>
-          <AgreementMock />
-        </div>
-      </section>
-
-      {/* Timeline / how it works */}
-      <section id="how" className="mx-auto max-w-6xl px-4 py-20">
-        <h2 className="max-w-2xl font-display text-3xl font-normal leading-tight tracking-tightest text-ink sm:text-5xl">
-          From first hello
-          <br /> to moving day
-        </h2>
-        <p className="mt-4 max-w-xl text-ink/60">One organised journey, with both people agreeing at every step that matters.</p>
-        <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          {STAGES.map((s) => (
-            <div key={s.n} className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-ink/5">
-              <span className="font-display text-sm font-medium text-brand-600">{s.n}</span>
-              <h3 className="mt-3 text-lg font-semibold text-ink">{s.t}</h3>
-              <p className="mt-1.5 text-sm text-ink/60">{s.d}</p>
+            <SectionHead eyebrow="Trust, shown honestly" title="See what's been checked. Decide for yourself." />
+            <div className="mt-6">
+              <ChecksMock isBeta={IS_BETA} />
             </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Areas marquee */}
-      <section className="py-8">
-        <p className="mb-6 text-center text-sm font-medium uppercase tracking-wide text-ink/40">Seeded neighbourhoods across both pilots</p>
-        <div className="marquee-mask space-y-3 overflow-hidden">
-          <div className="flex w-max animate-marquee gap-3">
-            {[...AREAS_ROW_1, ...AREAS_ROW_1, ...AREAS_ROW_1].map((a, i) => (
-              <span key={`${a}-${i}`} className="rounded-full border border-ink/10 bg-white px-5 py-2.5 text-sm font-medium text-ink/70">{a}</span>
-            ))}
           </div>
-          <div className="flex w-max animate-marquee-slow gap-3" style={{ animationDirection: "reverse" }}>
-            {[...AREAS_ROW_2, ...AREAS_ROW_2, ...AREAS_ROW_2].map((a, i) => (
-              <span key={`${a}-${i}`} className="rounded-full border border-ink/10 bg-white px-5 py-2.5 text-sm font-medium text-ink/70">{a}</span>
+          <ul className="grid gap-3 sm:grid-cols-2">
+            {trust.map(({ Icon, t, d }) => (
+              <li key={t} className="rounded-card bg-cream p-5">
+                <span className="grid h-10 w-10 place-items-center rounded-full bg-pea-100 text-ink" aria-hidden="true">
+                  <Icon size={20} />
+                </span>
+                <h3 className="mt-3 text-h3 text-ink">{t}</h3>
+                <p className="mt-1.5 text-sm text-ink-700">{d}</p>
+              </li>
             ))}
-          </div>
+          </ul>
         </div>
-      </section>
-
-      {/* Trust / built honestly */}
-      <section className="mx-auto max-w-6xl px-4 py-20">
-        <div className="text-center">
-          <Pill><span className="text-brand-600">✦</span> Built honestly</Pill>
-          <h2 className="mx-auto mt-6 max-w-2xl font-display text-3xl font-normal leading-tight tracking-tightest text-ink sm:text-5xl">
-            Trust &amp; safety, by design
-          </h2>
-        </div>
-        <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {TRUST.map((c) => (
-            <div key={c.t} className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-ink/5">
-              <h3 className="font-semibold text-ink">{c.t}</h3>
-              <p className="mt-2 text-sm text-ink/60">{c.d}</p>
-            </div>
-          ))}
-        </div>
-        <div className="mt-5 text-center">
-          <Link href="/safety" className="text-sm font-medium text-brand-700 underline underline-offset-4 hover:text-brand-800">Read the full safety approach →</Link>
-        </div>
-      </section>
-
-      {/* Scenarios (illustrative) */}
-      <section className="mx-auto max-w-6xl px-4 pb-20">
-        <h2 className="max-w-2xl font-display text-3xl font-normal leading-tight tracking-tightest text-ink sm:text-4xl">
-          Designed around real moving stories
-        </h2>
-        <p className="mt-3 max-w-xl text-ink/60">Three journeys, one coherent flow. <span className="italic text-ink/40">{IS_BETA ? "Illustrative scenarios — checks are still simulated." : "Illustrative scenarios — this is a prototype with sample people."}</span></p>
-        <div className="mt-8 grid gap-4 md:grid-cols-3">
-          {SCENARIOS.map((s) => (
-            <figure key={s.who} className="flex flex-col rounded-3xl bg-white p-6 shadow-sm ring-1 ring-ink/5">
-              <span className="chip w-fit bg-brand-50 text-brand-700">{s.tag}</span>
-              <blockquote className="mt-4 flex-1 text-ink/80">&ldquo;{s.quote}&rdquo;</blockquote>
-              <figcaption className="mt-5 text-sm font-medium text-ink/50">{s.who}</figcaption>
-            </figure>
-          ))}
-        </div>
+        <p className="mt-5 text-center">
+          <Link href="/safety" className="inline-flex min-h-[44px] items-center gap-1.5 text-sm font-semibold text-brand-700 underline underline-offset-4 hover:text-brand-800">
+            Read how we approach safety <IconArrowRight size={16} />
+          </Link>
+        </p>
       </section>
 
       {/* Final CTA */}
-      <section className="mx-auto max-w-6xl px-4 pb-20">
-        <div className="rounded-5xl bg-ink px-6 py-16 text-center text-cream sm:py-20">
-          <h2 className="mx-auto max-w-2xl font-display text-3xl font-normal leading-tight tracking-tightest sm:text-5xl">
-            Ready to find your household?
-          </h2>
-          <p className="mx-auto mt-4 max-w-lg text-cream/70">
+      <section className="mx-auto max-w-6xl px-4 pb-16 md:pb-20">
+        <div className="relative overflow-hidden rounded-sheet bg-ink px-6 pb-12 pt-10 text-center text-cream sm:py-16">
+          <div className="flex justify-center gap-1" aria-hidden="true">
+            <Pea size={64} mood="happy" className="animate-bob" />
+            <Pea size={64} mood="wink" tone="fresh" className="animate-bob-slow" />
+          </div>
+          <h2 className="mx-auto mt-5 max-w-2xl font-display text-display text-cream md:text-display-md">Find your other pea</h2>
+          <p className="mx-auto mt-3 max-w-lg text-cream/80">
             {IS_BETA
-              ? "Sign in with your email — we'll send you a 6-digit code."
+              ? "Sign in with your email and we'll send you a 6-digit code."
               : "Enter any email and your code appears on screen, or try a demo persona in one click."}
           </p>
-          <div className="mt-8 flex justify-center">
-            <Link href="/signin" className="inline-flex min-h-[52px] items-center justify-center rounded-full bg-cream px-8 text-base font-medium text-ink transition hover:bg-white">
-              Get started
-            </Link>
-          </div>
+          <Link href="/signin" className="btn btn-lg mt-7 bg-cream text-ink hover:bg-white focus-visible:ring-cream focus-visible:ring-offset-ink">
+            Get started <IconArrowRight size={18} />
+          </Link>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-ink/10 bg-cream">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 py-10 text-sm text-ink/50 sm:flex-row">
-          <Logo />
-          <nav className="flex flex-wrap justify-center gap-x-5 gap-y-2" aria-label="Footer">
-            <Link href="/safety" className="hover:text-ink">Safety</Link>
-            <Link href="/privacy" className="hover:text-ink">Privacy</Link>
-            <Link href="/terms" className="hover:text-ink">Terms</Link>
-            <FeedbackLink className="hover:text-ink">Give feedback</FeedbackLink>
+      <footer className="border-t border-ink-100 bg-cream">
+        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm text-ink-600 sm:flex-row">
+          <Logo size="sm" />
+          <nav className="flex flex-wrap justify-center gap-x-1 gap-y-1" aria-label="Footer">
+            <Link href="/safety" className="rounded-full px-3 py-2.5 hover:text-ink">Safety</Link>
+            <Link href="/privacy" className="rounded-full px-3 py-2.5 hover:text-ink">Privacy</Link>
+            <Link href="/terms" className="rounded-full px-3 py-2.5 hover:text-ink">Terms</Link>
+            <FeedbackLink className="rounded-full px-3 py-2.5 hover:text-ink">Give feedback</FeedbackLink>
           </nav>
         </div>
-        <p className="px-4 pb-8 text-center text-xs text-ink/40">{BANNER}</p>
+        <p className="px-4 pb-8 text-center text-xs text-ink-600">{BANNER}</p>
       </footer>
     </div>
   );

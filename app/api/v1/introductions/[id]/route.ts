@@ -3,6 +3,7 @@ import { handler, ok, fail } from "@/lib/api";
 import { requireUser } from "@/lib/guard";
 import { prisma } from "@/lib/db";
 import { writeAudit, writeOutbox, notify } from "@/lib/audit";
+import { assertNotBlocked } from "@/lib/blocks";
 
 // POST /api/v1/introductions/[id] {action: accept|decline|withdraw, expected_version?, reason_code?}
 export const POST = handler(async (req: NextRequest, { rid, params }) => {
@@ -23,6 +24,8 @@ export const POST = handler(async (req: NextRequest, { rid, params }) => {
   if (action === "accept") {
     if (intro.senderId === user.id)
       return fail("FORBIDDEN", "You can't accept your own introduction.", 403, rid);
+    // A block ends the intro, but re-check here too (HM-02): no conversation, no notice.
+    await assertNotBlocked(user.id, otherId);
     if (intro.state !== "pending")
       return fail("STATE_CONFLICT", "This introduction is no longer pending.", 409, rid);
 

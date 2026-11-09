@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { api, ApiClientError } from "@/lib/client";
+import { IconFeedback } from "@/components/icons";
 
 // Anonymous per-browser tester ID + recruitment source (?source=whatsapp), used to
 // match feedback, survey answers and Clarity recordings. Storage can be blocked
@@ -69,17 +70,18 @@ export default function ResearchTools() {
     }
   }
 
-  // On chat threads the pill would cover the composer; the top bar has a Feedback button there.
-  const hidePill = /^\/messages\/.+/.test(pathname);
+  // On chat threads and onboarding the pill would cover the composer / Continue button; the
+  // top bar has a Feedback button there.
+  const hidePill = /^\/messages\/.+/.test(pathname) || pathname.startsWith("/onboarding");
 
   return (
     <>
       {!hidePill && <button
         onClick={openFeedback}
-        className="fixed bottom-20 right-4 z-40 inline-flex min-h-[44px] items-center gap-2 rounded-full bg-ink px-4 text-sm font-medium text-cream shadow-lg transition hover:bg-black md:bottom-6 md:right-6"
+        className="fixed bottom-20 right-4 z-40 inline-flex min-h-[44px] items-center gap-2 rounded-full bg-ink px-4 text-sm font-medium text-cream shadow-e2 transition hover:bg-black md:bottom-6 md:right-6"
         aria-label="Give feedback on this page"
       >
-        <span aria-hidden>💬</span> Feedback
+        <IconFeedback size={18} /> Feedback
       </button>}
       {open && <FeedbackDialog page={pathname} testerId={testerId} source={source} onClose={() => setOpen(false)} />}
     </>
@@ -113,19 +115,19 @@ function FeedbackDialog({ page, testerId, source, onClose }: { page: string; tes
       <div className="card w-full max-w-md p-6" role="dialog" aria-modal="true" aria-labelledby="fb-title" onClick={(e) => e.stopPropagation()}>
         {done ? (
           <>
-            <h2 id="fb-title" className="text-lg font-bold text-stone-900">Thank you!</h2>
-            <p className="mt-2 text-sm text-stone-600">That&apos;s exactly what helps us improve Housemate.</p>
+            <h2 id="fb-title" className="text-lg font-bold text-ink">Thank you</h2>
+            <p className="mt-2 text-sm text-ink-600">That&apos;s exactly what helps us improve Peabudy.</p>
             <button className="btn-primary mt-4 w-full" onClick={onClose}>Back to the app</button>
           </>
         ) : (
           <>
-            <h2 id="fb-title" className="text-lg font-bold text-stone-900">What&apos;s on your mind?</h2>
-            <p className="mt-1 text-sm text-stone-600">Confusing, broken, or great — tell us about this page. Honest criticism helps most.</p>
+            <h2 id="fb-title" className="text-lg font-bold text-ink">What&apos;s on your mind?</h2>
+            <p className="mt-1 text-sm text-ink-600">Confusing, broken, or great — tell us about this page. Honest criticism helps most.</p>
             <div className="mt-4 flex justify-between gap-1" role="radiogroup" aria-label="How is it going?">
               {faces.map((f, i) => (
                 <button key={i} type="button" role="radio" aria-checked={rating === i + 1} aria-label={`${i + 1} of 5`}
                   onClick={() => setRating(i + 1)}
-                  className={`grid h-11 flex-1 place-items-center rounded-lg border text-xl ${rating === i + 1 ? "border-brand-500 bg-brand-50" : "border-stone-200"}`}>
+                  className={`grid h-11 flex-1 place-items-center rounded-lg border text-xl ${rating === i + 1 ? "border-brand-500 bg-brand-50" : "border-ink-100"}`}>
                   {f}
                 </button>
               ))}
@@ -133,7 +135,7 @@ function FeedbackDialog({ page, testerId, source, onClose }: { page: string; tes
             <textarea className="input mt-3 min-h-[110px]" maxLength={2000} value={message} onChange={(e) => setMessage(e.target.value)}
               placeholder="e.g. I couldn't find where to set the notice period…" />
             {error && <p className="field-error" role="alert">{error}</p>}
-            <p className="mt-2 text-xs text-stone-400">Sent with the page you&apos;re on ({page}) and your anonymous tester ID {testerId}.</p>
+            <p className="mt-2 text-xs text-ink-500">Sent with the page you&apos;re on ({page}) and your anonymous tester ID {testerId}.</p>
             <div className="mt-4 flex gap-2">
               <button className="btn-secondary flex-1" onClick={onClose}>Cancel</button>
               <button className="btn-primary flex-1" disabled={busy} onClick={send}>{busy ? "Sending…" : "Send feedback"}</button>

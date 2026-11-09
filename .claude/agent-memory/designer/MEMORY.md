@@ -1,0 +1,3 @@
+- [Calm ledger direction](design-direction-calm-ledger.md) — applied 2026-11-09 with Peabudy rename; open: D2, D4, dark mode
+- [Peabudy mascots](peabudy-brand-mascots.md) — Pea and Bud rules: celebrate own progress only, true copy, no fake counts
+- [Font glyph coverage](font-glyph-coverage.md) — Schibsted/Hanken lacked ₦/Ṣ; which fonts pass; next/font subsets needed

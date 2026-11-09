@@ -1,12 +1,7 @@
-// Fixed prototype configuration: London & Lagos pilots, questionnaire v1, rubric v1.
-
-export const PROTOTYPE_BANNER =
-  "Prototype — sample people, simulated checks, no real bookings";
+// Fixed configuration: London & Lagos, questionnaire v1, rubric v1.
 
 export const ALGORITHM_VERSION = "match-v1";
 export const PRIVACY_VERSION = "privacy-v1";
-export const RUBRIC_VERSION = "rubric-v1";
-export const QUESTIONNAIRE_VERSION = "q-v1";
 
 export type CityId = "london" | "lagos";
 
@@ -115,9 +110,6 @@ export const QUESTIONNAIRE: {
   },
 ];
 
-export function questionLabel(dim: Dimension) {
-  return QUESTIONNAIRE.find((q) => q.id === dim)!.label;
-}
 export function answerLabel(dim: Dimension, value: string) {
   return QUESTIONNAIRE.find((q) => q.id === dim)!.values.find((v) => v.id === value)?.label ?? value;
 }

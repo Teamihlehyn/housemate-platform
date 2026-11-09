@@ -43,10 +43,10 @@ export default function Settings() {
 
   return (
     <div className="mx-auto max-w-2xl">
-      <h1 className="mb-4 text-2xl font-bold text-stone-900">Settings &amp; privacy</h1>
+      <h1 className="mb-4 text-2xl font-bold text-ink">Settings &amp; privacy</h1>
       {msg && <div className="mb-4 rounded-lg border border-brand-200 bg-brand-50 px-4 py-2.5 text-sm text-brand-800">{msg}</div>}
 
-      <div className="card divide-y divide-stone-100">
+      <div className="card divide-y divide-ink-100">
         <Row title="Your data" desc="Download everything we hold about you as a JSON file.">
           <button className="btn-secondary" disabled={busy === "export"} onClick={exportData}>{busy === "export" ? "Preparing…" : "Export my data"}</button>
         </Row>
@@ -68,8 +68,8 @@ function Row({ title, desc, children }: { title: string; desc: string; children:
   return (
     <div className="flex items-center justify-between gap-4 p-5">
       <div>
-        <p className="font-medium text-stone-900">{title}</p>
-        <p className="text-sm text-stone-500">{desc}</p>
+        <p className="font-medium text-ink">{title}</p>
+        <p className="text-sm text-ink-600">{desc}</p>
       </div>
       <div className="shrink-0">{children}</div>
     </div>

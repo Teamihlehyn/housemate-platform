@@ -6,6 +6,12 @@ import { api, ApiClientError } from "@/lib/client";
 import { formatMoney, formatPeriodPrice } from "@/lib/money";
 import { formatDateRange } from "@/lib/dates";
 import { CITIES } from "@/lib/constants";
+import Pea from "@/components/brand/Pea";
+import { IconCalendar, IconCheck } from "@/components/icons";
+
+// Beta has no homes, viewings, application or move-in (those APIs 404 there): the household
+// is the written agreement only.
+const IS_BETA = process.env.NEXT_PUBLIC_APP_ENV === "beta";
 
 const STAGES = ["planning", "viewing", "application", "move_in_pending"];
 const STAGE_LABEL: Record<string, string> = {
@@ -45,13 +51,13 @@ export default function HouseholdPage() {
     catch (e) { setMsg(e instanceof ApiClientError ? e.message : "Something went wrong."); return false; }
   }
 
-  if (loading) return <div className="h-64 animate-pulse rounded-xl bg-stone-200" />;
+  if (loading) return <div className="skeleton mx-auto h-64 max-w-3xl" />;
 
   if (!hh) return (
-    <div className="card mx-auto max-w-lg p-8 text-center">
-      <p className="text-3xl">🏠</p>
-      <h1 className="mt-3 text-xl font-bold text-stone-900">No active household</h1>
-      <p className="mt-2 text-sm text-stone-600">Once someone accepts your introduction, use &quot;Form household&quot; in your chat with them. Then you&apos;ll agree rent split, bills and notice here.</p>
+    <div className="card mx-auto max-w-lg p-6 text-center sm:p-8">
+      <div className="flex justify-center gap-0.5" aria-hidden="true"><Pea size={56} mood="awake" blink /><Pea size={56} mood="sleep" tone="fresh" dim /></div>
+      <h1 className="mt-3 text-h2 text-ink">No household yet</h1>
+      <p className="mt-2 text-sm text-ink-600">Once someone accepts your introduction, use &quot;Form household&quot; in your chat with them. Then you&apos;ll agree rent split, bills and notice here.</p>
       <Link href="/messages" className="btn-primary mt-5">Go to messages</Link>
     </div>
   );
@@ -69,12 +75,12 @@ export default function HouseholdPage() {
       <div className="mx-auto max-w-2xl">
         <StatusMsg msg={msg} />
         <div className="mb-4">
-          <span className="chip bg-amber-100 text-amber-800">Proposal</span>
-          <h1 className="mt-2 text-2xl font-bold text-stone-900">Household with {other?.name} <SampleChip member={other} /></h1>
+          <span className="chip bg-caution-50 text-caution-800">Proposal</span>
+          <h1 className="mt-2 font-display text-h1 text-ink">Household with {other?.name} <SampleChip member={other} /></h1>
         </div>
         <AgreementCard hh={hh} meId={meId} onAction={call} onAccept={acceptPlan} />
         {!iAcceptedPlan && (
-          <button className="btn-ghost mt-3 w-full text-red-600" onClick={() => confirm("Decline this household proposal? You can keep chatting.") && call(() => api(`/households/${hh.id}`, { body: { action: "leave" } }))}>Decline proposal</button>
+          <button className="btn-ghost mt-3 w-full text-danger-600 hover:bg-danger-50" onClick={() => confirm("Decline this household proposal? You can keep chatting.") && call(() => api(`/households/${hh.id}`, { body: { action: "leave" } }))}>Decline proposal</button>
         )}
       </div>
     );
@@ -84,10 +90,10 @@ export default function HouseholdPage() {
   if (hh.state === "completed") {
     return (
       <div className="mx-auto max-w-2xl">
-        <div className="card mb-4 p-8 text-center">
-          <p className="text-4xl">🎉</p>
-          <h1 className="mt-3 text-xl font-bold text-stone-900">You&apos;ve moved in together!</h1>
-          <p className="mt-2 text-sm text-stone-600">Both of you confirmed the move-in with {other?.name}. That completes the journey.</p>
+        <div className="card mb-4 p-6 text-center sm:p-8">
+          <div className="flex justify-center gap-0.5" aria-hidden="true"><Pea size={64} mood="happy" className="animate-bob" /><Pea size={64} mood="wink" tone="fresh" className="animate-bob-slow" /></div>
+          <h1 className="mt-3 text-h2 text-ink">You&apos;ve moved in together!</h1>
+          <p className="mt-2 text-sm text-ink-600">Both of you confirmed the move-in with {other?.name}. That completes the journey.</p>
         </div>
         <AgreementCard hh={hh} meId={meId} onAction={call} readOnly />
       </div>
@@ -97,8 +103,8 @@ export default function HouseholdPage() {
   if (hh.state === "closed") {
     return (
       <div className="card mx-auto max-w-lg p-8 text-center">
-        <h1 className="text-xl font-bold text-stone-900">This household is closed</h1>
-        <p className="mt-2 text-sm text-stone-600">You can return to searching from your profile.</p>
+        <h1 className="text-xl font-bold text-ink">This household is closed</h1>
+        <p className="mt-2 text-sm text-ink-600">You can return to searching from your profile.</p>
         <Link href="/profile" className="btn-secondary mt-4">Go to profile</Link>
       </div>
     );
@@ -113,42 +119,71 @@ export default function HouseholdPage() {
     { id: "application", label: "Application" },
     { id: "movein", label: "Move-in" },
   ];
+  const leave = () =>
+    confirm(IS_BETA ? "Leaving closes the household for both of you. Continue?" : "Leaving closes the household for both of you and cancels viewings and the application. Continue?") &&
+    call(() => api(`/households/${hh.id}`, { body: { action: "leave" } }));
+
+  if (IS_BETA) {
+    return (
+      <div className="mx-auto max-w-2xl">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <h1 className="font-display text-h1 text-ink md:text-h1-md">Household with {other?.name} <SampleChip member={other} /></h1>
+          {plan?.agreed ? (
+            <span className="chip shrink-0 bg-brand-100 text-brand-800"><IconCheck size={14} strokeWidth={2.5} /> Agreement in place</span>
+          ) : (
+            <span className="chip shrink-0 bg-caution-50 text-caution-800">Needs both to accept</span>
+          )}
+        </div>
+        <StatusMsg msg={msg} />
+        <AgreementCard hh={hh} meId={meId} onAction={call} onAccept={acceptPlan} />
+        {!plan?.agreed && (
+          <p className="mt-4 rounded-panel bg-cream p-4 text-sm text-ink-700">Both of you need to accept the latest version. Changing anything creates a new version.</p>
+        )}
+        <button className="btn-ghost mt-3 text-sm text-danger-600 hover:bg-danger-50" onClick={leave}>Leave household</button>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-3xl">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-stone-900">Household with {other?.name} <SampleChip member={other} /></h1>
-          <p className="text-sm text-stone-500">Agree how you&apos;ll live together, then find a home.</p>
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="font-display text-h1 text-ink md:text-h1-md">Household with {other?.name} <SampleChip member={other} /></h1>
+          <p className="text-sm text-ink-600">Agree how you&apos;ll live together, then find a home.</p>
         </div>
-        <span className={`chip shrink-0 ${hh.derivedStage === "needs_reagreement" ? "bg-amber-100 text-amber-800" : "bg-brand-100 text-brand-800"}`}>{STAGE_LABEL[hh.derivedStage]}</span>
+        <span className={`chip shrink-0 ${hh.derivedStage === "needs_reagreement" ? "bg-caution-50 text-caution-800" : "bg-brand-100 text-brand-800"}`}>Stage: {STAGE_LABEL[hh.derivedStage]}</span>
       </div>
 
-      <div className="mb-4 flex items-center gap-1" aria-hidden>
+      <ol className="mb-4 grid grid-cols-4 gap-1" aria-label="Household progress">
         {STAGES.map((s, i) => (
-          <div key={s} className={`h-1.5 flex-1 rounded-full ${stageIdx >= 0 && i <= stageIdx ? "bg-brand-500" : "bg-stone-200"}`} />
+          <li key={s} aria-current={i === stageIdx ? "step" : undefined} className="text-center">
+            <div className={`h-1.5 rounded-full ${stageIdx >= 0 && i < stageIdx ? "bg-ink" : i === stageIdx ? "bg-pea-500" : "bg-ink-100"}`} />
+            <span className={`mt-1 block text-[11px] ${i === stageIdx ? "font-semibold text-ink" : "text-ink-600"}`}>{STAGE_LABEL[s]}</span>
+          </li>
         ))}
-      </div>
+      </ol>
 
       <StatusMsg msg={msg} />
 
-      <div className="mb-4 flex gap-1 overflow-x-auto border-b border-stone-200">
-        {tabs.map((t) => (
-          <button key={t.id} onClick={() => setTab(t.id)}
-            className={`whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium ${tab === t.id ? "border-brand-600 text-brand-700" : "border-transparent text-stone-500 hover:text-stone-700"}`}>
-            {t.label}
-          </button>
-        ))}
+      <div className="-mx-4 mb-4 overflow-x-auto px-4 [scrollbar-width:none]">
+        <div role="tablist" aria-label="Household sections" className="flex w-max gap-1.5">
+          {tabs.map((t) => (
+            <button key={t.id} role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)}
+              className={`min-h-[44px] whitespace-nowrap rounded-full px-4 text-sm font-semibold transition duration-quick focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${tab === t.id ? "bg-ink text-cream" : "bg-white text-ink-700 ring-1 ring-ink-100 hover:bg-ink-50"}`}>
+              {t.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {tab === "overview" && (
         <>
           <AgreementCard hh={hh} meId={meId} onAction={call} onAccept={acceptPlan} />
-          <div className="card mt-4 p-5 text-sm text-stone-600">
-            <p className="font-medium text-stone-800">Next step</p>
+          <div className="card mt-4 p-5 text-sm text-ink-600">
+            <p className="font-medium text-ink">Next step</p>
             <p className="mt-1">{nextStepText(hh)}</p>
           </div>
-          <button className="btn-ghost mt-3 text-sm text-red-600" onClick={() => confirm("Leaving closes the household for both of you and cancels viewings and the application. Continue?") && call(() => api(`/households/${hh.id}`, { body: { action: "leave" } }))}>Leave household</button>
+          <button className="btn-ghost mt-3 text-sm text-danger-600 hover:bg-danger-50" onClick={leave}>Leave household</button>
         </>
       )}
 
@@ -162,19 +197,19 @@ export default function HouseholdPage() {
 
 function SampleChip({ member }: { member: any }) {
   if (!member?.isSample) return null;
-  return <span className="chip ml-1 align-middle bg-stone-100 text-xs font-medium text-stone-500">Sample housemate · replies automatically</span>;
+  return <span className="chip-sample ml-1 align-middle">Sample housemate · replies automatically</span>;
 }
 
 function StatusMsg({ msg }: { msg: string | null }) {
   if (!msg) return null;
-  return <div className="mb-4 rounded-lg border border-brand-200 bg-brand-50 px-4 py-2.5 text-sm text-brand-800" role="status">{msg}</div>;
+  return <div className="mb-4 rounded-field border border-ink-100 bg-white px-4 py-2.5 text-sm font-medium text-ink" role="status">{msg}</div>;
 }
 
 function AgreedGate({ hh, onOpen, children }: { hh: any; onOpen: () => void; children: React.ReactNode }) {
   if (hh.currentPlan?.agreed) return <>{children}</>;
   return (
-    <div className="card p-6 text-sm text-stone-600">
-      <p className="font-medium text-stone-900">Agree your plan first</p>
+    <div className="card p-6 text-sm text-ink-600">
+      <p className="font-medium text-ink">Agree your plan first</p>
       <p className="mt-1">Your household agreement changed. Both of you need to accept the latest version before booking viewings or applying.</p>
       <button className="btn-secondary mt-3" onClick={onOpen}>Review the agreement</button>
     </div>
@@ -206,63 +241,63 @@ function AgreementCard({ hh, meId, onAction, onAccept, readOnly }: { hh: any; me
   if (editing) return <AgreementEditor hh={hh} onCancel={() => setEditing(false)} onSaved={() => setEditing(false)} onAction={onAction} />;
 
   return (
-    <div className="card p-6">
-      <div className="flex items-start justify-between gap-3">
+    <div className="card p-4 sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h2 className="text-lg font-semibold text-stone-900">Household agreement</h2>
-          <p className="text-xs text-stone-500">Version {plan.versionNo} · written down so you both know what was agreed</p>
+          <h2 className="text-h2 text-ink">Household agreement</h2>
+          <p className="text-caption text-ink-600">Version {plan.versionNo} · a record of what you both agreed, not a tenancy or legal contract</p>
         </div>
         {plan.agreed ? (
           <span className="chip shrink-0 bg-brand-100 text-brand-800">✓ Agreed by both</span>
         ) : (
-          <span className="chip shrink-0 bg-amber-100 text-amber-800">Waiting for {waitingFor.map((m) => (m.userId === meId ? "you" : m.name.split(" ")[0])).join(" & ")}</span>
+          <span className="chip shrink-0 bg-caution-50 text-caution-800">Waiting for {waitingFor.map((m) => (m.userId === meId ? "you" : m.name.split(" ")[0])).join(" & ")}</span>
         )}
       </div>
 
       <dl className="mt-5 space-y-4 text-sm">
         <div>
-          <dt className="text-stone-500">Rent split (per month)</dt>
+          <dt className="text-ink-600">Rent split (per month)</dt>
           <dd className="mt-1 space-y-1">
             {members.map((m) => {
               const c = plan.contributions[m.userId] ?? 0;
               const pct = total > 0 ? Math.round((c / total) * 100) : 0;
               return (
                 <div key={m.userId} className="flex items-center justify-between gap-2">
-                  <span className="text-stone-700">{m.userId === meId ? "You" : m.name}</span>
-                  <span className="font-medium text-stone-900">
-                    {money(c, plan.currency)}/mo <span className="font-normal text-stone-400">· {pct}%</span>
-                    {plan.currency === "NGN" && <span className="block text-right text-xs font-normal text-stone-400">≈ {money(c * 12, plan.currency)}/yr</span>}
+                  <span className="text-ink-700">{m.userId === meId ? "You" : m.name}</span>
+                  <span className="num font-semibold text-ink">
+                    {money(c, plan.currency)}/mo <span className="font-normal text-ink-500">· {pct}%</span>
+                    {plan.currency === "NGN" && <span className="block text-right text-xs font-normal text-ink-500">≈ {money(c * 12, plan.currency)}/yr</span>}
                   </span>
                 </div>
               );
             })}
-            <div className="flex justify-between border-t border-stone-100 pt-1 text-stone-500">
+            <div className="flex justify-between border-t border-ink-100 pt-1 text-ink-600">
               <span>Total rent you can cover</span>
               <span>{money(total, plan.currency)}/mo</span>
             </div>
           </dd>
         </div>
         <div className="grid gap-4 sm:grid-cols-3">
-          <div><dt className="text-stone-500">Bills</dt><dd className="font-medium text-stone-900">{BILLS_LABEL[plan.billsSplit] ?? plan.billsSplit}</dd></div>
-          <div><dt className="text-stone-500">Notice if someone leaves</dt><dd className="font-medium text-stone-900">{NOTICE_OPTIONS.find((n) => n.weeks === plan.noticePeriodWeeks)?.label ?? `${plan.noticePeriodWeeks} weeks`}</dd></div>
-          <div><dt className="text-stone-500">Stay</dt><dd className="font-medium text-stone-900">{plan.stayMin}–{plan.stayMax} months</dd></div>
+          <div><dt className="text-ink-600">Bills</dt><dd className="font-medium text-ink">{BILLS_LABEL[plan.billsSplit] ?? plan.billsSplit}</dd></div>
+          <div><dt className="text-ink-600">Notice if someone leaves</dt><dd className="font-medium text-ink">{NOTICE_OPTIONS.find((n) => n.weeks === plan.noticePeriodWeeks)?.label ?? `${plan.noticePeriodWeeks} weeks`}</dd></div>
+          <div><dt className="text-ink-600">Stay</dt><dd className="font-medium text-ink">{plan.stayMin}–{plan.stayMax} months</dd></div>
         </div>
-        <div><dt className="text-stone-500">Move-in window</dt><dd className="font-medium text-stone-900">{formatDateRange(plan.earliestDate, plan.latestDate)}</dd></div>
+        <div><dt className="text-ink-600">Move-in window</dt><dd className="font-medium text-ink">{formatDateRange(plan.earliestDate, plan.latestDate)}</dd></div>
         {plan.notes && (
-          <div><dt className="text-stone-500">Also agreed</dt><dd className="whitespace-pre-wrap text-stone-800">{plan.notes}</dd></div>
+          <div><dt className="text-ink-600">Also agreed</dt><dd className="whitespace-pre-wrap text-ink">{plan.notes}</dd></div>
         )}
       </dl>
 
       {!readOnly && (
-        <div className="mt-5 flex flex-wrap gap-2 border-t border-stone-100 pt-4">
+        <div className="mt-5 flex flex-wrap gap-2 border-t border-ink-100 pt-4">
           {!iAccepted && onAccept && (
-            <button className="btn-primary" onClick={onAccept}>{hh.state === "proposed" ? "Accept & form household" : `Accept version ${plan.versionNo}`}</button>
+            <button className="btn-confirm" onClick={onAccept}>{hh.state === "proposed" ? "Accept & form household" : `Accept version ${plan.versionNo}`}</button>
           )}
           <button className="btn-secondary" onClick={() => setEditing(true)}>Edit agreement</button>
         </div>
       )}
       {!readOnly && iAccepted && !plan.agreed && (
-        <p className="mt-3 text-xs text-stone-500">You&apos;ve accepted this version. Changing anything creates a new version that both of you accept again.</p>
+        <p className="mt-3 text-xs text-ink-600">You&apos;ve accepted this version. Changing anything creates a new version that both of you accept again.</p>
       )}
     </div>
   );
@@ -309,9 +344,9 @@ function AgreementEditor({ hh, onCancel, onSaved, onAction }: { hh: any; onCance
   }
 
   return (
-    <div className="card p-6">
-      <h2 className="text-lg font-semibold text-stone-900">Edit agreement</h2>
-      <p className="text-sm text-stone-500">Saving creates version {plan.versionNo + 1}. Your housemate will be asked to accept it.</p>
+    <div className="card p-4 sm:p-6">
+      <h2 className="text-h2 text-ink">Edit agreement</h2>
+      <p className="text-sm text-ink-600">Saving creates version {plan.versionNo + 1}. Your housemate will be asked to accept it.</p>
 
       <fieldset className="mt-5">
         <legend className="label">How much rent will each of you pay per month?</legend>
@@ -323,23 +358,23 @@ function AgreementEditor({ hh, onCancel, onSaved, onAction }: { hh: any; onCance
             return (
               <div key={m.userId}>
                 <div className="flex items-center gap-3">
-                  <label className="w-28 shrink-0 text-sm text-stone-700" htmlFor={`c-${m.userId}`}>{m.name.split(" ")[0]}</label>
+                  <label className="w-20 shrink-0 truncate text-sm text-ink-700 sm:w-28" htmlFor={`c-${m.userId}`}>{m.name.split(" ")[0]}</label>
                   <div className="relative flex-1">
-                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-stone-400">{symbol}</span>
-                    <input id={`c-${m.userId}`} inputMode="decimal" className="input pl-7" value={amounts[m.userId]}
+                    <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ink-600">{symbol}</span>
+                    <input id={`c-${m.userId}`} inputMode="decimal" className="input num pl-8" value={amounts[m.userId]}
                       onChange={(e) => setAmounts((a) => ({ ...a, [m.userId]: e.target.value.replace(/[^\d.]/g, "") }))} />
                   </div>
-                  <span className="w-12 text-right text-sm text-stone-400">{total > 0 && Number.isFinite(v) ? Math.round((v / total) * 100) : 0}%</span>
+                  <span className="num w-10 shrink-0 text-right text-sm text-ink-600">{total > 0 && Number.isFinite(v) ? Math.round((v / total) * 100) : 0}%</span>
                 </div>
                 {outside && (
-                  <p className="ml-[7.75rem] mt-1 text-xs text-amber-700">
+                  <p className="ml-[5.75rem] mt-1 text-sm text-caution-800 sm:ml-[7.75rem]">
                     Outside {m.name.split(" ")[0]}&apos;s saved budget ({formatMoney(band.minMonthly, plan.currency)}–{formatMoney(band.maxMonthly, plan.currency)}/mo).
                   </p>
                 )}
               </div>
             );
           })}
-          <p className="text-sm text-stone-500">Total: <span className="font-medium text-stone-900">{formatMoney(total, plan.currency)}/mo</span>{plan.currency === "NGN" && <> · ≈ {formatMoney(total * 12, plan.currency)}/yr</>}</p>
+          <p className="text-sm text-ink-600">Total: <span className="font-medium text-ink">{formatMoney(total, plan.currency)}/mo</span>{plan.currency === "NGN" && <> · ≈ {formatMoney(total * 12, plan.currency)}/yr</>}</p>
         </div>
       </fieldset>
 
@@ -367,13 +402,13 @@ function AgreementEditor({ hh, onCancel, onSaved, onAction }: { hh: any; onCance
       </div>
 
       <div className="mt-5">
-        <label className="label" htmlFor="notes">Anything else you want in writing? <span className="font-normal text-stone-400">(optional)</span></label>
+        <label className="label" htmlFor="notes">Anything else you want in writing? <span className="font-normal text-ink-500">(optional)</span></label>
         <textarea id="notes" className="input min-h-[90px]" maxLength={500} value={notes} onChange={(e) => setNotes(e.target.value)}
           placeholder="e.g. Caution fee split 50/50. Guests max 2 nights. Rent paid by the 1st." />
-        <p className="mt-1 text-xs text-stone-400">{notes.length} / 500</p>
+        <p className="mt-1 text-xs text-ink-500">{notes.length} / 500</p>
       </div>
 
-      <div className="mt-5 flex gap-2">
+      <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row">
         <button className="btn-primary" disabled={saving} onClick={save}>{saving ? "Saving…" : "Save new version"}</button>
         <button className="btn-ghost" onClick={onCancel}>Cancel</button>
       </div>
@@ -391,11 +426,11 @@ function PropertiesTab({ hh, meId, onAction }: { hh: any; meId: string; onAction
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="font-semibold text-stone-900">Shortlist</h2>
+        <h2 className="font-semibold text-ink">Shortlist</h2>
         <button className="btn-secondary text-sm" onClick={() => setShowAdd((s) => !s)}>{showAdd ? "Done" : "Add a home"}</button>
       </div>
 
-      {hh.shortlist.length === 0 && <p className="card p-6 text-center text-sm text-stone-500">No homes shortlisted yet.</p>}
+      {hh.shortlist.length === 0 && <p className="card p-6 text-center text-sm text-ink-600">No homes shortlisted yet.</p>}
 
       {hh.shortlist.map((item: any) => {
         const myVote = item.votes.find((v: any) => v.userId === meId)?.decision;
@@ -404,14 +439,14 @@ function PropertiesTab({ hh, meId, onAction }: { hh: any; meId: string; onAction
           <div key={item.id} className="card p-5">
             <div className="flex items-start justify-between">
               <div>
-                <p className="font-semibold text-stone-900">{item.title}</p>
-                {prop && <p className="text-sm text-stone-500">{CITIES[prop.cityId as keyof typeof CITIES]?.areas.find((a) => a.id === prop.areaId)?.label} · Sample availability</p>}
-                {item.url && <p className="text-xs text-stone-400">Details added by a member; availability unconfirmed</p>}
+                <p className="font-semibold text-ink">{item.title}</p>
+                {prop && <p className="text-sm text-ink-600">{CITIES[prop.cityId as keyof typeof CITIES]?.areas.find((a) => a.id === prop.areaId)?.label} · Sample availability</p>}
+                {item.url && <p className="text-xs text-ink-500">Details added by a member; availability unconfirmed</p>}
               </div>
               {item.bothInterested && <span className="chip bg-brand-100 text-brand-800">Both interested</span>}
             </div>
             {prop && (
-              <div className="mt-2 text-sm text-stone-600">
+              <div className="mt-2 text-sm text-ink-600">
                 <p>{formatPeriodPrice(prop.rentMinor, prop.rentPeriod, prop.currency)} · {prop.bedroomCount}-bed {prop.contractType === "room" ? "(room)" : ""}</p>
                 {prop.upfrontItems?.length > 0 && (
                   <p className="mt-1 text-xs text-amber-700">Upfront: {JSON.parse(typeof prop.upfrontItems === "string" ? prop.upfrontItems : JSON.stringify(prop.upfrontItems)).map((u: any) => `${u.label} ${formatMoney(u.minor, prop.currency)}`).join(", ")}</p>
@@ -421,8 +456,8 @@ function PropertiesTab({ hh, meId, onAction }: { hh: any; meId: string; onAction
             <div className="mt-3 flex gap-2">
               {["interested", "not_interested"].map((d) => (
                 <button key={d} onClick={() => onAction(() => api(`/shortlist/${item.id}/vote`, { body: { decision: d } }))}
-                  className={`chip border ${myVote === d ? (d === "interested" ? "border-brand-500 bg-brand-100 text-brand-800" : "border-red-300 bg-red-50 text-red-700") : "border-stone-300 bg-white text-stone-600"}`}>
-                  {d === "interested" ? "👍 Interested" : "👎 Not for me"}
+                  aria-pressed={myVote === d} className="choice-chip">
+                  {myVote === d && <IconCheck size={14} strokeWidth={2.5} />}{d === "interested" ? "Interested" : "Not for me"}
                 </button>
               ))}
             </div>
@@ -432,13 +467,13 @@ function PropertiesTab({ hh, meId, onAction }: { hh: any; meId: string; onAction
 
       {showAdd && (
         <div className="card p-5">
-          <h3 className="font-semibold text-stone-900">Add from sample catalogue</h3>
+          <h3 className="font-semibold text-ink">Add from sample catalogue</h3>
           <div className="mt-3 space-y-2">
             {catalogue.map((p) => (
-              <div key={p.id} className="flex items-center justify-between rounded-lg border border-stone-200 p-3">
+              <div key={p.id} className="flex items-center justify-between rounded-lg border border-ink-100 p-3">
                 <div>
-                  <p className="text-sm font-medium text-stone-900">{p.title}</p>
-                  <p className="text-xs text-stone-500">{formatPeriodPrice(p.rentMinor, p.rentPeriod, p.currency)}</p>
+                  <p className="text-sm font-medium text-ink">{p.title}</p>
+                  <p className="text-xs text-ink-600">{formatPeriodPrice(p.rentMinor, p.rentPeriod, p.currency)}</p>
                 </div>
                 <button className="btn-secondary text-sm" disabled={shortlistedIds.has(p.id)}
                   onClick={() => onAction(() => api(`/households/${hh.id}/shortlist`, { body: { source_property_id: p.id } }), "Added to shortlist")}>
@@ -461,21 +496,22 @@ function ViewingsTab({ hh, meId, onAction }: { hh: any; meId: string; onAction: 
 
   return (
     <div className="space-y-4">
-      <h2 className="font-semibold text-stone-900">Viewings</h2>
+      <h2 className="font-semibold text-ink">Viewings</h2>
 
       {eligible.length === 0 && hh.viewings.length === 0 && (
-        <p className="card p-6 text-center text-sm text-stone-500">Both members must mark a home &quot;interested&quot; before booking a viewing.</p>
+        <p className="card p-6 text-center text-sm text-ink-600">Both members must mark a home &quot;interested&quot; before booking a viewing.</p>
       )}
 
       {eligible.map((item: any) => {
         const existing = hh.viewings.find((v: any) => v.shortlistItemId === item.id && ["awaiting_partner", "confirmed", "completed", "disputed"].includes(v.state));
         return (
           <div key={item.id} className="card p-5">
-            <p className="font-semibold text-stone-900">{item.title}</p>
+            <p className="font-semibold text-ink">{item.title}</p>
             {!existing && (
               slotFor === item.id ? (
-                <div className="mt-3 flex gap-2">
-                  <input type="datetime-local" className="input" value={slot} onChange={(e) => setSlot(e.target.value)} />
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                  <label className="sr-only" htmlFor={`slot-${item.id}`}>Viewing date and time</label>
+                  <input id={`slot-${item.id}`} type="datetime-local" className="input" value={slot} onChange={(e) => setSlot(e.target.value)} />
                   <button className="btn-primary" disabled={!slot} onClick={() => { onAction(() => api(`/households/${hh.id}/viewings`, { body: { shortlist_item_id: item.id, starts_at: new Date(slot).toISOString(), timezone: tz } }), "Viewing proposed"); setSlotFor(null); }}>Propose</button>
                 </div>
               ) : (
@@ -494,22 +530,22 @@ function ViewingCard({ v, meId, onAction, tz }: { v: any; meId: string; onAction
   const myOutcome = v.outcomes.find((o: any) => o.userId === meId);
   const when = new Date(v.startsAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: tz });
   return (
-    <div className="mt-3 rounded-lg bg-stone-50 p-3 text-sm">
-      <p className="text-stone-600">🗓 {when} <span className="text-xs text-stone-400">({tz})</span></p>
-      <p className="mt-1"><span className="chip bg-white text-stone-600">{v.state.replace("_", " ")}</span></p>
+    <div className="mt-3 rounded-lg bg-cream p-3 text-sm">
+      <p className="flex items-center gap-1.5 text-ink-700"><IconCalendar size={16} /> {when} <span className="text-xs text-ink-600">({tz})</span></p>
+      <p className="mt-1"><span className="chip bg-white text-ink-600">{v.state.replace("_", " ")}</span></p>
       {v.state === "awaiting_partner" && v.proposedBy !== meId && (
-        <button className="btn-primary mt-2 text-sm" onClick={() => onAction(() => api(`/viewings/${v.id}`, { body: { action: "accept", expected_version: v.version } }), "Viewing confirmed")}>Confirm this time</button>
+        <button className="btn-confirm mt-2 text-sm" onClick={() => onAction(() => api(`/viewings/${v.id}`, { body: { action: "accept", expected_version: v.version } }), "Viewing confirmed")}>Confirm this time</button>
       )}
-      {v.state === "awaiting_partner" && v.proposedBy === meId && <p className="mt-2 text-xs text-stone-500">Waiting for your partner to confirm.</p>}
+      {v.state === "awaiting_partner" && v.proposedBy === meId && <p className="mt-2 text-xs text-ink-600">Waiting for your partner to confirm.</p>}
       {v.state === "confirmed" && !myOutcome && (
         <div className="mt-2 flex gap-2">
-          <button className="btn-secondary text-sm" onClick={() => onAction(() => api(`/viewings/${v.id}`, { body: { action: "outcome", response: "completed", expected_version: v.version } }), "Outcome recorded")}>I attended ✓</button>
+          <button className="btn-secondary text-sm" onClick={() => onAction(() => api(`/viewings/${v.id}`, { body: { action: "outcome", response: "completed", expected_version: v.version } }), "Outcome recorded")}>I attended</button>
           <button className="btn-ghost text-sm" onClick={() => onAction(() => api(`/viewings/${v.id}`, { body: { action: "outcome", response: "no_show", expected_version: v.version } }))}>Couldn&apos;t make it</button>
         </div>
       )}
-      {myOutcome && v.state === "confirmed" && <p className="mt-2 text-xs text-stone-500">You reported the outcome. Waiting for your partner.</p>}
-      {v.state === "completed" && <p className="mt-2 text-xs text-brand-700">✓ Viewing completed by both.</p>}
-      {v.state === "disputed" && <p className="mt-2 text-xs text-amber-700">Outcomes differ — resolve together before applying.</p>}
+      {myOutcome && v.state === "confirmed" && <p className="mt-2 text-xs text-ink-600">You reported the outcome. Waiting for your partner.</p>}
+      {v.state === "completed" && <p className="mt-2 text-sm font-medium text-brand-700">✓ Viewing completed by both.</p>}
+      {v.state === "disputed" && <p className="mt-2 text-sm text-caution-800">Outcomes differ — resolve together before applying.</p>}
     </div>
   );
 }
@@ -521,8 +557,8 @@ function ApplicationTab({ hh, meId, onAction }: { hh: any; meId: string; onActio
   if (!handoff || ["withdrawn", "rejected"].includes(handoff.state)) {
     return (
       <div className="card p-6">
-        <h2 className="font-semibold text-stone-900">Rental handoff</h2>
-        <p className="mt-2 text-sm text-stone-600">Start a demo application to the sample letting partner. You&apos;ll each consent to share your details. No home is reserved and there&apos;s no payment.</p>
+        <h2 className="font-semibold text-ink">Rental handoff</h2>
+        <p className="mt-2 text-sm text-ink-600">Start a demo application to the sample letting partner. You&apos;ll each consent to share your details. No home is reserved and there&apos;s no payment.</p>
         {!hasCompletedViewing && <p className="mt-2 rounded-lg bg-amber-50 p-2 text-xs text-amber-800">Tip: complete a viewing first, or acknowledge remote review to proceed.</p>}
         <button className="btn-primary mt-4" onClick={() => onAction(() => api(`/households/${hh.id}/handoffs`, { body: { remote_review_ack: true } }), "Application started")}>Start application</button>
       </div>
@@ -532,28 +568,28 @@ function ApplicationTab({ hh, meId, onAction }: { hh: any; meId: string; onActio
   const iConsented = handoff.acceptedBy.includes(meId);
   return (
     <div className="card p-6">
-      <h2 className="font-semibold text-stone-900">Rental handoff</h2>
-      <p className="mt-1 text-sm text-stone-500">Partner: {handoff.partnerId}</p>
+      <h2 className="font-semibold text-ink">Rental handoff</h2>
+      <p className="mt-1 text-sm text-ink-600">Partner: {handoff.partnerId}</p>
       {handoff.state === "accepted" ? (
         <div className="mt-3 rounded-lg bg-brand-50 p-4 text-sm text-brand-800">
-          ✅ Demo application accepted; no home is reserved. Head to Move-in to confirm.
+          ✓ Demo application accepted; no home is reserved. Head to Move-in to confirm.
         </div>
       ) : (
         <>
-          <p className="mt-2 text-sm text-stone-600">You&apos;ll share: display name, test contact, agreed dates, agreed contribution and verified check results — never your full evidence files or chat.</p>
-          <div className="mt-3 flex items-center gap-2 text-sm">
+          <p className="mt-2 text-sm text-ink-600">You&apos;ll share: display name, test contact, agreed dates, agreed contribution and verified check results — never your full evidence files or chat.</p>
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
             {hh.members.map((m: any) => (
-              <span key={m.userId} className={`chip ${handoff.acceptedBy.includes(m.userId) ? "bg-brand-100 text-brand-800" : "bg-stone-100 text-stone-500"}`}>
+              <span key={m.userId} className={`chip ${handoff.acceptedBy.includes(m.userId) ? "bg-brand-100 text-brand-800" : "bg-ink-50 text-ink-600"}`}>
                 {m.name}: {handoff.acceptedBy.includes(m.userId) ? "consented" : "pending"}
               </span>
             ))}
           </div>
           {iConsented ? (
-            <p className="mt-3 rounded-lg bg-stone-50 p-3 text-sm text-stone-600">You consented. Waiting for your partner to consent so the application can submit.</p>
+            <p className="mt-3 rounded-lg bg-cream p-3 text-sm text-ink-600">You consented. Waiting for your partner to consent so the application can submit.</p>
           ) : (
-            <button className="btn-primary mt-4" onClick={() => onAction(() => api(`/handoffs/${handoff.id}`, { body: { action: "consent", expected_version: handoff.version } }), "Consent recorded")}>Consent &amp; share my details</button>
+            <button className="btn-confirm mt-4" onClick={() => onAction(() => api(`/handoffs/${handoff.id}`, { body: { action: "consent", expected_version: handoff.version } }), "Consent recorded")}>Consent &amp; share my details</button>
           )}
-          <button className="btn-ghost mt-2 text-sm text-red-600" onClick={() => onAction(() => api(`/handoffs/${handoff.id}`, { body: { action: "withdraw", expected_version: handoff.version } }))}>Withdraw application</button>
+          <button className="btn-ghost mt-2 text-sm text-danger-600 hover:bg-danger-50" onClick={() => onAction(() => api(`/handoffs/${handoff.id}`, { body: { action: "withdraw", expected_version: handoff.version } }))}>Withdraw application</button>
         </>
       )}
     </div>
@@ -565,24 +601,25 @@ function MoveInTab({ hh, meId, onAction }: { hh: any; meId: string; onAction: an
   const accepted = hh.handoff?.state === "accepted";
   const mine = hh.moveIns.find((m: any) => m.userId === meId);
 
-  if (!accepted) return <div className="card p-6 text-sm text-stone-600">Complete an accepted rental handoff first.</div>;
+  if (!accepted) return <div className="card p-6 text-sm text-ink-600">Complete an accepted rental handoff first.</div>;
 
   return (
     <div className="card p-6">
-      <h2 className="font-semibold text-stone-900">Confirm move-in</h2>
-      <p className="mt-1 text-sm text-stone-600">The household completes only after both members confirm. Elapsed time never confirms it for you.</p>
-      <div className="mt-3 flex items-center gap-2 text-sm">
+      <h2 className="font-semibold text-ink">Confirm move-in</h2>
+      <p className="mt-1 text-sm text-ink-600">The household completes only after both members confirm. Elapsed time never confirms it for you.</p>
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
         {hh.members.map((m: any) => {
           const c = hh.moveIns.find((x: any) => x.userId === m.userId);
-          return <span key={m.userId} className={`chip ${c?.response === "moved_in" ? "bg-brand-100 text-brand-800" : "bg-stone-100 text-stone-500"}`}>{m.name}: {c?.response ?? "pending"}</span>;
+          return <span key={m.userId} className={`chip ${c?.response === "moved_in" ? "bg-brand-100 text-brand-800" : "bg-ink-50 text-ink-600"}`}>{m.name}: {c?.response ?? "pending"}</span>;
         })}
       </div>
       {mine?.response === "moved_in" ? (
-        <p className="mt-3 rounded-lg bg-stone-50 p-3 text-sm text-stone-600">You confirmed your move-in. Waiting for your partner.</p>
+        <p className="mt-3 rounded-lg bg-cream p-3 text-sm text-ink-600">You confirmed your move-in. Waiting for your partner.</p>
       ) : (
-        <div className="mt-4 flex gap-2">
-          <input type="date" className="input" value={date} onChange={(e) => setDate(e.target.value)} />
-          <button className="btn-primary" disabled={!date} onClick={() => onAction(() => api(`/households/${hh.id}/move-in`, { body: { actual_date: date, response: "moved_in" } }), "Move-in confirmed")}>I&apos;ve moved in</button>
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+          <label className="sr-only" htmlFor="movein-date">Move-in date</label>
+          <input id="movein-date" type="date" className="input" value={date} onChange={(e) => setDate(e.target.value)} />
+          <button className="btn-confirm" disabled={!date} onClick={() => onAction(() => api(`/households/${hh.id}/move-in`, { body: { actual_date: date, response: "moved_in" } }), "Move-in confirmed")}>I&apos;ve moved in</button>
         </div>
       )}
     </div>

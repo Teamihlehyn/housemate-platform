@@ -1,6 +1,7 @@
 import { getCurrentUser } from "./session";
 import { ApiError } from "./api";
 import { prisma } from "./db";
+import { HOMES_ENABLED } from "./env";
 
 // Emails granted the admin role on sign-in (comma-separated ADMIN_EMAILS).
 export function adminEmails(): string[] {
@@ -17,6 +18,12 @@ export async function requireUser() {
   if (user.accountStatus === "suspended")
     throw new ApiError("SUSPENDED", "This account is suspended.", 403);
   return user;
+}
+
+// Homes, viewings, the application and move-in are off in beta. Call after requireUser()
+// so an unauthenticated request still gets 401 first. 404, not 403: the feature doesn't exist here.
+export function requireHomesEnabled() {
+  if (!HOMES_ENABLED) throw new ApiError("NOT_FOUND", "This isn't available in early access.", 404);
 }
 
 export async function requireStaff(role?: string) {

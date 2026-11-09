@@ -1,11 +1,12 @@
 import Link from "next/link";
+import Logo from "@/components/brand/Logo";
 import { IS_BETA } from "@/lib/env";
 
-export const metadata = { title: "Privacy notice — Housemate" };
+export const metadata = { title: "Privacy notice — Peabudy" };
 
 export default function Privacy() {
   const sections: [string, string][] = [
-    ["Who we are", "Housemate is an early-access service that helps people find compatible housemates and coordinate a shared move. This notice explains what personal data we collect and how we use it. It is the data controller for the information you provide."],
+    ["Who we are", "Peabudy is an early-access service that helps people find compatible housemates and coordinate a shared move. This notice explains what personal data we collect and how we use it. It is the data controller for the information you provide."],
     ["What we collect", "Account and contact details (email, phone), your profile and search preferences (areas, budget, move-in dates, living habits, bio), messages you send to other members, and the outcome of identity verification (a yes/no result — we do not store copies of your identity documents). If you choose, your gender and who you're open to living with — used only for matching, never shown on your profile, and \"prefer not to say\" is always an option. We do not ask for religion, ethnicity, sexual orientation, health, criminal history or income on your public profile."],
     [
       "How identity verification works",
@@ -17,14 +18,14 @@ export default function Privacy() {
     ["Who can see what", "Other members see only your public profile: display name, areas, budget, move-in window, bio, selected habits and your verification badge. Your legal identity, contacts and exact address are never shown on profile cards."],
     ["How long we keep it", "We keep your data while your account is active and delete or minimise it after a retention period once you leave or delete your account. Verification results are kept only as long as needed to run the service."],
     ["Your rights", "You can access and export your data, correct it, pause your search, and request deletion at any time from Settings. Depending on your location you may also have rights under UK GDPR or Nigeria's NDPR, including the right to complain to a regulator."],
-    ["User research", "While we test Housemate, we may record how the site is used (clicks, scrolling and page views) with Microsoft Clarity to find where people get stuck. Email addresses, codes, messages and other typed text are masked and never recorded. Feedback you send through the Feedback button is stored with the page you were on and an anonymous tester ID, not your name."],
+    ["User research", "While we test Peabudy, we may record how the site is used (clicks, scrolling and page views) with Microsoft Clarity to find where people get stuck. Email addresses, codes, messages and other typed text are masked and never recorded. Feedback you send through the Feedback button is stored with the page you were on and an anonymous tester ID, not your name."],
     ["Contact", "For any privacy question or request, use the Feedback button on any page or the email you were onboarded with. We respond to rights requests without undue delay."],
   ];
   return (
     <div className="min-h-screen font-sans">
       <header className="border-b border-ink/10 bg-white">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4">
-          <Link href="/" className="font-display font-semibold text-brand-700">← Housemate</Link>
+          <Logo size="sm" />
           <Link href="/signin" className="btn-primary">Get started</Link>
         </div>
       </header>

@@ -1,5 +1,6 @@
 "use client";
 
+import { IconLock } from "@/components/icons";
 import { GENDERS, GENDER_IDS, OWN_GENDER_OPTIONS } from "@/lib/constants";
 
 // Own gender + who you're open to living with. Private: used only for matching.
@@ -35,7 +36,7 @@ export default function GenderPreferenceFields({
               role="radio"
               aria-checked={gender === o.id}
               onClick={() => onChange({ gender: o.id, accepts })}
-              className={`chip min-h-[36px] border ${gender === o.id ? "border-brand-500 bg-brand-600 text-white" : "border-stone-300 bg-white text-stone-600"}`}
+              className="choice-chip"
             >
               {o.label}
             </button>
@@ -56,14 +57,14 @@ export default function GenderPreferenceFields({
                 role="checkbox"
                 aria-checked={on}
                 onClick={() => toggle(g.id)}
-                className={`chip min-h-[36px] border ${on ? "border-brand-300 bg-brand-50 text-brand-700" : "border-stone-200 bg-stone-50 text-stone-400 line-through"}`}
+                className="choice-chip"
               >
                 {on ? "✓ " : ""}{g.plural}
               </button>
             );
           })}
         </div>
-        <p className="mt-1.5 text-xs text-stone-500">
+        <p className="mt-1.5 text-xs text-ink-600">
           {everyone
             ? "Open to anyone."
             : `Only ${GENDERS.filter((g) => accepts.includes(g.id)).map((g) => g.plural.toLowerCase()).join(" and ")}.`}{" "}
@@ -72,8 +73,8 @@ export default function GenderPreferenceFields({
         {errors.genderPreference && <p className="field-error">{errors.genderPreference}</p>}
       </fieldset>
 
-      {showPrivacyNote && <p className="flex items-start gap-1.5 text-xs text-stone-500">
-        <span aria-hidden>🔒</span>
+      {showPrivacyNote && <p className="flex items-start gap-1.5 text-xs text-ink-600">
+        <IconLock size={14} className="mt-0.5 shrink-0" />
         <span>Private — used only to match you. Never shown on your profile; matches work both ways, so nobody sees why someone isn&apos;t shown.</span>
       </p>}
     </div>

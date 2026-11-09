@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { handler, ok, fail } from "@/lib/api";
-import { requireUser } from "@/lib/guard";
+import { requireUser, requireHomesEnabled } from "@/lib/guard";
 import { prisma } from "@/lib/db";
 import { writeAudit, writeOutbox, notify } from "@/lib/audit";
 import { formatPeriodPrice } from "@/lib/money";
@@ -9,6 +9,7 @@ import { afterShortlistAdded } from "@/lib/demoBots";
 // POST /api/v1/households/[id]/shortlist — add a sample property or a user link.
 export const POST = handler(async (req: NextRequest, { rid, params }) => {
   const user = await requireUser();
+  requireHomesEnabled();
   const body = await req.json().catch(() => ({}));
   const hh = await prisma.household.findUnique({
     where: { id: params.id },
