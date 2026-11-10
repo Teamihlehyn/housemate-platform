@@ -7,6 +7,9 @@ import { formatMoney } from "@/lib/money";
 import { formatDateRange } from "@/lib/dates";
 import { CITIES, GENDERS, GENDER_IDS, OWN_GENDER_OPTIONS, QUESTIONNAIRE, answerLabel } from "@/lib/constants";
 import GenderPreferenceFields from "@/components/GenderPreferenceFields";
+import { ChecksCard } from "@/components/ChecksCard";
+
+const IS_BETA = process.env.NEXT_PUBLIC_APP_ENV === "beta";
 
 export default function Profile() {
   const [me, setMe] = useState<any>(null);
@@ -71,6 +74,10 @@ export default function Profile() {
         </div>
       </div>
 
+      {/* Beta: completed checks, no number (ENG-04). Demo modes keep the labelled breakdown. */}
+      {IS_BETA ? (
+        <ChecksCard checks={me.credibility.checks ?? []} own as="h3" />
+      ) : (
       <div className="card mt-4 p-6">
         <h3 className="font-semibold text-ink">Demo credibility: {me.credibility.score}/100</h3>
         <p className="text-xs text-ink-600">Checks completed — not a guarantee of safety.</p>
@@ -83,6 +90,7 @@ export default function Profile() {
           ))}
         </ul>
       </div>
+      )}
 
       <div className="card mt-4 p-6">
         <h3 className="font-semibold text-ink">Living habits</h3>

@@ -2,9 +2,9 @@ import { NextRequest } from "next/server";
 import { handler, ok, fail } from "@/lib/api";
 import { requireUser } from "@/lib/guard";
 import { prisma } from "@/lib/db";
-import { computeScore } from "@/lib/credibility";
+import { credibilityDto } from "@/lib/credibility";
 import { QUESTIONNAIRE } from "@/lib/constants";
-import { VERIFIED_ONLY_BROWSING } from "@/lib/env";
+import { IS_BETA, VERIFIED_ONLY_BROWSING } from "@/lib/env";
 import { canSeeEachOther, identityVerified } from "@/lib/verification";
 
 // GET /api/v1/users/[id] — public profile DTO only. Blocked/inaccessible → generic 404.
@@ -43,7 +43,8 @@ export const GET = handler(async (_req: NextRequest, { rid, params }) => {
     return notFound();
   }
 
-  const score = await computeScore(prisma, id);
+  // Beta: completed checks with month only, no score (ENG-04). Never evidence.
+  const credibility = await credibilityDto(prisma, id, { beta: IS_BETA, verifiedOnly: true });
   const s = target.search!;
 
   return ok(
@@ -69,7 +70,7 @@ export const GET = handler(async (_req: NextRequest, { rid, params }) => {
         const pref = s.preferences.find((p) => p.dimension === q.id);
         return { dimension: q.id, ownAnswer: pref?.ownAnswer ?? null };
       }),
-      credibility: score,
+      credibility,
     },
     rid
   );

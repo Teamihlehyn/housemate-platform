@@ -9,6 +9,7 @@ import { formatDateRange } from "@/lib/dates";
 import { CITIES } from "@/lib/constants";
 import Pea from "@/components/brand/Pea";
 import { IconCalendar, IconCheck, IconWallet } from "@/components/icons";
+import { IdCheckedChip } from "@/components/ChecksCard";
 
 // Avatar tints are chosen from the id, never from gender or anything personal.
 const TINTS = ["bg-lilac-100 text-lilac-800", "bg-sky-100 text-sky-800", "bg-apricot-100 text-apricot-800", "bg-pea-100 text-ink"];
@@ -26,7 +27,8 @@ interface Candidate {
   earliestDate: string | null;
   latestDate: string | null;
   bio: string | null;
-  score: number;
+  score?: number;
+  idChecked?: boolean;
   reasons: string[];
 }
 
@@ -123,6 +125,7 @@ export default function Discover() {
                   <p className="flex flex-wrap items-center gap-1.5">
                     <span className="font-semibold text-ink">{c.displayName}</span>
                     {process.env.NEXT_PUBLIC_APP_ENV === "research" && <span className="chip-sample">Sample</span>}
+                    {c.idChecked && <IdCheckedChip />}
                   </p>
                   <p className="truncate text-sm text-ink-600">{c.areas.map((a) => areaLabel(c.cityId, a)).join(", ")}</p>
                 </div>

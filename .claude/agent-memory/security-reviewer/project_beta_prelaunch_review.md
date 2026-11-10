@@ -28,6 +28,16 @@ Status after 2026-11-09 re-review:
 - HM-24 NEW Low: AuditEvent has no index for the rate-limit counts
 - HM-25 NEW Low: switch-to-beta.sh can leave production half-switched if a step fails; no final confirmation
 
+Update 2026-11-10 (focused re-review of WT on top of 33f81c0; verdict OK for staging):
+- HM-04 residual fixed (WT): propertyId validated outside beta, ignored in beta
+- HM-08 fixed (WT): IPv6 /64 buckets, staff exempt from site-wide cap, xact advisory locks. Open decision HM-26
+- HM-23 fixed (WT): no IP recorded without a 16+ char salt on Vercel; research script generates salt
+- HM-24 fixed (WT): AuditEvent indexes migration
+- HM-25 fixed (WT) for switch-to-beta.sh
+- ENG-04 checks list reviewed: DTO = category/status/month only; others see verified-only
+- HM-26 NEW (product decision, Low/Med): site-wide cap silently returns "sent" to members; recommended honest generic 429 for all, staff code still sent behind it
+- HM-27 NEW Medium before beta: switch-to-research.sh (the beta rollback path) sets mode before database, no ERR trap
+
 Clean at re-review: npm audit 0; tsc clean; unit tests pass; no secrets/personal emails in commit candidates; docs/security/ ignored; Vercel overwrites x-forwarded-for (not spoofable on Vercel).
 
 Related: [[recurring-weak-spots]]

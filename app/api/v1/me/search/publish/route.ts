@@ -110,5 +110,6 @@ export const POST = handler(async (_req: NextRequest, { rid }) => {
     return bd;
   }, { timeout: 20000 });
 
-  return ok({ status: "published", pendingIdentity: IS_BETA, credibility: result }, rid);
+  // Beta shows no score anywhere (ENG-04).
+  return ok({ status: "published", pendingIdentity: IS_BETA, credibility: IS_BETA ? {} : result }, rid);
 });
