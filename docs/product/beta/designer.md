@@ -28,6 +28,111 @@
 | DES-10 | Feedback dialog and prompt copy (T1–T5) | S | S1 | ENG-15 |
 | DES-11 | Back office layout | M | S1 | ENG-07, 11, 13, 16, 21–24 |
 | DES-12 | Type and contrast: ₦/Yoruba glyphs, placeholder and faint text | S | S1 | ENG-26, 27 |
+| **DES-13** | Survey opt-in, Settings toggle, unsubscribe page, survey email | S | **Live launch** (copy by Tue 10 Nov 18:00) | ENG-29 |
+| **DES-14** | Feedback dialog and staff feedback list copy for beta | XS | **Live launch** | ENG-31 |
+| **DES-15** | Didit: biometric consent screen, in-progress, failed/retry, video-call fallback, waiting states | S | 16–20 Nov | ENG-35 |
+| **DES-16** | Lagos-first: personal invite message (replaces the DES-08 announcement), "City not open yet" London copy, Lagos scam wording in DES-03 | S | **Live launch** | ENG-32, ENG-34 |
+| **DES-17** | Invite-only: the request-access form, the "thanks" state, the `/invite/[code]` welcome and invalid pages, the invite email (HTML + text), and the staff "Access requests" tab | M | **Launch** | ENG-37, ENG-38 |
+| **DES-18** | HM-26 busy screen: honest, and engaging while people wait (mascot, countdown, something playful) | S | Honest text at **launch**; playful version after | HM-26 |
+| **DES-19** | Full responsive pass, with results in `docs/design/responsive-qa.md` | M | **Launch** (in progress) | — |
+
+> **Founder decisions, 10 Nov evening:**
+> - **Invite-only (DES-17).**
+> - **Branded survey email sent by Resend (DES-13's email becomes a designed HTML + plain-text template).**
+> - **HM-26 busy screen (DES-18).**
+> - **Responsive for every phone, tablet and screen (DES-19).**
+> - **London waiting copy (DES-16) isn't needed** at launch: London people request access and wait in the queue. The request-access thanks state says "We're starting in Lagos; we'll keep London requests for when we open there."
+
+## DES-17: Invite-only screens (launch)
+
+- **Request access form:** first name, email, city, areas, move-in month, journey; optional "How did you hear about us?" and a note (≤ 300). Then a privacy link line: "We'll use this to decide who to invite and to email you about it."
+  - Thanks state, the same for everyone: "Thanks. We're opening Peabudy a few people at a time, starting in Lagos. If we can invite you, you'll get an email from hello@peabudy.com."
+- **`/invite/[code]`:** "You're invited to Peabudy", the masked email, one line on what happens next ("Sign in with a code, set up your profile, then a short video ID check"), and "Continue".
+  - Invalid page: "This invite isn't valid any more. It may have expired or already been used." Button: "Request access".
+- **Invite email** (from `hello@peabudy.com`, the login stream):
+  - Subject "Your invite to Peabudy".
+  - Body: the link, its 14-day expiry, "Never share this link", and a safety line.
+  - HTML + plain text. No images needed in the code path.
+- **Sign-in errors:**
+  - `INVITE_REQUIRED`: "Peabudy is invite-only for now." Button: "Request access".
+  - `INVITE_INVALID`: "That invite isn't valid. Check the link, or request access."
+- **Staff tab:** a list with city, areas, move month, journey, note, waiting time, and the cluster hint ("4 others in Yaba, moving Jan–Mar"). Approve / Decline (with reason) / Send invite / Copy link. Text labels on every status, never colour alone.
+
+## DES-18: Busy screen (HM-26)
+
+- **Must (launch):** the same message for everyone: "We're getting a lot of sign-in requests right now. Try again in an hour." Add a clear "Try again at {time}", and a link to request access for people who aren't members yet.
+- **Then:** the playful version.
+  - The mascot "holding the door", a live countdown to the retry time, and a tiny optional game or animation.
+  - It must respect reduced motion, be fully usable with a screen reader (the countdown announced politely, not every second), stay under about 50 KB extra for Lagos data costs, and never imply the person did something wrong.
+  - The retry button enables when the countdown ends.
+
+## DES-19: Responsive pass (founder request, 10 Nov)
+
+- **Widths:**
+  - phones: 320, 360, 375, 390, 414 and 430 px;
+  - tablets: 768, 820 and 1024 px, portrait and landscape;
+  - desktops: 1280, 1440 and 1920 px.
+  - Record each page at each width in `docs/design/responsive-qa.md`.
+- **Pass rules (go/no-go):**
+  - no horizontal scroll, and nothing clipped or overlapping;
+  - targets ≥ 44 px;
+  - inputs ≥ 16 px font (stops iOS zoom);
+  - chat usable with the keyboard open (the composer visible, the latest message reachable).
+- **Real devices (T4):** a low- or mid-range Android at 360 px (Tecno or Infinix, Chrome) first; then an iPhone (Safari); then a tablet if available.
+- **Data-light (T4c):** record the page weight of the landing and sign-in pages, and check a Slow 3G load. The landing must show text and the main button within 5 s (*proposed target*). The mascot animation must not block sign-in.
+
+> **Live launch re-plan (10 Nov):** live beta in **Lagos on Fri 13 Nov** (README "Live launch plan").
+> - **Launch-critical:** DES-13, DES-14, DES-16, the DES-04 pending state, and the sign-offs (score removal, nav hidden in chat).
+> - **The founder and a helper run the real-phone pass (README L6, T4):** the designer writes the checklist and reviews the screenshots.
+> - **Not needed any more:** DES-07's waitlist as the entry point (the survey part stays) and DES-08's public announcement.
+
+## DES-13: Survey opt-in copy (founder-approved, D16)
+
+- **Sign-in checkbox:** optional and **unticked**, below the required privacy box, visually separate from it:
+  "☐ Email me a short survey about my experience. Optional. About 4 minutes, sent once with at most one reminder. Stop any time in Settings or from the email."
+- **Settings:** "Survey emails". On: "We'll email you a short survey about your experience." Off: "We won't email you surveys."
+- **Unsubscribe page:**
+  - heading "Stop survey emails?";
+  - button "Stop survey emails";
+  - then "Done. We won't email you surveys. You can turn them back on in Settings."
+  - Show no email address.
+- **Survey email** (the founder sends it from `hello@peabudy.com`):
+  - Subject: "A 4-minute survey about Peabudy".
+  - Body: why they're getting it ("You ticked 'email me a short survey' when you joined"), what it's for, the link, "Reply if you'd rather talk", and the footer "Don't want these? Stop survey emails: {unsubscribe_url}".
+  - No other promotion.
+- **Survey (DES-07):** the 12 questions in `beta-launch-plan.md` §7.2, with the README L5 changes (Q4 and Q11 say Peabudy; Q8 adds "still waiting"; Q12 is yes/no with no email field).
+
+## DES-14: Feedback copy for beta
+
+- **Signed in:** "Sent with your account and the page you're on, so we can follow up if needed." Signed out: "Sent with the page you're on. Please don't include personal details."
+- Remove "anonymous tester ID" from beta.
+- **Staff list labels:** "Feedback and reports"; each item shows the member name or "Signed out", the page, the rating as text plus the emoji ("2 of 5 🙁"), and the time.
+
+## DES-15: Didit identity check screens (after launch, D22)
+
+- **Consent screen** (before the session starts; it must be explicit and separate):
+  - Heading: "Check your ID with a selfie".
+  - Body:
+    - "Our partner Didit checks your photo ID and takes a short selfie video to confirm it's really you and that you're 18 or over."
+    - "Didit processes your face image (biometric data) for this check only. Peabudy never receives or keeps your ID images or selfie. We only keep the result: checked or not, and the date."
+    - "Didit stores data in [REGION], for [RETENTION]."
+    - "You can choose a video call with our team instead."
+  - Checkbox, unticked, required for this route only: "I agree to Didit processing my ID and face for this check."
+  - Buttons: "Start the check" / "I'd rather do a video call".
+- **States:**
+  - In progress: "Checking… this usually takes a few minutes. You can close this page; we'll update your profile."
+  - Passed: "Identity checked. You can now see people who fit your plans."
+  - Failed, with the reason (plain words for each allow-listed reason code) and a "Try again" option (attempts left) or "Book a video call".
+  - In review: "A person on our team will look at it within a day."
+- The copy never says "safe" or "verified person". Keep "Checks completed — not a guarantee of safety".
+
+## DES-16: Lagos-first copy
+
+- **Invite message** (WhatsApp or email, sent by the founder personally):
+  "I'm opening Peabudy in Lagos, starting with a small group in Yaba, Surulere and Gbagada. It helps you find someone to share a place with and agree rent, bills and notice in writing first. Everyone has their ID checked by me on a short video call before they can see anyone. It's early and there aren't many people yet, so your feedback (there's a Feedback button) shapes what it becomes. Your sign-in code comes from hello@peabudy.com; check junk. {link}"
+- **London waiting state** (`OPEN_CITIES` excludes London): "We're starting in Lagos. We'll open London soon and check your ID then. Your profile is saved."
+- **DES-03 Lagos addition** to the safety card and caution:
+  "Never pay an 'agent fee', 'inspection fee' or deposit before you've seen the home in person and confirmed who the landlord is. Peabudy never asks for money."
 
 **Total ≈ 9 designer-days. FT ≈ 2½ days.**
 

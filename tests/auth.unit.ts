@@ -1,7 +1,7 @@
 // Unit checks for sign-in helpers (ENG-06). Run: npm run test:unit
 import {
   MAX_CODES_PER_EMAIL_HOUR, MAX_EMAILED_CODES_PER_HOUR, MAX_EMAILED_CODES_PER_IP_HOUR,
-  clientIp, codesMatch, decideCodeRequest, generateLoginCode, hashIp, ipBucket, ipHashSalt, isReconsent, needsConsent,
+  BUSY_MESSAGE, clientIp, codesMatch, decideCodeRequest, generateLoginCode, hashIp, ipBucket, ipHashSalt, isReconsent, needsConsent,
 } from "../lib/auth";
 import { demoModeFor, resolveAppEnv } from "../lib/env";
 
@@ -70,8 +70,22 @@ check("per-email cap: 429 for everyone",
   decideCodeRequest({ ...base, emailedCode: false, fromEmail: MAX_CODES_PER_EMAIL_HOUR }) === "email_limited");
 check("per-IP cap: 429, staff included", decideCodeRequest({ ...base, fromIp: MAX_EMAILED_CODES_PER_IP_HOUR }) === "ip_limited" &&
   decideCodeRequest({ ...base, isStaff: true, fromIp: MAX_EMAILED_CODES_PER_IP_HOUR }) === "ip_limited");
-check("site-wide cap: members silently dropped", decideCodeRequest({ ...base, sitewide: MAX_EMAILED_CODES_PER_HOUR }) === "drop");
-check("site-wide cap: staff still get a code", decideCodeRequest({ ...base, isStaff: true, sitewide: MAX_EMAILED_CODES_PER_HOUR + 50 }) === "send");
+check("site-wide cap (HM-26): members get an honest 429, nothing sent", decideCodeRequest({ ...base, sitewide: MAX_EMAILED_CODES_PER_HOUR }) === "sitewide_limited");
+check("site-wide cap (HM-26): staff get the same 429 but their code is sent",
+  decideCodeRequest({ ...base, isStaff: true, sitewide: MAX_EMAILED_CODES_PER_HOUR + 50 }) === "send_sitewide_limited");
+check("just under the site-wide cap: send", decideCodeRequest({ ...base, sitewide: MAX_EMAILED_CODES_PER_HOUR - 1 }) === "send");
+
+// Invite-only sign-up (D15).
+check("new address, no invite: INVITE_REQUIRED", decideCodeRequest({ ...base, newAccount: "required" }) === "invite_required");
+check("new address, bad invite: INVITE_INVALID", decideCodeRequest({ ...base, newAccount: "invalid" }) === "invite_invalid");
+check("new address, good invite: send", decideCodeRequest({ ...base, newAccount: "ok" }) === "send");
+check("existing account (gate null): send", decideCodeRequest({ ...base, newAccount: null }) === "send");
+check("sign-ups paused beats a good invite", decideCodeRequest({ ...base, newAccount: "paused" }) === "signups_paused");
+check("the per-IP cap applies before the invite check (so probing is capped)",
+  decideCodeRequest({ ...base, fromIp: MAX_EMAILED_CODES_PER_IP_HOUR, newAccount: "required" }) === "ip_limited");
+check("an invite refusal is the same whatever the site-wide count",
+  decideCodeRequest({ ...base, sitewide: MAX_EMAILED_CODES_PER_HOUR, newAccount: "required" }) === "invite_required");
+check("busy message is the agreed copy", BUSY_MESSAGE === "We're getting a lot of sign-in requests right now. Try again in an hour.");
 check("on-screen codes ignore the IP and site-wide caps",
   decideCodeRequest({ ...base, emailedCode: false, fromIp: 99, sitewide: 9999 }) === "send");
 

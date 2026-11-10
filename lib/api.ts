@@ -3,8 +3,8 @@ import { randomUUID } from "crypto";
 
 // Standard response envelope: {data, meta} / {error, meta}.
 
-export function ok(data: unknown, requestId: string, extraMeta: Record<string, unknown> = {}) {
-  return NextResponse.json({ data, meta: { request_id: requestId, ...extraMeta } });
+export function ok(data: unknown, requestId: string, extraMeta: Record<string, unknown> = {}, status = 200) {
+  return NextResponse.json({ data, meta: { request_id: requestId, ...extraMeta } }, { status });
 }
 
 export function fail(

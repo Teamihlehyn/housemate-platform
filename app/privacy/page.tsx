@@ -1,10 +1,39 @@
 import Link from "next/link";
 import Logo from "@/components/brand/Logo";
 import { IS_BETA } from "@/lib/env";
+import { PRIVACY_VERSION } from "@/lib/constants";
+import { readLegal } from "@/lib/legal/source";
+import Markdown from "@/lib/legal/Markdown";
 
 export const metadata = { title: "Privacy notice — Peabudy" };
 
+// Beta: the interim draft from docs/product/beta/legal/ (ENG-25), clearly marked as a draft
+// under review, with unfilled placeholders visible. Other modes keep the prototype text.
+function Draft() {
+  return (
+    <div className="min-h-screen font-sans">
+      <header className="border-b border-ink/10 bg-white">
+        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4">
+          <Logo size="sm" />
+          <Link href="/signin" className="btn-primary">Get started</Link>
+        </div>
+      </header>
+      <main className="mx-auto max-w-3xl px-4 py-10">
+        <div role="note" className="mb-8 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <p className="font-semibold">Draft — under review</p>
+          <p className="mt-1">
+            This privacy notice (version {PRIVACY_VERSION}) is a draft that a reviewer is finalising. Items <mark className="rounded bg-amber-100 px-1">[IN BRACKETS]</mark> haven&apos;t been filled in yet.
+            We&apos;ll ask you to agree again if it changes in a way that matters.
+          </p>
+        </div>
+        <Markdown source={readLegal("privacy-notice")} />
+      </main>
+    </div>
+  );
+}
+
 export default function Privacy() {
+  if (IS_BETA) return <Draft />;
   const sections: [string, string][] = [
     ["Who we are", "Peabudy is an early-access service that helps people find compatible housemates and coordinate a shared move. This notice explains what personal data we collect and how we use it. It is the data controller for the information you provide."],
     ["What we collect", "Account and contact details (email, phone), your profile and search preferences (areas, budget, move-in dates, living habits, bio), messages you send to other members, and the outcome of identity verification (a yes/no result — we do not store copies of your identity documents). If you choose, your gender and who you're open to living with — used only for matching, never shown on your profile, and \"prefer not to say\" is always an option. We do not ask for religion, ethnicity, sexual orientation, health, criminal history or income on your public profile."],
@@ -31,7 +60,7 @@ export default function Privacy() {
       </header>
       <main className="mx-auto max-w-3xl px-4 py-12">
         <h1 className="font-display text-3xl font-normal tracking-tightest text-ink">Privacy notice</h1>
-        <p className="mt-2 text-sm text-ink/50">Version privacy-v1</p>
+        <p className="mt-2 text-sm text-ink/50">Version {PRIVACY_VERSION}</p>
         <div className="mt-8 space-y-6">
           {sections.map(([t, d]) => (
             <section key={t}>

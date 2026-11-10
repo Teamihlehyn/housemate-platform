@@ -74,7 +74,7 @@ export default function AppNav({
                 key={n.href}
                 href={n.href}
                 aria-current={active(n.href) ? "page" : undefined}
-                className={`inline-flex min-h-[44px] items-center rounded-full px-4 text-sm font-semibold transition duration-quick ${
+                className={`inline-flex min-h-[44px] items-center rounded-full px-3 text-sm font-semibold transition duration-quick lg:px-4 ${
                   active(n.href) ? "bg-ink text-cream" : "text-ink-700 hover:bg-ink-50"
                 }`}
               >
@@ -85,7 +85,7 @@ export default function AppNav({
               <Link
                 href="/staff"
                 aria-current={active("/staff") ? "page" : undefined}
-                className={`inline-flex min-h-[44px] items-center rounded-full px-4 text-sm font-semibold ${
+                className={`inline-flex min-h-[44px] items-center rounded-full px-3 text-sm font-semibold lg:px-4 ${
                   active("/staff") ? "bg-ink text-cream" : "text-ink-700 hover:bg-ink-50"
                 }`}
               >
@@ -108,7 +108,8 @@ export default function AppNav({
                 </span>
               )}
             </Link>
-            <div className="hidden items-center gap-2 pl-1 sm:flex">
+            {/* The name is hidden on small tablets (768–1023 px), where the desktop nav needs the room. */}
+            <div className="hidden items-center gap-2 pl-1 sm:flex md:hidden lg:flex">
               <span aria-hidden="true" className="grid h-8 w-8 place-items-center rounded-full bg-pea-100 text-xs font-bold text-ink">
                 {initials}
               </span>

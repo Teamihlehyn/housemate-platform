@@ -1,0 +1,20 @@
+Hi {{first_name}}, how's it going?
+
+You ticked "Email me a short survey about my experience" when you joined Peabudy, so here it is.
+
+It's 12 short questions about finding a housemate with us: what worked, what was confusing and what's missing. It takes about 4 minutes.
+
+Take the 4-minute survey:
+{{survey_url}}
+
+Why we're asking
+Peabudy is new and small. We read every answer, and they decide what we fix and build next. We'll send this once, with at most one reminder. If you'd rather talk, just reply to this email.
+
+Peabudy never asks for money, passwords or ID numbers by email, and the survey doesn't either.
+
+--
+Don't want these? Stop survey emails: {{unsubscribe_url}}
+It won't change anything else about your account.
+
+Peabudy · [POSTAL ADDRESS]
+You're getting this because you opted in to survey emails.

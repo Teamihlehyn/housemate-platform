@@ -1,38 +1,58 @@
 ---
 name: project-beta-launch
-description: Founder decisions and the recommended fast-track shape for the first real-user beta (decided 2026-11-09), plus key beta-mode gaps found in code
+description: Founder decisions for Peabudy's live beta (re-planned 2026-11-10): Lagos-first live launch, staff video ID then Didit, survey opt-in, research mode retired
 metadata:
   type: project
 ---
 
-Founder decisions on 2026-11-09:
-- **D1:** real people only, London AND Lagos, launch 2026-11-11.
-- **Email:** buy a cheap sending domain. vercel.app can't be verified in Resend, and on-screen codes aren't acceptable for real users.
-- **Legal:** Claude drafts the privacy notice, terms and DPIA (in docs/product/beta/legal/, with an AI-draft banner and placeholders; counsel to review).
-- **Back office:** build a back-office MVP.
+**Current plan (founder decisions, 2026-11-10).** It supersedes the 9 Nov Option B/C, 11 Nov fast-track and both-cities plan.
 
-Later on 2026-11-09:
-- **Renamed to Peabudy.** The domain peabudy.com was bought on Vercel (F-01 done). The planned sender is `Peabudy <hello@peabudy.com>`, with the root domain verified in Resend (a deliberate deviation from Resend's subdomain advice). Brand text in the docs is renamed. Code identifiers (housemate-platform, housemate_db, hm_session) stay as they are. ENG-28 covers the user-facing rename.
-- **Name risk:** "Peabudy" is one letter away from Peabody, a large London housing association in the same sector. F-17 covers a trademark knock-out search; D13 decides whether to announce publicly as Peabudy.
-- **Designer:** working on a mascot-led landing page and conversational onboarding. This is off the 11 Nov critical path (D14). Onboarding needs PM review against the matching fields and honesty guardrails.
-- **Email gate:** stays at 16:00 on 10 Nov, with a 12:00 tripwire. Pass rules: Gmail inbox, all auth checks pass; Outlook or Yahoo junk is acceptable only with mitigation.
-- `scripts/switch-to-research.sh` hard-codes NEXT_PUBLIC_SITE_URL to gethousemate.vercel.app, so it must be updated for peabudy.com.
+- **Research mode is retired.**
+  - Production goes to `beta` once. Personas and sample worlds stay in the code, dormant.
+  - Staging becomes the permanent beta rehearsal on its own Neon branch, `beta-rehearsal` (ENG-33).
+  - `switch-to-research.sh` is retired.
+  - Rollback: Vercel Instant Rollback only to earlier *beta* deployments, then the sign-up pause, suspensions, then deployment protection.
+- **Lagos first (D21).** London accounts wait with honest copy (`OPEN_CITIES`). Invite a Mainland cluster first: Yaba, Surulere, Gbagada.
+- **Identity (D4).** At launch, the staff video check is mandatory.
+- **Didit after launch (D22).**
+  - Document + liveness + face match only. **No NIN/BVN lookups.**
+  - Explicit biometric consent. Store only the result; never images.
+  - Didit retention set as short as allowed.
+  - `CLAUDE.md` rule 8 becomes "staff or an approved provider" only when ENG-35 ships (target ~2026-11-27).
+- **Survey (D16).**
+  - An unticked opt-in at sign-in, with a timestamp and version, a Settings toggle and an HMAC unsubscribe link.
+  - An admin-only, audited CSV export.
+  - Tally Free.
+  - The founder sends from the hello@ mailbox, one person per email, for the first ≤50.
+- **Sign-up control (D15).** No allowlist. Rely on the identity gate, HM-08 limits and a `SIGNUPS_PAUSED` switch.
+- **Launch date (D18).** Fri 2026-11-13, go/no-go Thu 11-12 18:00, fallback Mon 11-16. Still open at that point: D11 (legal risk acceptance), D13 (the name vs Peabody), HM-26.
 
-My recommendation (D3–D14 still open):
-- **Option B:** on 11 Nov, a public announcement pointing to a Tally waitlist, plus an invite-only cohort of up to 20 per city.
-- Go/no-go at 18:00 UK on 2026-11-10. Fallback is Option C (waitlist only; product opens 2026-11-16).
-- Full scope: go/no-go 2026-11-27, open sign-up 2026-12-07.
-- The work packs are in docs/product/beta/.
+Background:
+- Renamed to **Peabudy** on 2026-11-09. Domain peabudy.com, verified in Resend in the EU region. Code identifiers (housemate-platform, housemate_db) unchanged.
+- **Name risk:** "Peabudy" is one letter from Peabody, a large London housing association (F-17).
 
-**Why:** open public sign-up on 11 Nov isn't safe: no moderation UI, no transactional email, unreviewed legal text. In research mode, testers are isolated in sandbox worlds, so they can't meet real people.
+**Founder update, 2026-11-10 evening** (overrides the bullets above where they conflict):
+- **D15 is invite-only, not open sign-up.**
+  - Public "request access" form; staff pre-check; invite link tied to the email (`INVITE_REQUIRED` 403 / `INVITE_INVALID` 422).
+  - Existing accounts don't need an invite.
+- **D17:** a branded survey email sent via a Resend staff action from the updates.peabudy.com subdomain. This replaces the CSV export and mail merge.
+- **D11:** accepted. The draft legal text is published, labelled "pending review", with a named reviewer.
+- HM-26 approved: an honest busy message, with a playful wait screen.
+- Responsive pass for all widths; the priority device is a 360 px low-end Android.
+- Deleting the research database needs an explicit founder go-ahead after launch.
+- Fri 13 Nov launch is at risk; Mon 16 Nov is likely.
+- Open: D13 and D20.
 
-**How to apply:** check which decisions the founder has since made before planning further. Don't let speed override the honesty labels or staff-only identity grants.
+**Lesson:** don't record a general "I go with your recommendations" as approval of specific decisions. The founder changed D15 and D17 afterwards. List each decision explicitly and get per-item approval.
 
-Gaps found in code (verify they're still true before relying on them):
-- In beta, unverified viewers can call /recommendations and /users/[id] and see real people (ENG-02).
-- verify-code ignores the privacy version when checking consent, and lets deletion_pending accounts sign back in.
-- Nothing sets the suspended status.
-- Homes, viewings and the application are reachable in beta.
-- Clarity loads without consentv2.
-- The Discover chip shows the credibility score while the subtitle calls it "match strength".
-- The fonts lack ₦ and Ṣ (designer finding).
+**Why:** the founder wants real users quickly, a fully tested live site, and feedback through the Feedback button plus a follow-up survey.
+
+**How to apply:**
+- Check the README "Live launch plan" in docs/product/beta/ for the latest status before planning further.
+- Keep the honesty rules, staff/provider-only identity grants and consent-only survey emails, whatever the pressure on speed.
+
+**Code gaps found on 2026-11-10** (verify before relying on them):
+- The feedback dialog says "anonymous" while signed-in feedback stores userId.
+- The staff feedback list doesn't show the member.
+- Feedback isn't in /me/export.
+- Signed-out feedback has no rate limit.

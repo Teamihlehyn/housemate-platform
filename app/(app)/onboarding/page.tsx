@@ -99,6 +99,10 @@ export default function Onboarding() {
   const [bio, setBio] = useState("");
   const [published, setPublished] = useState<{ score: number; pending: boolean } | null>(null);
   const [matches, setMatches] = useState<Candidate[] | null>(null);
+  // DES-13: optional, unticked survey opt-in, saved with publish (PATCH /me/preferences).
+  const [surveyOptIn, setSurveyOptIn] = useState(false);
+  const [surveySaved, setSurveySaved] = useState(false);
+  const [surveyFailed, setSurveyFailed] = useState(false);
 
   // Resume from existing data
   useEffect(() => {
@@ -106,6 +110,7 @@ export default function Onboarding() {
       if (me.profile?.journey) setJourney(me.profile.journey);
       if (me.displayName && !me.displayName.includes("@")) setDisplayName(me.displayName);
       if (me.profile?.bio) setBio(me.profile.bio);
+      if ((me.preferences?.survey_opt_in ?? me.survey_opt_in) === true) { setSurveyOptIn(true); setSurveySaved(true); }
       const s = me.search;
       if (s) {
         if (s.cityId) { setCity(s.cityId); setPeriod(s.rentPeriod ?? CITIES[s.cityId as CityId].defaultPeriod); }
@@ -254,6 +259,16 @@ export default function Onboarding() {
   async function publish() {
     setBusy(true);
     setTopError(null);
+    if (surveyOptIn !== surveySaved) {
+      // Never block publishing on this optional choice; say so on the next screen if it failed.
+      try {
+        await api("/me/preferences", { method: "PATCH", body: { survey_opt_in: surveyOptIn, source: "onboarding" } });
+        setSurveySaved(surveyOptIn);
+        setSurveyFailed(false);
+      } catch {
+        setSurveyFailed(true);
+      }
+    }
     try {
       const data = await api<{ credibility: { score: number }; pendingIdentity?: boolean }>("/me/search/publish", { body: {} });
       setPublished({ score: data.credibility.score, pending: !!data.pendingIdentity });
@@ -307,7 +322,7 @@ export default function Onboarding() {
   /* ---------------------------------- render ---------------------------------- */
 
   if (screen === "done") {
-    return <Done name={firstName} published={published!} matches={matches} />;
+    return <Done name={firstName} published={published!} matches={matches} surveyFailed={surveyFailed} />;
   }
 
   const ctaLabel = screen === "review" ? (busy ? "Publishing…" : "Publish my profile") : busy ? "Saving…" : "Continue";
@@ -638,6 +653,17 @@ export default function Onboarding() {
                     ? "When you publish, our team checks your identity before other members can see you."
                     : "Publishing runs a demo identity check, so your checks show as “Demo verified”. Your profile becomes visible to people who match."}
                 </p>
+                <label className="mt-5 flex min-h-[44px] cursor-pointer items-start gap-3 rounded-field border border-ink-100 bg-white p-3.5 text-sm">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-5 w-5 shrink-0 accent-ink"
+                    checked={surveyOptIn}
+                    onChange={(e) => setSurveyOptIn(e.target.checked)}
+                  />
+                  <span className="text-ink-700">
+                    Email me a short survey about my experience. Optional. About 4 minutes, sent once with at most one reminder. Stop any time in Settings or from the email.
+                  </span>
+                </label>
               </>
             )}
           </div>
@@ -840,7 +866,7 @@ function HabitPod({ answered, current }: { answered: string[]; current: string }
   );
 }
 
-function Done({ name, published, matches }: { name: string; published: { score: number; pending: boolean }; matches: Candidate[] | null }) {
+function Done({ name, published, matches, surveyFailed }: { name: string; published: { score: number; pending: boolean }; matches: Candidate[] | null; surveyFailed?: boolean }) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => { headingRef.current?.focus(); }, []);
 
@@ -854,6 +880,11 @@ function Done({ name, published, matches }: { name: string; published: { score: 
         ))}
       </div>
 
+      {surveyFailed && (
+        <p role="status" className="mx-auto mt-4 max-w-md rounded-field border border-caution-200 bg-caution-50 px-3 py-2 text-center text-sm text-caution-800">
+          We couldn&apos;t save your survey email choice. You can set it in <Link href="/settings" className="font-semibold underline underline-offset-2">Settings</Link>.
+        </p>
+      )}
       {published.pending ? (
         <div className="mt-6 text-center">
           <h1 ref={headingRef} tabIndex={-1} className="font-display text-display text-ink focus:outline-none">Profile submitted</h1>

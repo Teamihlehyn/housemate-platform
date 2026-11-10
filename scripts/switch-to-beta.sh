@@ -14,7 +14,8 @@
 #   ADMIN_EMAILS                comma-separated staff addresses         (required)
 #   NEXT_PUBLIC_CONTACT_EMAIL   e.g. hello@peabudy.com                  (required)
 #   NEXT_PUBLIC_SURVEY_URL      https:// survey link                     (optional)
-#   EMAIL_LINK_SECRET           random secret for email links (ENG-12)   (optional)
+#   EMAIL_LINK_SECRET           32+ char secret for email links (survey unsubscribe, ENG-29);
+#                               without it, survey emails can't be sent  (optional)
 #   SITE_URL                    public base URL (default https://gethousemate.vercel.app;
 #                               use https://peabudy.com once it's the primary domain in Vercel)
 #
@@ -72,6 +73,8 @@ for name in ("RESEND_API_KEY", "EMAIL_FROM", "ADMIN_EMAILS", "NEXT_PUBLIC_CONTAC
 for name in ("NEXT_PUBLIC_SURVEY_URL", "EMAIL_LINK_SECRET"):
     if name in os.environ and bad(os.environ[name]):
         sys.exit(f"  {name} is set but empty or looks like a placeholder. Unset it or fix it.")
+if "EMAIL_LINK_SECRET" in os.environ and len(os.environ["EMAIL_LINK_SECRET"].strip()) < 32:
+    sys.exit("  EMAIL_LINK_SECRET must be at least 32 characters (try: openssl rand -base64 32).")
 if "NEXT_PUBLIC_SURVEY_URL" in os.environ and not os.environ["NEXT_PUBLIC_SURVEY_URL"].startswith("https://"):
     sys.exit("  NEXT_PUBLIC_SURVEY_URL must be an https:// link.")
 if not re.fullmatch(r"[^@\s,]+@[^@\s,]+\.[^@\s,]+", os.environ["NEXT_PUBLIC_CONTACT_EMAIL"].strip()):

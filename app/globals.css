@@ -61,6 +61,18 @@ body {
   transform-origin: center;
 }
 
+/* Sign-in waiting room (HM-26): Pea and Bud toss a small pea back and forth.
+   Transform only; it stops (and the ball rests between them) under reduced motion. */
+@keyframes pb-toss {
+  0%, 100% { transform: translate(0, 40px); }
+  25% { transform: translate(60px, 0); }
+  50% { transform: translate(120px, 40px); }
+  75% { transform: translate(60px, 0); }
+}
+.pb-toss {
+  animation: pb-toss 2.4s ease-in-out infinite;
+}
+
 /* Reduced motion: no transforms or loops; fades are near-instant. */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -77,8 +89,12 @@ body {
   .animate-bob,
   .animate-bob-slow,
   .animate-blink,
-  .animate-wiggle {
+  .animate-wiggle,
+  .pb-toss {
     animation: none !important;
+  }
+  .pb-toss {
+    transform: translate(60px, 20px);
   }
 }
 

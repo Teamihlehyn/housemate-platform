@@ -31,6 +31,12 @@ model User {
   lastActiveDay  DateTime @default(now())
   privacyConsentAt      DateTime?
   privacyConsentVersion String?
+  // Survey emails (ENG-29): opt-in consent only, never pre-ticked. Eligible to receive one
+  // only while surveyOptIn is true and unsubscribedAt is null.
+  surveyOptIn        Boolean   @default(false)
+  surveyOptInAt      DateTime?
+  surveyOptInVersion String?
+  unsubscribedAt     DateTime?
   // User testing: each tester gets a private world of sample housemates.
   // Users in a world only see each other; users outside never see them.
   sandboxWorldId String?
@@ -59,6 +65,7 @@ model AuthCode {
   id        String   @id @default(cuid())
   email     String
   code      String
+  inviteId  String?  // invite-only sign-up (D15): the invite presented when the code was requested
   attempts  Int      @default(0)
   expiresAt DateTime
   createdAt DateTime @default(now())
@@ -453,6 +460,44 @@ model Report {
   @@index([status, createdAt])
 }
 
+// Invite-only sign-up (D15). A person asks for access; staff invite or decline.
+model AccessRequest {
+  id             String    @id @default(cuid())
+  name           String
+  email          String    // lower-cased
+  city           String    // CITIES id
+  area           String    // area id, or "not_sure"
+  moveInMonth    String    // YYYY-MM, or "not_sure"
+  howHeard       String?
+  note           String?   // ≤ 300 chars
+  status         String    @default("pending") // pending|invited|declined
+  consentVersion String    // privacy notice version agreed when asking
+  createdAt      DateTime  @default(now())
+  reviewedBy     String?   // staff user id
+  reviewedAt     DateTime?
+  declineReason  String?
+
+  @@index([email, status])
+  @@index([status, createdAt])
+}
+
+// A single-use sign-up invite. Only the SHA-256 of the code is stored.
+model Invite {
+  id              String    @id @default(cuid())
+  codeHash        String    @unique
+  email           String?   // when set, only this address can use it
+  accessRequestId String?
+  createdBy       String    // staff user id
+  expiresAt       DateTime
+  usedAt          DateTime?
+  usedByUserId    String?
+  revokedAt       DateTime? // staff revoked it, or a newer invite replaced it
+  createdAt       DateTime  @default(now())
+
+  @@index([accessRequestId])
+  @@index([email])
+}
+
 model TesterFeedback {
   id        String   @id @default(cuid())
   userId    String?
@@ -462,6 +507,8 @@ model TesterFeedback {
   rating    Int?     // 1–5
   message   String
   createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 model Notification {

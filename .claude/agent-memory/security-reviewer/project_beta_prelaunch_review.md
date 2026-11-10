@@ -1,6 +1,6 @@
 ---
 name: beta-prelaunch-review-2026-11
-description: Pre-launch security review for the 11 Nov 2026 beta (Peabudy rename) - finding IDs HM-01..HM-25, status, and threat-model summary
+description: Pre-launch security review for the 11 Nov 2026 beta (Peabudy rename) - finding IDs HM-01..HM-34, status, and threat-model summary
 metadata:
   type: project
 ---
@@ -37,6 +37,20 @@ Update 2026-11-10 (focused re-review of WT on top of 33f81c0; verdict OK for sta
 - ENG-04 checks list reviewed: DTO = category/status/month only; others see verified-only
 - HM-26 NEW (product decision, Low/Med): site-wide cap silently returns "sent" to members; recommended honest generic 429 for all, staff code still sent behind it
 - HM-27 NEW Medium before beta: switch-to-research.sh (the beta rollback path) sets mode before database, no ERR trap
+
+Update 2026-11-10 (SEC-14: invite-only sign-up, survey email, feedback, legal renderer; WT on top of 8e6add6; verdict OK for staging, no launch blockers in server code). Research mode is retired: prod + staging run beta.
+- HM-26 fixed (WT): honest 429 for everyone; staff code still sent. Invite-only also stops refusals counting to the site-wide cap
+- HM-27 resolved (WT): switch-to-research.sh now refuses to run; rollback = earlier beta deployment
+- HM-13 fixed (WT) for feedback: per-IP signed out, per-member signed in
+- HM-28 NEW accepted (pilot): request-code tells a known address whether it has an account (design option A, docs/engineering/invite-only-signup.md). Revisit before London/scale
+- HM-29 NEW Low: invite lookups/refusals have per-IP caps only, no site-wide cap or alert; unbound staff codes can't be revoked
+- HM-30 NEW Medium (privacy, before ~10 Dec): access requests promised [30]-day retention with no purge; not in /me/export or removed on delete
+- HM-31 NEW Low: every staff role (not only admin) can mint unbound invites and read access-request PII
+- HM-32 NEW Low: request-code email regex accepts multiple @ and commas (pre-existing)
+- HM-33 NEW Low: survey send/eligibility not gated to beta (demo modes mark on-screen-code emails as verified)
+- HM-34 NEW hygiene: untracked public/zz-qa.js would ship publicly; email templates still contain [POSTAL ADDRESS]; test uses a real-looking gmail address
+- Info: invite codes stored as unsalted SHA-256; Markdown link allowlist lets "//host" through (repo-sourced); feedback DTO returns full userId; survey send mutates its audit row on failure
+- Reviewed clean: HMAC unsubscribe tokens (timing-safe, fail closed on Vercel without secret), atomic invite consumption, survey dedupe lock, CSV formula guard, email HTML escaping, Markdown renderer (React text only)
 
 Clean at re-review: npm audit 0; tsc clean; unit tests pass; no secrets/personal emails in commit candidates; docs/security/ ignored; Vercel overwrites x-forwarded-for (not spoofable on Vercel).
 

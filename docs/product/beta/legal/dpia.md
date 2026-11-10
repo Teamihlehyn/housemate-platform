@@ -11,6 +11,16 @@
 | Reviewers | security-reviewer agent (SEC-10); [UK COUNSEL]; [NIGERIAN COUNSEL] |
 | Status | Draft v0.1, 9 Nov 2026. **Must be reviewed before open sign-up (7 Dec)** |
 
+> **Update, 10 Nov 2026 (live launch re-plan; README "Live launch plan"):**
+> - **Scope:** a live beta opening in **Lagos first** on 13 Nov, with London later. Research mode is retired.
+> - **New processing 1, survey emails:** consent-based (unticked opt-in, versioned, with an unsubscribe link). An admin-only, audited CSV export of opted-in members is used only to send the survey from the founder's mailbox (a new processor: [MAILBOX PROVIDER]).
+> - **New processing 2, automated identity check by Didit** (from about 27 Nov): document + liveness + face match. That is **biometric / special-category data** (UK GDPR Art. 9; NDPA 2023 sensitive personal data). It needs explicit consent, a DPA with Didit, the shortest retention at Didit, and a transfer basis for Nigerian data to [DIDIT REGION]. Peabudy stores only the result.
+> - **No NIN or BVN database lookups** (D22). This avoids the reported NIMC consent regime for NIN sharing.
+> - **Biometric processing pushes this DPIA from "appropriate" to "required in substance".** Counsel (F-19) and the security reviewer (SEC-13) must complete the Didit section before go-live. Add risks:
+>   - biometric data held by a processor abroad;
+>   - a false rejection excluding someone (mitigation: the video-call fallback and staff override);
+>   - a spoofing attack passing the check (mitigation: Didit's liveness detection, reports, and suspension).
+
 ## 1. Why a DPIA
 
 - Peabudy matches **strangers** to live together.

@@ -1,9 +1,10 @@
 import { NextRequest } from "next/server";
-import { handler, ok, fail } from "@/lib/api";
+import { handler, ok, fail, ApiError } from "@/lib/api";
 import { prisma } from "@/lib/db";
 import { createSession } from "@/lib/session";
 import { writeAudit } from "@/lib/audit";
-import { CONSENT_REQUIRED } from "@/lib/env";
+import { CONSENT_REQUIRED, INVITE_ONLY, SIGNUPS_PAUSED } from "@/lib/env";
+import { inviteUsable } from "@/lib/invites";
 import { adminEmails } from "@/lib/guard";
 import { PRIVACY_VERSION } from "@/lib/constants";
 import { MAX_ATTEMPTS_PER_CODE, MAX_FAILED_PER_HOUR, codesMatch, contactHint, isReconsent, needsConsent } from "@/lib/auth";
@@ -97,15 +98,33 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
     });
   }
 
-  // Consume the code (single use).
-  await prisma.authCode.deleteMany({ where: { email: clean } });
-
-  // Find or create the account (email sign-in).
-  let user = await prisma.user.findUnique({ where: { email: clean } });
+  // Consume the code (single use) and, for a new account, the invite — atomically, so two
+  // sign-ups racing for one invite can't both succeed, and a failure leaves the code usable.
+  const bootstrapAdmin = adminEmails().includes(clean);
   let isNew = false;
-  if (!user) {
+  const user = await prisma.$transaction(async (tx) => {
+    await tx.authCode.deleteMany({ where: { email: clean } });
+    const found = await tx.user.findUnique({ where: { email: clean } });
+    if (found) {
+      if (!found.emailVerified) return tx.user.update({ where: { id: found.id }, data: { emailVerified: true } });
+      return found;
+    }
+    if (SIGNUPS_PAUSED && !bootstrapAdmin) {
+      throw new ApiError("FORBIDDEN", "We're not taking new sign-ups for a few days. Please try again later.", 403);
+    }
+    // Invite-only (D15): the invite presented with this code must still be usable by this address.
+    let inviteId: string | null = null;
+    if (INVITE_ONLY && !bootstrapAdmin) {
+      inviteId = record.inviteId;
+      const invite = inviteId
+        ? await tx.invite.findUnique({ where: { id: inviteId }, select: { id: true, email: true, expiresAt: true, usedAt: true, revokedAt: true } })
+        : null;
+      if (!inviteId || !inviteUsable(invite, clean)) {
+        throw new ApiError("INVITE_INVALID", "That invite is no longer valid. Ask for a new invite at /request-access.", 422);
+      }
+    }
     isNew = true;
-    user = await prisma.user.create({
+    const created = await tx.user.create({
       data: {
         email: clean,
         emailVerified: true,
@@ -115,15 +134,32 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
         search: { create: { status: "draft" } },
       },
     });
+    if (inviteId) {
+      const used = await tx.invite.updateMany({
+        where: { id: inviteId, usedAt: null, revokedAt: null, expiresAt: { gt: new Date() } },
+        data: { usedAt: new Date(), usedByUserId: created.id },
+      });
+      if (used.count !== 1) {
+        throw new ApiError("INVITE_INVALID", "That invite is no longer valid. Ask for a new invite at /request-access.", 422);
+      }
+      await writeAudit(tx, {
+        eventType: "invite.used",
+        actorType: "user",
+        actorId: created.id,
+        subjectId: created.id,
+        resourceType: "invite",
+        resourceId: inviteId,
+        action: "use",
+      }, rid);
+    }
     // Email control check → 10 points baseline once contact verified.
-    await prisma.verificationCheck.create({
-      data: { userId: user.id, category: "email", status: "verified", points: 10 },
+    await tx.verificationCheck.create({
+      data: { userId: created.id, category: "email", status: "verified", points: 10 },
     });
-  } else if (!user.emailVerified) {
-    await prisma.user.update({ where: { id: user.id }, data: { emailVerified: true } });
-  }
+    return created;
+  });
   // Staff bootstrap: emails in ADMIN_EMAILS are granted the admin role on sign-in.
-  if (adminEmails().includes(clean) && user.role !== "admin") {
+  if (bootstrapAdmin && user.role !== "admin") {
     await prisma.user.update({ where: { id: user.id }, data: { role: "admin" } });
     user.role = "admin";
   }

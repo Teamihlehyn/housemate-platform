@@ -7,6 +7,12 @@
 # Requires: vercel CLI (logged in, project linked) and neon CLI (logged in, linked).
 # Optional: CLARITY_ID=... FEEDBACK_URL=https://tally.so/r/... bash scripts/switch-to-research.sh
 set -euo pipefail
+
+# Retired (ENG-33, D19): production and staging run beta with real people. Running this
+# would put sample people in front of them. Roll back only to an earlier beta deployment.
+echo "Research mode is retired (10 Nov 2026). Production stays in beta; see docs/product/beta/README.md (rollback ladder)." >&2
+exit 1
+
 cd "$(dirname "$0")/.."
 
 set_prod() {

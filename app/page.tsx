@@ -98,14 +98,16 @@ export default function Landing() {
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-2">
           <Logo size="sm" />
           <nav className="hidden items-center gap-1 text-sm font-semibold text-ink-700 md:flex" aria-label="Sections">
-            <a href="#how" className="rounded-full px-3 py-2.5 hover:bg-ink-50">How it works</a>
-            <a href="#habits" className="rounded-full px-3 py-2.5 hover:bg-ink-50">What we match on</a>
-            <a href="#cities" className="rounded-full px-3 py-2.5 hover:bg-ink-50">London &amp; Lagos</a>
-            <Link href="/safety" className="rounded-full px-3 py-2.5 hover:bg-ink-50">Safety</Link>
+            <a href="#how" className="inline-flex min-h-[44px] items-center rounded-full px-3 hover:bg-ink-50">How it works</a>
+            <a href="#habits" className="inline-flex min-h-[44px] items-center rounded-full px-3 hover:bg-ink-50">What we match on</a>
+            <a href="#cities" className="inline-flex min-h-[44px] items-center rounded-full px-3 hover:bg-ink-50">London &amp; Lagos</a>
+            <Link href="/safety" className="inline-flex min-h-[44px] items-center rounded-full px-3 hover:bg-ink-50">Safety</Link>
           </nav>
           <div className="flex items-center gap-1">
-            <Link href="/signin" className="btn-ghost hidden px-4 sm:inline-flex">Sign in</Link>
-            <Link href="/signin" className="btn-primary px-5">Get started</Link>
+            <Link href="/signin" className={`btn-ghost px-3 sm:px-4 ${IS_BETA ? "" : "hidden sm:inline-flex"}`}>Sign in</Link>
+            <Link href={IS_BETA ? "/request-access" : "/signin"} className="btn-primary whitespace-nowrap px-4 sm:px-5">
+              {IS_BETA ? <><span className="sm:hidden">Get invite</span><span className="hidden sm:inline">Request an invite</span></> : "Get started"}
+            </Link>
           </div>
         </div>
       </header>
@@ -116,7 +118,7 @@ export default function Landing() {
           <div className="text-center md:text-left">
             <span className="inline-flex items-center gap-2 rounded-full border border-ink-100 bg-white px-3.5 py-1.5 text-sm font-semibold text-ink">
               <span className="h-2 w-2 rounded-full bg-pea-500" aria-hidden="true" />
-              {IS_BETA ? "Early access in London and Lagos" : "Testing now in London and Lagos"}
+              {IS_BETA ? "Now opening in Lagos, invite-only" : "Testing now in London and Lagos"}
             </span>
             <h1 className="mt-5 font-display text-display-xl text-ink md:text-display-xl-md">
               Two peas.
@@ -128,11 +130,19 @@ export default function Landing() {
               you both agree rent, bills and notice in writing, before anyone moves in.
             </p>
             <div className="mt-7 flex flex-col items-stretch gap-3 sm:flex-row sm:justify-center md:justify-start">
-              <Link href="/signin" className="btn-primary btn-lg">
-                Get started <IconArrowRight size={18} />
+              <Link href={IS_BETA ? "/request-access" : "/signin"} className="btn-primary btn-lg">
+                {IS_BETA ? "Request an invite" : "Get started"} <IconArrowRight size={18} />
               </Link>
               <a href="#how" className="btn-secondary btn-lg">See how it works</a>
             </div>
+            {IS_BETA && (
+              <p className="mt-3 text-sm text-ink-700">
+                Opening in Lagos first, invite-only.{" "}
+                <Link href="/signin" className="inline-flex min-h-[44px] items-center font-semibold text-brand-700 underline underline-offset-4 hover:text-brand-800">
+                  I have an invite
+                </Link>
+              </p>
+            )}
             <p className="mt-4 text-sm text-ink-600">No swiping. No compatibility scores. Just plans that fit.</p>
           </div>
           <div className="order-first md:order-last"><HeroScene /></div>
@@ -216,12 +226,18 @@ export default function Landing() {
           <h2 className="mx-auto mt-5 max-w-2xl font-display text-display text-cream md:text-display-md">Find your other pea</h2>
           <p className="mx-auto mt-3 max-w-lg text-cream/80">
             {IS_BETA
-              ? "Sign in with your email and we'll send you a 6-digit code."
+              ? "We're starting small in Lagos. Tell us a little about your plans and we'll email you an invite if it's a fit."
               : "Enter any email and your code appears on screen, or try a demo persona in one click."}
           </p>
-          <Link href="/signin" className="btn btn-lg mt-7 bg-cream text-ink hover:bg-white focus-visible:ring-cream focus-visible:ring-offset-ink">
-            Get started <IconArrowRight size={18} />
+          <Link href={IS_BETA ? "/request-access" : "/signin"} className="btn btn-lg mt-7 bg-cream text-ink hover:bg-white focus-visible:ring-cream focus-visible:ring-offset-ink">
+            {IS_BETA ? "Request an invite" : "Get started"} <IconArrowRight size={18} />
           </Link>
+          {IS_BETA && (
+            <p className="mt-3 text-sm text-cream/80">
+              Already a member or have an invite?{" "}
+              <Link href="/signin" className="inline-flex min-h-[44px] items-center font-semibold text-cream underline underline-offset-4">Sign in</Link>
+            </p>
+          )}
         </div>
       </section>
 
@@ -230,13 +246,15 @@ export default function Landing() {
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm text-ink-600 sm:flex-row">
           <Logo size="sm" />
           <nav className="flex flex-wrap justify-center gap-x-1 gap-y-1" aria-label="Footer">
-            <Link href="/safety" className="rounded-full px-3 py-2.5 hover:text-ink">Safety</Link>
-            <Link href="/privacy" className="rounded-full px-3 py-2.5 hover:text-ink">Privacy</Link>
-            <Link href="/terms" className="rounded-full px-3 py-2.5 hover:text-ink">Terms</Link>
-            <FeedbackLink className="rounded-full px-3 py-2.5 hover:text-ink">Give feedback</FeedbackLink>
+            <Link href="/safety" className="inline-flex min-h-[44px] items-center rounded-full px-3 hover:text-ink">Safety</Link>
+            <Link href="/privacy" className="inline-flex min-h-[44px] items-center rounded-full px-3 hover:text-ink">Privacy</Link>
+            <Link href="/terms" className="inline-flex min-h-[44px] items-center rounded-full px-3 hover:text-ink">Terms</Link>
+            <FeedbackLink className="inline-flex min-h-[44px] items-center rounded-full px-3 hover:text-ink">Give feedback</FeedbackLink>
           </nav>
         </div>
         {BANNER && <p className="px-4 pb-8 text-center text-xs text-ink-600">{BANNER}</p>}
+        {/* Room for the floating Feedback pill on phones, so it never sits on the footer links. */}
+        <div className="h-[calc(env(safe-area-inset-bottom)+64px)]" aria-hidden="true" />
       </footer>
     </div>
   );

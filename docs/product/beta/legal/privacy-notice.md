@@ -38,9 +38,12 @@ Peabudy is run by **[CONTROLLER NAME]** ([COMPANY NUMBER OR "a sole trader"]), [
 | Profile (public to checked members) | Display name, bio, initials, which journey you're on, city, areas, budget, move-in window, how long you want to stay, your answers to six living-habit questions | You |
 | Private matching details (never shown to other members) | Which habit answers you accept from others; your gender (optional, "prefer not to say" is available); the genders you're open to living with; an optional preferred postcode or address (stored but not currently used) | You |
 | Identity check | That the check passed or failed, the date, and the reviewer. We may confirm your phone number on the call. **We don't store your ID document, ID number, date of birth, photo or a recording** | Our team, on a live video call with you |
+| [FROM DIDIT GO-LIVE, about 27 Nov; remove until then] Automated identity check | Only the result (passed, failed or needs review), the date, Didit's session reference, a reason category if it failed, and whether you're 18 or over. **Peabudy never receives or keeps your ID images, selfie, ID number or date of birth.** Didit processes your ID and face image (biometric data) to do the check | You, through Didit |
 | Activity | Introductions you send and receive, messages, household agreements and every version you accepted, blocks, reports you make, in-app notifications | You and other members |
 | Safety | Reports others make about you, and any action we take (for example a suspension and its reason category) | Other members and our team |
-| Feedback and research | Feedback you send in the app (linked to your account if you're signed in), the page you were on, a rating; survey answers you choose to give (through Tally); waitlist sign-ups (through Tally) | You |
+| Feedback and research | Feedback you send in the app (linked to your account if you're signed in), the page you were on, a rating; survey answers you choose to give (through Tally, linked to your account by a pseudonymous reference); waitlist sign-ups (through Tally) | You |
+| Survey email choice | Whether you asked us to email you a survey, when, which version of the wording you saw, and when you stopped | You |
+| Access request (Peabudy is invite-only for now) | First name, email, city, areas, move-in month, what you're looking for, how you heard about us, an optional note; our decision and invite | You and our team |
 | Technical | IP address and browser information in server logs; a random browser ID used to group feedback; [USAGE RECORDINGS: if Microsoft Clarity is switched on, and only with your consent: clicks, scrolls and pages viewed. Text you type, messages, emails and codes are masked] | Your device |
 | Emails we send | Whether an email was sent and for which event. Never its content beyond your first name | Our systems |
 
@@ -61,6 +64,9 @@ The legal bases are those in the UK GDPR (Article 6) and the Nigeria Data Protec
 | Service emails: sign-in codes, ID check results, account and safety messages | Account | Contract |
 | Activity emails: introductions, replies, your area opening | Account, activity | Legitimate interests. You can turn these off in Settings or with the link in every email |
 | Improve Peabudy from feedback and surveys | Feedback and research | Legitimate interests (improving the service) for in-app feedback; **consent** for surveys and for being contacted for an interview |
+| Decide whom to invite while we're invite-only, and email you an invite | Access request | Legitimate interests (opening safely, a few people at a time); steps you asked us to take before joining |
+| Email you a short survey about your experience (about once, with at most one reminder; sent by Resend) | Email, first name, city, how far you've got (for example "verified" or "chatting"), survey email choice | **Consent.** Only if you tick "Email me a short survey" (it's never pre-ticked). Stop any time in Settings or with the link in the email |
+| [FROM DIDIT GO-LIVE] Automated identity check | Your ID and a selfie video (processed by Didit only); the result (kept by us) | **Explicit consent** (UK GDPR Art. 9(2)(a); [NDPA SECTION FOR SENSITIVE DATA, counsel to confirm]), given on the screen before the check. You can choose a video call with our team instead |
 | Waitlist | Waitlist answers, email | Consent |
 | Usage recordings (Microsoft Clarity) | Technical | **Consent.** Only if you choose "Allow"; you can change it in Settings |
 | Security, preventing abuse, keeping the service running | Technical, account | Legitimate interests |
@@ -78,7 +84,9 @@ The legal bases are those in the UK GDPR (Article 6) and the Nigeria Data Protec
 | Vercel Inc. | Hosting the website and app | [VERCEL REGION] / United States |
 | Neon (Databricks, Inc.) [CONFIRM ENTITY] | Database | [NEON REGION] |
 | Resend (Plus Five Five, Inc.) [CONFIRM ENTITY] | Sending emails | United States (company); emails sent from [RESEND SENDING REGION, e.g. EU (Ireland) if chosen in F-02] |
-| Tally BV | Waitlist and survey forms | Belgium (EU) |
+| Tally BV | Survey forms | Belgium (EU) |
+| [MAILBOX PROVIDER, e.g. Google or Zoho] | Our `hello@peabudy.com` mailbox: booking ID calls, replying to you, sending surveys to people who asked for them | [MAILBOX REGION] |
+| [FROM DIDIT GO-LIVE] Didit [CONFIRM ENTITY] | Automated ID document, liveness and face-match check. No national ID (NIN) or bank (BVN) database lookups | [DIDIT REGION, e.g. EU]; kept by Didit for [DIDIT RETENTION] |
 | Microsoft (Clarity) | Usage recordings, **only with your consent** [and currently switched off] | United States [CONFIRM] |
 
 - **Others, only when necessary:** the police or other authorities where the law requires it or someone is at risk of serious harm; professional advisers; a buyer of the business (you'd be told).
@@ -108,6 +116,9 @@ You can ask us for a copy of the safeguards.
 | Audit logs (who did what and when; no message content) | **[24] months** |
 | In-app feedback | **[12] months**, then anonymised or deleted |
 | Survey answers (Tally) | **[12] months** |
+| Survey email choice | While your account is open (a withdrawal is kept so we don't email you again), then deleted with it |
+| Record of survey emails sent to you (which survey, when) | While your account is open |
+| Access requests not taken further (declined or unanswered) | **[30] days** |
 | Waitlist answers (Tally) | Until we open in your area and invite you, or **[12] months**, whichever is sooner |
 | Usage recordings (if consented) | [CLARITY RETENTION, per Microsoft's settings] |
 
@@ -122,7 +133,7 @@ Under the UK GDPR, and under the Nigeria Data Protection Act 2023, you can ask u
 - delete it (Settings, "Delete account"; your profile is hidden immediately)
 - restrict or object to how we use it, including anything we do on the basis of legitimate interests
 - move it to another service (the export is a machine-readable file)
-- withdraw consent at any time (gender preference, surveys, waitlist, usage recordings). Withdrawing doesn't affect what we did before.
+- withdraw consent at any time (gender preference, survey emails, waitlist, usage recordings, and the automated ID check before it's done). Withdrawing doesn't affect what we did before.
 
 **How:** email [CONTACT EMAIL]. We may ask you to confirm it's you. We'll reply within **one month** [NIGERIA: confirm the NDPA response period], and we'll tell you if we need longer.
 

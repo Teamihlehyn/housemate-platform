@@ -6,7 +6,89 @@
 >
 > Assumes D1: real people, London and Lagos, Option B from 11 Nov. All times are UK (Lagos is UK + 1 h).
 
-## Today and tomorrow (fast-track)
+## Live launch to-do (re-planned 10 Nov; supersedes the fast-track dates below)
+
+**Goal:** a live beta in **Lagos on Fri 13 Nov**, with go/no-go on Thu 12 Nov 18:00 and Mon 16 Nov as the fallback (README "Live launch plan").
+
+**Decided by you on 10 Nov** (README, "Founder decisions, 10 Nov evening"; my earlier "treated as decided" entries are corrected there):
+- D4: staff video check at launch.
+- D11: publish the AI draft marked "Draft, pending legal review". Reviewer: [LEGAL REVIEWER NAME].
+- **D15: invite-only.** People request access; staff pre-check and invite.
+- D16: survey opt-in.
+- **D17: a branded survey email sent through Resend by a staff action.**
+- D18: launch Fri 13 Nov.
+- D19: research retired. Deleting its database needs your explicit go-ahead later.
+- D21: Lagos first.
+- D22: Didit after launch.
+- HM-26: an honest busy message.
+
+**Still yours to decide:** D13 (the name). D20 (invite in clusters) is recommended as the rule you use when choosing whom to invite.
+
+**Changes to the list below:**
+- Item 6 is now "approve Lagos access requests in a cluster", plus sharing the request-access link with your network.
+- Item 19 now uses the "Send survey" button, not a CSV and mail merge.
+- New items F-21 and F-22 (below).
+- T4 now needs a **low- or mid-range Android at 360 px (Tecno or Infinix)** as the first priority, then an iPhone, then a tablet if you have one.
+- **Fri 13 Nov is at risk** because invite-only adds about 2.5 engineer-days. Mon 16 Nov is likely; decide at Thu 18:00.
+
+## F-21: Survey sending subdomain `updates.peabudy.com` (after launch, by Wed 18 Nov, 20 min)
+
+1. Resend → Domains → **Add domain** → `updates.peabudy.com`, region **Ireland (eu-west-1)** → **Auto Configure** with Vercel (as in F-02 part B). DMARC is inherited from `_dmarc.peabudy.com`, so nothing extra is needed.
+2. **Verify DNS records** and wait for **Verified**.
+3. Resend → API Keys → create `peabudy-updates`, **Sending access**, domain **updates.peabudy.com** only.
+4. Vercel → housemate-platform → Environment Variables → Production (and Preview `staging` with a separate key): `RESEND_UPDATES_API_KEY`, and `EMAIL_FROM_UPDATES` = `Peabudy <hello@updates.peabudy.com>`.
+5. Send yourself a test from the "Survey" panel (ENG-36) and check Gmail "Show original": SPF, DKIM and DMARC all PASS, and an "Unsubscribe" link appears next to the sender.
+
+## F-22: Fill in the legal reviewer (D11)
+
+Put the reviewer's name and expected review date in the draft banner of the notice and terms (privately if they'd prefer: a role such as "independent solicitor" works). Publish with the "Draft, pending legal review" label.
+
+| # | Task | When | Est. | Critical |
+|---|---|---|---|---|
+| 1 | Remove the `RESEND_API_KEY` that's set for **all** Preview deployments (keep the `staging`-branch one) | Tue 10 Nov, now | 2 min | Yes |
+| 2 | **F-03, a real mailbox** for `hello@` with a `privacy@` alias (Google Workspace or Zoho; not forwarding-only). You'll book verification calls and send the survey from it | Tue, by 15:00 | 1 h | Yes |
+| 3 | **F-04:** fill every placeholder in `legal/privacy-notice.md` and `legal/terms.md`, including the new survey rows and the mailbox provider | Tue, by 17:00 | 1.5 h | Yes |
+| 4 | Set the staging dashboard variables the engineer gives you (ENG-33: the `beta-rehearsal` database, beta mode, `IP_HASH_SALT`, `EMAIL_LINK_SECRET`, `OPEN_CITIES=lagos`), then redeploy staging | Tue, by 18:00 | 20 min | Yes |
+| 5 | **F-17:** name knock-out search (Peabody) and social handles | Tue–Wed | 1 h | For D13 |
+| 6 | **Lagos invite list** (private, never in the repo): at least 8–20 people, ideally in Yaba, Surulere and Gbagada, moving within the same three months | By Wed 18:00 | 1 h | Yes |
+| 7 | **T3 real-inbox test** on staging (F-02 part H) | Wed | 1 h | Yes |
+| 8 | Build the Tally survey (DES-07/DES-13 wording); hidden fields `ref`, `city`, `stage` | Wed | 1 h | No (needed by 20 Nov) |
+| 9 | Rehearse one verification call (F-08) and one suspension (F-09) on staging | Wed | 1 h | Yes |
+| 10 | **F-18:** Didit account (below) | Wed–Thu | 1 h | No (Didit path) |
+| 11 | Find a helper with the other phone type (iPhone or Android) for the T4 phone pass | Wed | — | Yes |
+| 12 | **T4 phone pass** with the helper | Thu 10:00–14:00 | 4 h | Yes |
+| 13 | D11 and D13 in writing | Thu, by 12:00 | 15 min | Yes |
+| 14 | **Go/no-go** against README L6's criteria | **Thu 12 Nov, 18:00** | 15 min | — |
+| 15 | Run `switch-to-beta.sh` with the production values (Resend production key, `EMAIL_FROM`, `IP_HASH_SALT`, `EMAIL_LINK_SECRET`, `ADMIN_EMAILS`, `NEXT_PUBLIC_CONTACT_EMAIL`, `OPEN_CITIES=lagos`), then the smoke test | Fri 13 Nov, 09:00 | 45 min | Yes |
+| 16 | Sign up for real with the helper, verify each other, check you see each other, then delete those accounts | Fri, 10:00 | 30 min | Yes |
+| 17 | **Send the personal invites** (DES-16 message) | Fri, 12:00 UK / 13:00 Lagos | 1 h | Launch |
+| 18 | Check the verification queue at about 09:00, 13:00 and 19:00 daily; contact within 24 h; decide within 72 h | From Fri | about 15 min per person | — |
+| 19 | **First survey send** from `hello@`, one person per email, using the ENG-30 export (`unsubscribe_url` in every email); delete the file afterwards | Fri 20 Nov (one reminder on Mon 23 Nov) | 1 h | — |
+| 20 | **F-19:** counsel on biometric consent, Nigeria → EU transfer and the DPIA (add to the F-05 booking) | Book this week; answer by 25 Nov | — | Didit path |
+
+**Not needed any more:**
+- F-06's waitlist as the entry point (the survey part stays).
+- The F-12/F-13 11 Nov dates.
+- F-14's public announcement (personal invites now).
+- `switch-to-research.sh` as a rollback. Never use Vercel Instant Rollback to a deployment from before the beta switch.
+
+## F-18: Didit account, DPA and retention (do this on the day you sign up, because its terms reportedly changed on 1 Nov 2026)
+
+1. Sign up at didit.me with `hello@peabudy.com`, on the **Free** plan (no card). Turn on two-factor authentication.
+2. **Check and write down privately (not in this repo):**
+   - the date and version of the terms;
+   - the **data storage region** (we want EU);
+   - whether a **DPA** is available on Free (sign it);
+   - the **shortest retention** you can set for images and session data (set it as short as allowed);
+   - whether sessions can be **deleted via the API**;
+   - whether **UK documents** are supported (for London later);
+   - that **Nigerian documents** (NIN slip or card, passport, driver's licence, voter's card) are supported.
+3. Build one workflow with **ID verification + passive liveness + face match only**. Turn off NIN, BVN, phone, AML and any database checks (D22).
+4. Create sandbox API and webhook secrets and hand them to the engineer **through the Vercel dashboard only** (`DIDIT_API_KEY`, `DIDIT_WEBHOOK_SECRET`, `DIDIT_WORKFLOW_ID`).
+5. Budget: $10 of free credit a month ≈ 33 checks at list prices (checked 10 Nov). The app caps at 25 a month (ENG-35) unless you raise it.
+6. Give the PM the region and retention values for the privacy notice and DPIA (README L9).
+
+## Today and tomorrow (fast-track; historical, superseded by the live launch to-do above)
 
 | ID | Task | Owner | Due | Done when |
 |---|---|---|---|---|

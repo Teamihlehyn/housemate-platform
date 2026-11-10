@@ -12,6 +12,26 @@ export const GET = handler(async (_req: NextRequest, { rid }) => {
     include: { profile: true, search: { include: { areas: true, preferences: true } }, checks: true },
   });
   const score = await computeScore(prisma, user.id);
+  const feedback = await prisma.testerFeedback.findMany({
+    where: { userId: user.id },
+    orderBy: { createdAt: "asc" },
+    select: { createdAt: true, page: true, rating: true, message: true },
+  });
+  // HM-30: what we hold from before the account existed, and the survey emails sent.
+  const [accessRequests, invites, surveySends] = await Promise.all([
+    prisma.accessRequest.findMany({
+      where: { email: user.email },
+      select: { name: true, email: true, city: true, area: true, moveInMonth: true, howHeard: true, note: true, status: true, consentVersion: true, createdAt: true, reviewedAt: true },
+    }),
+    prisma.invite.findMany({
+      where: { OR: [{ email: user.email }, { usedByUserId: user.id }] },
+      select: { email: true, createdAt: true, expiresAt: true, usedAt: true, revokedAt: true },
+    }),
+    prisma.auditEvent.findMany({
+      where: { eventType: "survey.sent", subjectId: user.id },
+      select: { resourceId: true, outcome: true, occurredAt: true },
+    }),
+  ]);
 
   const data = {
     exportedAt: new Date().toISOString(),
@@ -25,6 +45,10 @@ export const GET = handler(async (_req: NextRequest, { rid }) => {
       createdAt: full!.createdAt,
       privacyConsentAt: full!.privacyConsentAt,
       privacyConsentVersion: full!.privacyConsentVersion,
+      surveyOptIn: full!.surveyOptIn,
+      surveyOptInAt: full!.surveyOptInAt,
+      surveyOptInVersion: full!.surveyOptInVersion,
+      unsubscribedAt: full!.unsubscribedAt,
     },
     profile: full!.profile,
     search: full!.search
@@ -40,6 +64,10 @@ export const GET = handler(async (_req: NextRequest, { rid }) => {
       : null,
     verification: full!.checks.map((c) => ({ category: c.category, status: c.status, points: c.points })),
     credibility: score,
+    feedback,
+    accessRequests,
+    invites,
+    surveyEmails: surveySends.map((s) => ({ campaign: s.resourceId, outcome: s.outcome, sentAt: s.occurredAt })),
   };
 
   return ok({ export: data }, rid);

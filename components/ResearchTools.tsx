@@ -22,6 +22,7 @@ function stored(key: string, make?: () => string): string {
 }
 
 const FEEDBACK_URL = process.env.NEXT_PUBLIC_FEEDBACK_URL || "";
+const IS_BETA = process.env.NEXT_PUBLIC_APP_ENV === "beta";
 
 type ClarityFn = ((...args: unknown[]) => void) & { q?: unknown[][] };
 
@@ -73,12 +74,16 @@ export default function ResearchTools() {
   // On chat threads and onboarding the pill would cover the composer / Continue button; the
   // top bar has a Feedback button there.
   const hidePill = /^\/messages\/.+/.test(pathname) || pathname.startsWith("/onboarding");
+  // Public pages have no bottom nav, so the pill sits lower there. Both positions clear the
+  // home bar (safe-area inset); signed-in pages clear the 60 px bottom nav on phones.
+  const PUBLIC = ["/", "/signin", "/request-access", "/privacy", "/terms", "/safety"];
+  const isPublic = PUBLIC.includes(pathname) || /^\/(invite|unsubscribe)(\/|$)/.test(pathname);
 
   return (
     <>
       {!hidePill && <button
         onClick={openFeedback}
-        className="fixed bottom-20 right-4 z-40 inline-flex min-h-[44px] items-center gap-2 rounded-full bg-ink px-4 text-sm font-medium text-cream shadow-e2 transition hover:bg-black md:bottom-6 md:right-6"
+        className={`fixed ${isPublic ? "bottom-[calc(env(safe-area-inset-bottom)+16px)]" : "bottom-[calc(env(safe-area-inset-bottom)+76px)]"} right-[max(1rem,env(safe-area-inset-right))] z-40 inline-flex min-h-[44px] items-center gap-2 rounded-full bg-ink px-4 text-sm font-medium text-cream shadow-e2 transition hover:bg-black md:bottom-6 md:right-6`}
         aria-label="Give feedback on this page"
       >
         <IconFeedback size={18} /> Feedback
@@ -94,6 +99,14 @@ function FeedbackDialog({ page, testerId, source, onClose }: { page: string; tes
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // DES-14: signed-in feedback is stored with the account, so never call it anonymous.
+  // The session cookie is HttpOnly, so ask the API once when the dialog opens.
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  useEffect(() => {
+    let live = true;
+    api("/me").then(() => live && setSignedIn(true)).catch(() => live && setSignedIn(false));
+    return () => { live = false; };
+  }, []);
 
   async function send() {
     setError(null);
@@ -132,10 +145,16 @@ function FeedbackDialog({ page, testerId, source, onClose }: { page: string; tes
                 </button>
               ))}
             </div>
-            <textarea className="input mt-3 min-h-[110px]" maxLength={2000} value={message} onChange={(e) => setMessage(e.target.value)}
+            <textarea aria-label="Your feedback" className="input mt-3 min-h-[110px]" maxLength={2000} value={message} onChange={(e) => setMessage(e.target.value)}
               placeholder="e.g. I couldn't find where to set the notice period…" />
             {error && <p className="field-error" role="alert">{error}</p>}
-            <p className="mt-2 text-xs text-ink-500">Sent with the page you&apos;re on ({page}) and your anonymous tester ID {testerId}.</p>
+            <p className="mt-2 text-xs text-ink-600" aria-live="polite">
+              {signedIn === null
+                ? "\u00a0"
+                : signedIn
+                  ? <>Sent with your account and the page you&apos;re on ({page}), so we can follow up. Don&apos;t include passwords or ID numbers.</>
+                  : <>Sent with the page you&apos;re on ({page}){IS_BETA ? "" : <> and a random tester ID for this browser ({testerId})</>}. Don&apos;t include personal details.</>}
+            </p>
             <div className="mt-4 flex gap-2">
               <button className="btn-secondary flex-1" onClick={onClose}>Cancel</button>
               <button className="btn-primary flex-1" disabled={busy} onClick={send}>{busy ? "Sending…" : "Send feedback"}</button>

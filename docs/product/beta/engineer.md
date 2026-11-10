@@ -41,6 +41,27 @@
 | ENG-26 | Fonts: ₦ and Yoruba glyph coverage (Plus Jakarta Sans + Inter, latin-ext + vietnamese subsets) | S | S1 | DES-12 | — |
 | ENG-27 | Contrast fixes: placeholder text and faint landing text | XS | S1 | DES-12 | — |
 | ENG-28 | Peabudy rename: user-facing brand strings only (code identifiers unchanged) | S | FT (email, sign-in, metadata, legal pages) / S1 (rest) | Designer's rebrand (name, wordmark) | — |
+| **ENG-29** | Survey email opt-in, Settings toggle, unsubscribe link | S | **Live launch** (by Wed 11 Nov 13:00) | DES-13 | D16 |
+| **ENG-30** | Staff CSV export of opted-in members (admin only, audited) | S | After launch, by Wed 18 Nov | ENG-29 | D16, D17 |
+| **ENG-31** | Feedback in beta: honest copy, member shown to staff, rate limit, export and purge | S | **Live launch** | DES-14 | — |
+| **ENG-32** | Sign-up pause switch + `OPEN_CITIES` waiting copy | XS | **Live launch** | DES-04 | D15, D21 |
+| **ENG-33** | Staging = permanent beta rehearsal; retire `switch-to-research.sh` | XS | **Live launch** (Tue 10 Nov) | Founder sets dashboard vars | D19 |
+| **ENG-34** | Nigerian money-request patterns; caution shown to the recipient too | XS–S | Live launch (should) | DES-03 | D21 |
+| **ENG-35** | Didit identity verification (document + liveness + face match), result-only storage, staff override | M–L (2–3 d) | 16–20 Nov; live about 27 Nov | F-18, SEC-13, DES-15 | D22 |
+| **ENG-36** | Staff "Send survey" action via Resend (branded template, opted-in only, audited); **replaces ENG-30's CSV export** | M | After launch, by Thu 19 Nov | ENG-29, DES-13, F-21 | D17 |
+| **ENG-37** | Access requests: public form + staff "Access requests" tab (approve / decline) | M | **Launch** | DES-17 | D15, D20 |
+| **ENG-38** | Invite codes: staff "Send invite" / "Copy link", `/invite/[code]` landing, invite check in `request-code` | S–M | **Launch** | ENG-37, DES-17 | D15 |
+| **HM-26** | An honest, identical busy message above the site-wide cap; staff codes still sent | XS | **Launch** | DES-18 (the playful version later) | approved |
+
+> **Founder decisions, 10 Nov evening** (README, top of the live launch plan):
+> - **Invite-only (D15):** ENG-37 and ENG-38 are launch-critical.
+> - **Survey via a Resend "Send survey" action (D17):** ENG-36 replaces ENG-30, and isn't built for launch.
+> - **HM-26 approved.**
+> - **ENG-32 changes:** keep `SIGNUPS_PAUSED` as an emergency stop that pauses access requests and invite redemption; **drop `OPEN_CITIES`** (staff choose whom to invite).
+> - ENG-29's export column `unsubscribe_url` now feeds ENG-36 instead.
+> - **Fri 13 Nov is at risk** because of ENG-37 and ENG-38. If needed, ENG-38's automated invite email can ship after launch, while staff copy the link and send it personally.
+
+> **Live launch re-plan (10 Nov):** research mode is retired, and the beta goes live in **Lagos on Fri 13 Nov** (README "Live launch plan"). **Launch-critical:** ENG-04, HM-08, HM-23, HM-25 (in progress), ENG-25, ENG-29, ENG-31, ENG-32, ENG-33, ENG-10 (extended, README L6 T2). ENG-34 is "should". **HM-26** (if the founder approves): an honest generic 429 above the site-wide cap, still sending staff codes. Also launch-critical: hiding the "phone" row from the beta checks list unless a phone check exists (recommended). **After launch:** ENG-30, ENG-35, ENG-12, ENG-11, ENG-21, ENG-07. **Not needed any more:** HM-22, ENG-19 (demo deployment), ENG-13 for now (one city, manual clusters), ENG-15's Tally waitlist link.
 
 **Total ≈ 38 engineer-days. FT ≈ 7 days** (ENG-28's FT part added 9 Nov). **Repo clean-up is not in the FT total:** it must not delay ENG-02, 01, 06 or 08. S1 + S2 have 12 working days for about 29½ days of work, so this needs parallel work streams or a second engineer. If neither exists, cut using the cut line in README.md.
 
@@ -699,6 +720,226 @@
   - Given a link to `https://peabudy.com` pasted into WhatsApp or iMessage, then the preview shows the Peabudy title and image (after F-02 part G).
   - Both existing e2e suites still pass (update any assertion on the old brand text).
 - **Size** S · **Depends on** the designer confirming the name styling ("Peabudy", not "PeaBudy" or "peabudy"; *Assumption:* "Peabudy").
+
+## ENG-29: Survey email opt-in, Settings toggle and unsubscribe link (founder-approved, D16)
+
+- **Problem.** The founder wants to email every user a follow-up survey. Under PECR, UK GDPR and the NDPA 2023, the safe and honest basis is **opt-in consent** (README L5). Nothing records that consent today.
+- **User story.** As a new member, I can choose whether Peabudy emails me a short survey, see my choice in Settings, and stop it from any survey email without signing in.
+- **In scope:**
+  1. **Schema** (additive): `User.surveyConsentAt DateTime?`, `User.surveyConsentVersion String?`, `User.surveyConsentWithdrawnAt DateTime?`. Migration `survey_consent`. Add `SURVEY_CONSENT_VERSION = "survey-v1"` in `lib/constants.ts`.
+  2. **Sign-in** (`app/signin/page.tsx`): an optional, **unticked** checkbox below the required privacy box, with DES-13 copy. `verify-code` accepts `survey_opt_in: boolean`.
+     - If true, set `surveyConsentAt = now`, set the version and clear `surveyConsentWithdrawnAt`.
+     - If false or missing, change nothing.
+     - It must never block sign-in, and never reuse the privacy consent field.
+  3. **Settings:** "Survey emails" on/off. `PATCH /api/v1/me/preferences {survey_emails: boolean}`. On sets consent as in (2); off sets `surveyConsentWithdrawnAt = now`.
+  4. **Unsubscribe:** `GET /unsubscribe/survey?t=TOKEN` shows a page with one "Stop survey emails" button; `POST /api/v1/email/unsubscribe {t}` withdraws.
+     - The token is `HMAC-SHA256(userId|survey)` with `EMAIL_LINK_SECRET`, base64url, no expiry, compared in constant time. A bad token gets a generic "This link isn't valid" with no account hint.
+     - No sign-in needed. The page must not show the email address.
+  5. **Audit, in the same transaction:**
+     - `consent.survey_granted` (`safeAfter: { version, via: "signin"|"settings" }`)
+     - `consent.survey_withdrawn` (`via: "settings"|"unsubscribe_link"`)
+  6. `/me/export` includes the three fields.
+- **Out of scope:** sending email (the founder sends it, D17); Resend Broadcasts.
+- **Acceptance criteria:**
+  - Given a new sign-in with `survey_opt_in` absent, then `surveyConsentAt` is null.
+  - Given `survey_opt_in: true`, then `surveyConsentAt` is set, `surveyConsentVersion = "survey-v1"`, and one `consent.survey_granted` audit row exists.
+  - Given an opted-in member who posts a valid unsubscribe token while signed out, then `surveyConsentWithdrawnAt` is set and an audit row with `via: "unsubscribe_link"` exists. Posting the same token again returns 200 with no new audit row.
+  - Given a tampered token, then the response is 404 `NOT_FOUND` and nothing changes.
+  - Given the sign-in page at 375 px, the checkbox is unticked by default, has a real label, and has a target of at least 44 px.
+  - Given research or development mode, the behaviour is the same (it's harmless there).
+- **Size** S.
+
+## ENG-30: Staff CSV export of opted-in members (D16, D17)
+
+- **Problem.** The founder needs the list of people who agreed to survey emails, and nothing else.
+- **In scope:**
+  - `GET /api/v1/staff/exports/survey-optins.csv`, **admin role only** (`requireStaff()` and `role === "admin"`; anyone else gets 404).
+  - Rows: `surveyConsentAt` not null, and `surveyConsentWithdrawnAt` null or earlier than `surveyConsentAt`. Also `accountStatus = active`, `isDemoBot = false`, and the role isn't staff.
+  - Columns: `email, first_name, city, created_date, verified, stage, consent_date, consent_version, survey_ref, unsubscribe_url`.
+    - `stage` is the furthest of: signed_up · published · verified · intro_sent · chatting · household.
+    - `survey_ref` is an HMAC of the user ID.
+  - Escape CSV cells against formula injection: prefix `= + - @` with `'`.
+  - Headers: `Content-Disposition: attachment`, `Cache-Control: no-store`.
+  - An "Export survey list" button in `/staff`, with the usage rule printed beside it: "Use only to send the Peabudy survey and one reminder. Delete the file after sending."
+  - Audit `staff.export_survey_optins`, `safeAfter: { rows }`, with no emails.
+- **Acceptance criteria:**
+  - Given 3 opted-in, 1 withdrawn, 1 `deletion_pending` and 1 staff account, then the CSV has 3 rows.
+  - Given a `verifier` role, then 404.
+  - Given a display name `=HYPERLINK(...)`, then the cell starts with `'`.
+  - Given an export, then exactly one audit row with the row count exists.
+- **Size** S · **Ship by** Wed 18 Nov (the first survey goes on Fri 20 Nov).
+
+## ENG-31: Feedback in beta: honest, linked, limited and covered by data rights
+
+- **Problem (Facts, checked 10 Nov):**
+  - The dialog says "your anonymous tester ID" even when the feedback is linked to the account (`components/ResearchTools.tsx:138`, `feedback/route.ts` stores `userId`).
+  - Staff can't see the member (`staff/page.tsx:93–103`).
+  - Signed-out posts without `tester_id` are unlimited (HM-13).
+  - Feedback isn't in `/me/export` and isn't purged.
+  - The staff counts are research-only.
+- **In scope:**
+  1. Dialog copy from DES-14. Signed in: "Sent with your account and the page you're on." Signed out: "Sent with the page you're on. Don't include personal details."
+  2. Staff list: show the member's display name and a link to their staff detail (the user ID's last 6 characters until ENG-22 exists). Show "Signed out" when there's no `userId`. Never show the email in the list.
+  3. Rate limit by IP hash (`hashIp`, HM-23): 5 per 10 minutes signed out, 20 per hour signed in. Returns 429 `RATE_LIMITED`.
+  4. `/me/export` includes the member's feedback. The F-10 purge SQL deletes it, or sets `userId` to null and keeps the text only if the privacy notice says so (README L5; the notice says deleted).
+  5. Beta staff section: title "Feedback and reports"; counts "Members", "Verified", "Feedback (7 days)"; hide the persona and demo counts when `IS_BETA`. Add "Load more" paging.
+- **Acceptance criteria:**
+  - Given a signed-in beta member who sends feedback, then staff see their display name on it.
+  - Given 6 signed-out posts from one IP within 10 minutes, then the 6th returns 429.
+  - Given `/me/export`, then it contains that member's feedback.
+  - Given the beta staff page, then no "persona" or "demo" label appears.
+- **Size** S.
+
+## ENG-32: Sign-up pause switch and `OPEN_CITIES` (D15, D21)
+
+- **In scope:**
+  - `SIGNUPS_PAUSED=true` (server env): `request-code` for an email with **no account** returns 403 `FORBIDDEN` with "We're not taking new sign-ups for a few days. Please try again later." Existing accounts are unaffected. Audit `auth.signup_paused`, with no email.
+  - `OPEN_CITIES=lagos` (server env, comma list; default: all cities): a published member whose city isn't open gets the DES-04 "City not open yet" pending state, and the staff queue labels them "City not open" and sorts them last. Matching is unchanged; such people stay unverified, so they see nobody anyway.
+- **Acceptance criteria:**
+  - Given `SIGNUPS_PAUSED=true`, then a new email is refused, an existing member signs in normally, and a staff sign-in works.
+  - Given `OPEN_CITIES=lagos`, then a London member sees the London waiting copy and the queue labels them.
+- **Size** XS.
+
+## ENG-33: Staging becomes the permanent beta rehearsal; research mode retired (D19)
+
+- **In scope:**
+  - Create Neon branch `beta-rehearsal` (schema only, no seed).
+  - Give the founder the exact Preview (branch `staging`) dashboard values: `DATABASE_URL`, `DIRECT_URL`, `APP_ENV=beta`, `NEXT_PUBLIC_APP_ENV=beta`, `DEMO_MODE=false`, `IP_HASH_SALT`, `ADMIN_EMAILS`, `EMAIL_LINK_SECRET`, `OPEN_CITIES=lagos`.
+  - Remove the all-Preview `RESEND_API_KEY` (the founder does this).
+  - Make `scripts/switch-to-research.sh` exit with "Research mode is retired (10 Nov 2026)", or delete it.
+  - Update `CLAUDE.md` §4 (environment table), §10 and §11 to say production and staging run beta, and research runs locally only.
+  - Document the rollback rule: roll back only to deployments built after the beta switch.
+- **Acceptance criteria:**
+  - Given the staging URL, then sign-in sends a real email and shows no on-screen code.
+  - Given staging, then no seeded person appears anywhere.
+  - Given `switch-to-research.sh`, then it refuses to run.
+- **Size** XS.
+
+## ENG-34: Lagos money-request patterns, and the caution shown to both people
+
+- **Problem.** HM-11: the caution only shows to the sender, and its patterns miss common Nigerian scam wording. Lagos is the pilot city (D21).
+- **In scope:**
+  - Add patterns (case-insensitive): "agent fee", "agency fee", "inspection fee", "caution fee", "legal fee", "commitment fee", "transfer", "account number", "acct no", "POS", "send money", "pay before", "deposit", "₦" or "naira" followed by a number, and "opay", "palmpay", "moniepoint", "kuda".
+  - Show the DES-03 caution to the **recipient** of such a message as well as the sender.
+  - It stays non-blocking.
+- **Acceptance criteria:** Given a message "pls send inspection fee to my opay", then both people see the caution, and the message is delivered.
+- **Size** XS–S.
+
+## ENG-35: Didit identity verification (D22; after launch)
+
+- **Problem.** Staff video checks don't scale beyond a few people a day. The founder approved Didit, with result-only storage (README L9).
+- **User story.** As a new Lagos member, I can verify my identity in a few minutes with my ID and a selfie, after agreeing to a clear explanation, or choose a video call instead.
+- **In scope:**
+  1. `IDV_PROVIDER = manual | didit` (server env; default `manual`) and `DIDIT_API_KEY`, `DIDIT_WEBHOOK_SECRET`, `DIDIT_WORKFLOW_ID` (env only, never in the repo).
+  2. `POST /api/v1/me/identity/session`:
+     - requires a published, unverified member who has accepted the biometric consent (`User.biometricConsentAt`, `biometricConsentVersion`, set by the DES-15 screen);
+     - creates a Didit session with `vendor_data = HMAC(userId)`, never the email;
+     - stores `VerificationCheck` (`category=identity`, `status=pending`, `method="provider:didit"`, `providerSessionId`);
+     - returns the hosted URL.
+     - Limits: 3 sessions per member per 7 days, and the monthly budget cap (25; env `DIDIT_MONTHLY_CAP`). Over the cap, return 409 `STATE_CONFLICT` with "Book a short video call instead".
+  3. `POST /api/v1/webhooks/didit`:
+     - verify the signature (HMAC with `DIDIT_WEBHOOK_SECRET`; check against Didit's docs) and reject stale timestamps;
+     - idempotent on the session ID;
+     - look the session up **by our stored ID only**.
+     - Map the result:
+       - Approved, and the adult check is true → `verified`, with `checkedAt`, and `adultEligible = true`.
+       - Declined → `rejected` with a reason code from an allow-list (`document_invalid`, `liveness_failed`, `face_mismatch`, `underage`, `other`).
+       - In review or abandoned → stays `pending`, and goes into the staff queue.
+     - **Persist nothing else from the payload:** no names, document numbers, dates of birth, images or URLs to them.
+  4. **Staff override** in the queue: approve or reject any provider result, with a reason. Audit `verification.override`.
+  5. **Video fallback** stays: "Prefer a video call" sets the case to manual.
+  6. **Deletion:** when an account is purged, call Didit's delete-session API if one exists (*check the docs*). Otherwise record that Didit's retention setting covers it (F-18).
+  7. Audit: `verification.provider_session_created`, `verification.provider_result` (`safeAfter: { status, reasonCode }`), `verification.override`.
+  8. **In the same release:** update `CLAUDE.md` rule 8 and §8 to "identity is granted by staff approval or by an approved verification provider (Didit) result; no ID documents or biometric data are stored by Peabudy, ever".
+- **Out of scope:** NIN or BVN lookups (**forbidden**, D22); phone verification; UK roll-out (until London opens).
+- **Acceptance criteria:**
+  - Given no biometric consent, when a session is requested, then 422 `CONSENT_REQUIRED`.
+  - Given an Approved webhook with a valid signature, then exactly one `VerificationCheck` becomes `verified`, the member becomes visible to verified members, and the stored row holds only the status, session ID, `checkedAt` and reason code. Assert in a test that no other webhook field is persisted.
+  - Given the same webhook twice, then there's no duplicate change and no second audit row.
+  - Given a bad signature, then 401 and no change.
+  - Given a session ID that isn't ours, then 404.
+  - Given the monthly cap is reached, then new requests get the video-call fallback.
+  - Given staff override a Declined result, then the member is verified, and the audit shows the override with the staff actor.
+  - Mocked-webhook tests are in `tests/beta.unit.ts` and e2e_beta. Sandbox tested end to end once by the founder with real Nigerian ID types.
+- **Size** M–L (2–3 days) · **Depends on** F-18, DES-15 · **Gate** SEC-13 · **Target** live about Fri 27 Nov.
+
+## ENG-37: Access requests (D15 invite-only; launch)
+
+- **Problem.** Sign-up is now invite-only. People who hear about Peabudy need a way to ask for access, and staff need to pre-check them before inviting.
+- **In scope:**
+  - **Schema** (additive): `AccessRequest`, with these fields:
+    - `id`, `email` (lower-cased), `firstName`, `city`, `areas` (JSON string), `moveMonth` (`YYYY-MM`), `journey`, `source?`, `note?` (≤ 300);
+    - `status` (`pending | approved | declined | invited | joined`), `decidedBy?`, `decidedAt?`, `declineReason?` (allow-list: `not_open_city`, `agent_or_landlord`, `duplicate`, `not_genuine`, `other`), `createdAt`, `ipHash?`.
+    - Unique on the pending email (a second request updates the pending one).
+  - **`POST /api/v1/access-requests`:** public; validates (`VALIDATION` with `field_errors`); a honeypot field; rate limit 3 per IP hash per hour (429 `RATE_LIMITED`).
+    - **Always returns the same 200 "Thanks, we'll be in touch"**, whether or not the email has an account or a pending request.
+    - Refused with 403 when `SIGNUPS_PAUSED`.
+    - Audit `access.requested` with no email (`safeAfter: { city }`).
+  - **The form:** on the landing page and at `/request-access` (DES-17); links the privacy notice; mobile first.
+  - **Staff "Access requests" tab** in `/staff` (any staff role can view; **approve, decline and invite need `admin`** until ENG-24's role matrix lands):
+    - list pending requests oldest first, with filters by city, area and move month;
+    - group hint: "N others in {area}, moving within 3 months of this person" (D20);
+    - approve / decline with a reason. Audit `access.approved` / `access.declined` (actor = staff; no email in the payload).
+  - Staff reads of the tab are audited (HM-10).
+- **Acceptance criteria:**
+  - Given an email that already has an account, when it requests access, then the response is identical to that for a new email, and no second account is created.
+  - Given 4 requests from one IP within an hour, then the 4th returns 429.
+  - Given a staff member without `admin`, when they try to approve, then 404.
+  - Given an approval, then the request's status is `approved` and one audit row exists.
+  - Given the form at 320 px, then there's no horizontal scroll and inputs are ≥ 16 px.
+- **Retention:** declined and unanswered requests are deleted after [30] days (the privacy notice row; F-10 SQL until a job exists).
+- **Size** M.
+
+## ENG-38: Invite codes and the `/invite/[code]` landing (D15; launch)
+
+- **In scope:**
+  - **Schema:** `Invite` (`id`, `codeHash` (SHA-256 of the code), `email`, `accessRequestId?`, `createdBy`, `expiresAt` (14 days), `usedAt?`, `revokedAt?`).
+    - The code is 10+ characters from `crypto.randomBytes`, URL-safe. **Only the hash is stored.**
+  - **Staff:** on an approved request, "Send invite" emails the link through Resend (`peabudy.com` stream; DES-17 template) and "Copy link" shows it once. Audit `invite.created` / `invite.sent` (no code, no email). "Revoke" sets `revokedAt`.
+  - **`/invite/[code]`:** validates without consuming it.
+    - Valid: the DES-17 welcome, showing the invited email masked (`t•••@gmail.com`), and "Continue" to `/signin?invite=CODE` with the email prefilled.
+    - Invalid, expired, used or revoked: a single friendly page, "This invite isn't valid any more", with a link to request access. No detail about why.
+  - **`request-code`**, for an email with **no account** (staff in `ADMIN_EMAILS` exempt):
+    - no `invite_code` → **403 `INVITE_REQUIRED`** ("Peabudy is invite-only for now. Request access and we'll be in touch.");
+    - a code that doesn't hash-match an unused, unexpired, unrevoked invite **for this email** → **422 `INVITE_INVALID`** ("That invite isn't valid. Check the link, or request access.").
+    - Existing accounts: no invite needed.
+    - The invite is consumed (`usedAt`) only when `verify-code` creates the account, in the same transaction. Audit `invite.redeemed`; the request becomes `joined`.
+  - `SIGNUPS_PAUSED` makes redemption return 403 with the pause message.
+- **Acceptance criteria:**
+  - Given a new email with no invite, then 403 `INVITE_REQUIRED` and no email is sent.
+  - Given an invite for A used by email B, then 422 `INVITE_INVALID`.
+  - Given a valid invite, when the account is created, then `usedAt` is set, and a second use returns 422.
+  - Given an expired or revoked invite, then 422.
+  - Given an existing member, then a code is sent without an invite.
+  - Given the database, then no plaintext invite code is stored.
+  - Given `ADMIN_EMAILS`, then staff sign in without an invite.
+- **Note for security (SEC-14):** `INVITE_REQUIRED` versus "code sent" reveals whether an email has an account. With per-IP and site-wide caps and invite-only access, I judge that acceptable for launch. Security to confirm.
+- **Size** S–M.
+
+## ENG-36: "Send survey" action (D17; after launch, replaces ENG-30)
+
+- **In scope:**
+  - Staff **admin-only** "Survey" panel:
+    - campaign key (e.g. `survey-2026-11`);
+    - a preview of the recipient count;
+    - "Send me a test";
+    - "Send to N people" with a typed confirmation;
+    - "Send reminder" (once per campaign, at least 72 h after the first send, to people still opted in).
+  - **Recipients:** opted in (`surveyConsentAt` set and not withdrawn since), `accountStatus = active`, not staff or bots, and **not already sent this campaign and kind**. New `SurveySend` table (`userId`, `campaign`, `kind` (`initial | reminder`), `sentAt`, `resendId?`), unique on (`userId`, `campaign`, `kind`).
+  - **Sending:**
+    - Resend batch API from `EMAIL_FROM_UPDATES` = `Peabudy <hello@updates.peabudy.com>`, Reply-To `hello@peabudy.com`, using `RESEND_UPDATES_API_KEY` (restricted to `updates.peabudy.com`, F-21);
+    - throttled to 10 a second;
+    - HTML + plain text from DES-13, with a per-person survey link (`ref` = HMAC, `city`, `stage`) and `unsubscribe_url`;
+    - headers `List-Unsubscribe: <unsubscribe_url>` and `List-Unsubscribe-Post: List-Unsubscribe=One-Click`.
+    - A failure on one person doesn't stop the rest; it's recorded.
+  - **Audit:** `survey.sent` (`safeAfter: { campaign, kind, sent, failed }`). Never emails or bodies.
+- **Acceptance criteria:**
+  - Given 3 opted-in, 1 withdrawn and 1 deleted account, then the preview count is 3 and 3 emails are sent.
+  - Sending again does nothing.
+  - Given a non-admin, then 404.
+  - Given a sent email, then it carries both unsubscribe headers and a working link (ENG-29).
+  - Given `RESEND_UPDATES_API_KEY` unset, then the panel says the stream isn't set up, and nothing is sent.
+- **Size** M · **By** Thu 19 Nov · **Depends on** F-21, DES-13 (template), Tally survey (F).
 
 ## Note: the Discover score chip (PM vs designer)
 
