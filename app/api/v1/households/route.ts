@@ -6,6 +6,7 @@ import { writeAudit, writeOutbox, notify } from "@/lib/audit";
 import { monthlyEquivalentMinor } from "@/lib/money";
 import { afterPlanProposedOrChanged } from "@/lib/demoBots";
 import { assertNotBlocked } from "@/lib/blocks";
+import { HOMES_ENABLED } from "@/lib/env";
 
 // POST /api/v1/households {introduction_id, plan:{earliestDate,latestDate,contributions,stayMin,stayMax,propertyId?}}
 // Creates a proposal; creator's submit counts as their acceptance.
@@ -53,6 +54,20 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
     s.rentMaxMinor != null && s.rentPeriod ? monthlyEquivalentMinor(s.rentMaxMinor, s.rentPeriod) : 0;
   const contributions = plan.contributions ?? { [user.id]: monthly(meSearch), [otherId]: monthly(otherSearch) };
 
+  // A property link only where homes exist, and only to a real sample home (HM-04 residual).
+  // Beta has no homes (ENG-01), so any propertyId is ignored there.
+  let propertyId: string | null = null;
+  if (HOMES_ENABLED && plan.propertyId != null) {
+    const prop = typeof plan.propertyId === "string"
+      ? await prisma.property.findUnique({ where: { id: plan.propertyId }, select: { id: true } })
+      : null;
+    if (!prop)
+      return fail("VALIDATION", "That home isn't available. Choose one from your shortlist.", 422, rid, {
+        field_errors: { propertyId: "That home isn't available." },
+      });
+    propertyId = prop.id;
+  }
+
   const result = await prisma.$transaction(async (tx) => {
     const hh = await tx.household.create({
       data: {
@@ -73,7 +88,7 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
         currency: meSearch.currency ?? "GBP",
         stayMin: plan.stayMin ?? meSearch.stayMinMonths ?? 6,
         stayMax: plan.stayMax ?? meSearch.stayMaxMonths ?? 12,
-        propertyId: plan.propertyId ?? null,
+        propertyId,
       },
     });
     // Creator's submit = their acceptance.

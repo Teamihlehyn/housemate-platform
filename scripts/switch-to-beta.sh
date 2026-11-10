@@ -22,13 +22,27 @@
 #   read -rs RESEND_API_KEY; export RESEND_API_KEY
 #   EMAIL_FROM="Peabudy <hello@peabudy.com>" ADMIN_EMAILS="you@…" \
 #   NEXT_PUBLIC_CONTACT_EMAIL="hello@peabudy.com" bash scripts/switch-to-beta.sh
-set -euo pipefail
+#
+# You're asked to type a confirmation twice: before any variable changes, and again before
+# `git push origin main`. If a step fails after variables start changing, the script stops
+# and tells you to roll back.
+#
+# -E so the ERR trap (installed in step 2) also fires inside functions.
+set -Eeuo pipefail
 cd "$(dirname "$0")/.."
 
 BRAND_DOMAIN="peabudy.com"
 SITE_URL="${SITE_URL:-https://gethousemate.vercel.app}"
 
 die() { echo "Stopped: $*" >&2; exit 1; }
+
+# confirm "PHRASE" — the person must type PHRASE exactly (read from the terminal/stdin).
+confirm() {
+  local answer=""
+  printf '\nType "%s" to continue (anything else stops): ' "$1"
+  read -r answer || true
+  [ "$answer" = "$1" ]
+}
 
 # ---------------------------------------------------------------------------
 # 1. Guards — all run before anything changes.
@@ -86,10 +100,26 @@ PY
 
 neon connection-string beta >/dev/null || die "couldn't read the Neon beta branch (run 'neon auth'?)."
 
+echo
+echo "All checks passed. Next: production's variables are switched to beta (database first,"
+echo "mode last). Nothing is deployed until you confirm a second time."
+confirm "switch to beta" || die "you didn't confirm. Nothing was changed."
+
 # ---------------------------------------------------------------------------
 # 2. Production variables. Values go through stdin, never argv, so nothing is
 #    echoed even with `bash -x`.
+#    Order (HM-25): the database first, the mode variables last, so a failure part-way
+#    leaves production's mode untouched. From here on any failure is half-switched.
 # ---------------------------------------------------------------------------
+# Print once and stop. A failure inside a pipeline runs the trap in a subshell first, so
+# only the main shell prints.
+on_fail() {
+  trap - ERR
+  [ "${BASH_SUBSHELL:-0}" = 0 ] || exit 1   # (macOS bash 3.2 has no BASHPID)
+  echo >&2; echo "FAILED: $1" >&2; exit 1
+}
+trap 'on_fail "production is half-switched — run scripts/switch-to-research.sh"' ERR
+
 put() { # put NAME  — value read from stdin
   vercel env rm "$1" production --yes >/dev/null 2>&1 || true
   vercel env add "$1" production --yes >/dev/null
@@ -102,33 +132,51 @@ drop() {
 }
 
 echo "Setting production to beta…"
-# Both mode variables come from one value: the app refuses to start in production if
-# they differ or aren't a known mode (lib/env.ts, HM-05).
-MODE=beta
-put_lit APP_ENV "$MODE"
-put_lit NEXT_PUBLIC_APP_ENV "$MODE"
-put_lit DEMO_MODE false
-put_lit NEXT_PUBLIC_SITE_URL "$SITE_URL"
+# 2a. Database first.
 neon connection-string beta --pooled | tr -d '\n' | put DATABASE_URL
 neon connection-string beta | tr -d '\n' | put DIRECT_URL
+
+# 2b. Everything else.
+put_lit NEXT_PUBLIC_SITE_URL "$SITE_URL"
 put_env RESEND_API_KEY
 put_env EMAIL_FROM
 put_env ADMIN_EMAILS
 put_env NEXT_PUBLIC_CONTACT_EMAIL
 if printenv NEXT_PUBLIC_SURVEY_URL >/dev/null; then put_env NEXT_PUBLIC_SURVEY_URL; fi
 if printenv EMAIL_LINK_SECRET >/dev/null; then put_env EMAIL_LINK_SECRET; fi
-# Salt for hashing IPs in the code-request rate limit (HM-08). Generated here and
+# Salt for hashing IPs in the code-request rate limit (HM-08, HM-23). Generated here and
 # never shown; rotating it only resets the per-IP counts.
 openssl rand -hex 32 | tr -d '\n' | put IP_HASH_SALT
 
 # Clarity stays off until the consent banner ships (D8, ENG-14); the built-in feedback
-# form replaces Tally.
+# form replaces Tally. Test-only switches must never reach real users.
 drop NEXT_PUBLIC_CLARITY_ID
 drop NEXT_PUBLIC_FEEDBACK_URL
+drop TEST_TODAY
+drop FORCE_SEED
+
+# 2c. Mode last. Both mode variables come from one value: the app refuses to start in
+# production if they differ or aren't a known mode (lib/env.ts, HM-05).
+MODE=beta
+put_lit DEMO_MODE false
+put_lit APP_ENV "$MODE"
+put_lit NEXT_PUBLIC_APP_ENV "$MODE"
 
 # ---------------------------------------------------------------------------
 # 3. Deploy. NEXT_PUBLIC_* values are baked in at build time, so force a build.
+#    The variables are all beta now, but the live site is unchanged until this build.
 # ---------------------------------------------------------------------------
+trap 'on_fail "production variables are set to beta but nothing was deployed. Run scripts/switch-to-research.sh to put them back (or fix the problem and run: git push origin main)."' ERR
+
+echo
+echo "Production variables are set to beta. The live site doesn't change until it's rebuilt."
+if ! confirm "push to production"; then
+  trap - ERR
+  echo "Stopped before deploying. The variables are set to beta but nothing was deployed." >&2
+  echo "Undo them with scripts/switch-to-research.sh, or deploy later with: git push origin main" >&2
+  exit 1
+fi
+
 echo "Deploying (push main → production)…"
 git fetch -q origin main
 if [ "$(git rev-parse main)" = "$(git rev-parse origin/main)" ]; then

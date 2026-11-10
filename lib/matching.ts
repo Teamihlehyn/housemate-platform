@@ -21,7 +21,8 @@ export interface Candidate {
   earliestDate: string | null;
   latestDate: string | null;
   bio: string | null;
-  score: number;
+  score?: number; // credibility score; omitted in beta, which shows no numbers (ENG-04)
+  idChecked?: boolean; // beta only: always true, because only checked people are listed (ENG-02)
   rank: number;
   reasons: string[];
   discussTopics: string[];
@@ -268,7 +269,7 @@ export async function getRecommendations(viewerId: string): Promise<MatchResult>
       }
     }
 
-    const sb = await computeScore(prisma, c.userId);
+    const sb = IS_BETA ? null : await computeScore(prisma, c.userId);
 
     candidates.push({
       userId: c.userId,
@@ -286,7 +287,7 @@ export async function getRecommendations(viewerId: string): Promise<MatchResult>
       earliestDate: c.earliestDate,
       latestDate: c.latestDate,
       bio: c.bio,
-      score: sb.score,
+      ...(sb ? { score: sb.score } : { idChecked: true }),
       rank,
       reasons: reasons.slice(0, 3),
       discussTopics: discussTopics.slice(0, 3),

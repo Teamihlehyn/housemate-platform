@@ -3,6 +3,7 @@ import { prisma } from "./db";
 import { ApiError } from "./api";
 import { writeAudit, writeOutbox, notify } from "./audit";
 import { monthlyEquivalentMinor } from "./money";
+import { HOMES_ENABLED } from "./env";
 
 type Tx = Prisma.TransactionClient;
 type ActorType = "user" | "service";
@@ -199,7 +200,8 @@ export async function proposePlanChange(opts: {
         noticePeriodWeeks: notice,
         billsSplit: bills,
         notes,
-        propertyId: plan.propertyId,
+        // Homes are off in beta: never carry a property into a new version (ENG-01).
+        propertyId: HOMES_ENABLED ? plan.propertyId : null,
         changeReason: changed.join(","),
       },
     });
@@ -373,7 +375,8 @@ export async function buildHouseholdView(householdId: string, userId: string) {
   const activeIds = hh.memberships.filter((m) => m.state === "active").map((m) => m.userId);
 
   const currentPlan = hh.plans[0];
-  const propertyIds = [
+  // Beta has no homes: don't look up or expose any property (ENG-01).
+  const propertyIds = !HOMES_ENABLED ? [] : [
     ...new Set(
       [
         ...hh.shortlist.map((s) => s.propertyId),
@@ -425,7 +428,7 @@ export async function buildHouseholdView(householdId: string, userId: string) {
           noticePeriodWeeks: currentPlan.noticePeriodWeeks,
           billsSplit: currentPlan.billsSplit,
           notes: currentPlan.notes,
-          propertyId: currentPlan.propertyId,
+          propertyId: HOMES_ENABLED ? currentPlan.propertyId : null,
           acceptedBy,
           agreed: activeIds.length > 0 && activeIds.every((id) => acceptedBy.includes(id)),
         }

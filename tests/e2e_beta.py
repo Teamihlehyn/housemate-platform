@@ -22,12 +22,15 @@ class C:
     def __init__(self):
         self.op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
 
-    def call(self, path, body=None, method=None):
+    def call(self, path, body=None, method=None, ip=None):
+        headers = {"Content-Type": "application/json"}
+        if ip:  # local dev only: next dev trusts x-forwarded-for, so tests can pick the client IP
+            headers["X-Forwarded-For"] = ip
         req = urllib.request.Request(
             BASE + "/api/v1" + path,
             data=json.dumps(body).encode() if body is not None else None,
             method=method or ("POST" if body is not None else "GET"),
-            headers={"Content-Type": "application/json"},
+            headers=headers,
         )
         try:
             with self.op.open(req, timeout=60) as r:
@@ -176,6 +179,8 @@ r = e.call(f"/conversations/{convo}/messages", {"client_message_id": "m1", "body
 check("blocked person can't message: 404", r[0] == 404, f"{r[0]} {err(r)}")
 check("blocker gets no notification (household, message)", notes(f) == before)
 
+from concurrent.futures import ThreadPoolExecutor
+
 print("== HM-03: parallel guesses can't beat the attempt cap ==")
 from concurrent.futures import ThreadPoolExecutor
 g_email = f"beta-guess-{RUN}@example.com"
@@ -196,6 +201,71 @@ print("== HM-08: emailed code requests are capped per IP ==")
 codes = [C().call("/auth/request-code", {"email": f"beta-cap{i}-{RUN}@example.com"}) for i in range(12)]
 first_429 = next((i for i, r in enumerate(codes) if r[0] == 429), None)
 check("an IP is capped within 11 requests an hour", first_429 is not None and first_429 <= 10 and err(codes[first_429]) == "RATE_LIMITED", f"first 429 at #{first_429}")
+
+print("== HM-08: IPv6 is capped per /64 ==")
+net = f"2001:db8:{int(RUN[-4:]) % 65536:x}:{int(RUN[:4]) % 65536:x}"
+v6 = [C().call("/auth/request-code", {"email": f"beta-v6-{i}-{RUN}@example.com"}, ip=f"{net}::{i + 1:x}") for i in range(11)]
+check("10 addresses in one /64 share a cap", all(r[0] != 429 for r in v6[:10]) and v6[10][0] == 429 and err(v6[10]) == "RATE_LIMITED",
+      [r[0] for r in v6])
+r = C().call("/auth/request-code", {"email": f"beta-v6-other-{RUN}@example.com"}, ip=f"2001:db8:ffff:{int(RUN[:4]) % 65536:x}::1")
+check("another /64 isn't affected", r[0] != 429, f"{r[0]} {err(r)}")
+
+print("== HM-08: a burst can't beat the per-email cap ==")
+burst_email = f"beta-burst-{RUN}@example.com"
+with ThreadPoolExecutor(max_workers=20) as pool:
+    burst = list(pool.map(lambda i: C().call("/auth/request-code", {"email": burst_email}, ip=f"198.51.100.{i + 1}"), range(20)))
+made = int(sql(f'select count(*) from "AuthCode" where email = {lit(burst_email)}'))
+check("20 parallel requests for one address create at most 5 codes", made == 5, f"codes={made}, statuses={sorted(r[0] for r in burst)}")
+
+print("== HM-08: the site-wide cap drops members silently and never locks out staff ==")
+fill = f"e2e-fill-{RUN}"
+sql(f'''insert into "AuditEvent"(id, "eventType", "actorType", "resourceType", "resourceId", action, outcome, "occurredAt")
+       select {lit(fill)} || g, 'auth.code_requested', 'service', 'ip', {lit(fill)} || g, 'email', 'allowed', now()
+       from generate_series(1, 300) g''')
+m_email = f"beta-flood-{RUN}@example.com"
+r = C().call("/auth/request-code", {"email": m_email}, ip="192.0.2.10")
+check("member over the site-wide cap gets the normal 'sent' answer", r[0] == 200 and d(r) == {"status": "sent"}, r)
+check("…but no code is created", sql(f'select count(*) from "AuthCode" where email = {lit(m_email)}') == "0")
+check("…and the drop is logged", sql(f'select count(*) from "AuditEvent" where "eventType" = \'auth.code_requested\' and action = \'dropped_sitewide_cap\' and "occurredAt" > now() - interval \'1 minute\'') != "0")
+staff_c, staff_email, staff_id = member("staffer", "camden")
+sql(f'update "User" set role = \'verifier\' where id = {lit(staff_id)}')
+r = C().call("/auth/request-code", {"email": staff_email}, ip="192.0.2.11")
+check("staff over the site-wide cap still get a code", sql(f'select count(*) from "AuthCode" where email = {lit(staff_email)}') == "1",
+      f"{r[0]} {err(r)} (503 here only means this local server has no email key)")
+sql(f'delete from "AuditEvent" where "resourceId" like {lit(fill + "%")}')
+
+print("== ENG-04: beta shows checks, never a score ==")
+r = b.call("/users/" + a_id)
+cred = d(r).get("credibility", {})
+check("public profile has only the checks list", r[0] == 200 and set(cred.keys()) == {"checks"}, cred)
+cats = {c["category"]: c for c in cred.get("checks", [])}
+check("email and identity are listed with a month, not a timestamp",
+      {"email", "identity"} <= set(cats) and all(len(c["checkedMonth"]) == 7 and c["checkedMonth"][4] == "-" for c in cats.values()), cats)
+check("no score anywhere in the profile JSON", "/100" not in json.dumps(d(r)) and '"score"' not in json.dumps(d(r)))
+recs = d(b.call("/recommendations"))["candidates"]
+check("recommendations carry idChecked, not a score", recs and all(c.get("idChecked") is True and "score" not in c for c in recs))
+me = d(p_.call("/me")).get("credibility", {})
+check("own /me: no score; pending identity shown as pending",
+      set(me.keys()) == {"checks"} and any(c["category"] == "identity" and c["status"] == "pending" for c in me["checks"]), me)
+p_id = user_id(sql(f'select email from "User" where email like {lit("beta-pending-" + RUN + "%")}'))
+sql(f'update "VerificationCheck" set "checkedAt" = \'2026-01-15\' where "userId" = {lit(p_id)} and category = \'identity\'')
+r = staff_c.call(f"/staff/verifications/{p_id}", {"action": "approve"})
+check("staff approval works", r[0] == 200, r[1].get("error"))
+check("approval dates the identity check to the approval, not the publish",
+      sql(f'select to_char("checkedAt", \'YYYY-MM\') from "VerificationCheck" where "userId" = {lit(p_id)} and category = \'identity\'')
+      == datetime.datetime.utcnow().strftime("%Y-%m"))
+check("staff approval response has no score", "score" not in json.dumps(d(r)), d(r))
+
+print("== ENG-01: plan.propertyId is ignored in beta ==")
+g, _, g_id = verified_member("gus")
+h, _, h_id = verified_member("hal")
+g.call("/introductions", {"target_user_id": h_id, "text": INTRO})
+intro_gh = d(h.call("/introductions?direction=incoming"))["introductions"][0]
+h.call(f"/introductions/{intro_gh['id']}", {"action": "accept"})
+r = g.call("/households", {"introduction_id": intro_gh["id"], "plan": {"propertyId": "anything-at-all"}})
+check("household proposal succeeds", r[0] == 200, r[1].get("error"))
+check("no property is stored on the plan", sql(f'select count(*) from "HouseholdPlan" p join "Membership" m on m."householdId" = p."householdId" where m."userId" = {lit(g_id)} and p."propertyId" is not null') == "0")
+check("and none is exposed", (d(g.call("/households/current")).get("household") or {}).get("currentPlan", {}).get("propertyId") is None)
 
 print("== ENG-06: re-consent on a new privacy notice ==")
 current = sql(f'select "privacyConsentVersion" from "User" where id = {lit(a_id)}')

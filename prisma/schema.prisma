@@ -493,6 +493,10 @@ model AuditEvent {
   requestId     String?
   correlationId String?
   occurredAt    DateTime @default(now())
+
+  // Sign-in code rate limits count recent rows by type, IP bucket and action (HM-08, HM-24).
+  @@index([eventType, occurredAt])
+  @@index([eventType, resourceId, occurredAt])
 }
 
 model OutboxEvent {

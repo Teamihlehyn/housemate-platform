@@ -103,6 +103,19 @@ check("second Ben sees only their own sample housemates", not ({c["userId"] for 
 check("other world's profile is not visible", b.call(f"/users/{top['userId']}")[0] == 404)
 check("no introductions across worlds", b.call("/introductions", {"target_user_id": top["userId"], "text": "Trying to reach someone in another tester's world here."})[0] == 404)
 
+print("== ENG-04: research keeps its labelled score; HM-04: plan property is validated ==")
+prof = d(b.call(f"/users/{recs_b[0]['userId']}"))
+check("research profile still has a numeric score and the checks list",
+      isinstance(prof.get("credibility", {}).get("score"), int) and isinstance(prof["credibility"].get("checks"), list))
+check("research candidates still carry a score", all(isinstance(c.get("score"), int) for c in recs_b))
+b.call("/introductions", {"target_user_id": recs_b[0]["userId"], "text": "Hi! Our dates and areas line up — want to look for a place together?"})
+intro_b = d(b.call("/introductions?direction=outgoing"))["introductions"][0]
+r = b.call("/households", {"introduction_id": intro_b["id"], "plan": {"propertyId": "not-a-real-home"}})
+check("unknown plan.propertyId is rejected (422)", r[0] == 422 and err(r) == "VALIDATION", f"{r[0]} {err(r)}")
+r = b.call("/households", {"introduction_id": intro_b["id"], "plan": {"propertyId": props[0]["id"]}})
+check("a real sample home is accepted", r[0] == 200, r[1].get("error"))
+check("and shows on the plan", (d(b.call("/households/current"))["household"]["currentPlan"] or {}).get("propertyId") == props[0]["id"])
+
 print("== In-progress persona (Zainab, Lagos) ==")
 z = Client()
 check("lands on household", d(z.call("/auth/demo-persona", {"persona": "zainab", "accept_privacy": True})).get("next") == "/household")

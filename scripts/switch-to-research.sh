@@ -14,6 +14,12 @@ set_prod() {
   printf '%s' "$2" | vercel env add "$1" production --yes >/dev/null
   echo "  production  $1"
 }
+# Same, but the value comes from stdin so it never appears on a command line (bash -x).
+set_prod_stdin() {
+  vercel env rm "$1" production --yes >/dev/null 2>&1 || true
+  vercel env add "$1" production --yes >/dev/null
+  echo "  production  $1"
+}
 set_staging() {
   vercel env rm "$1" preview staging --yes >/dev/null 2>&1 || true
   if printf '%s' "$2" | vercel env add "$1" preview staging --yes >/dev/null 2>&1; then
@@ -22,6 +28,10 @@ set_staging() {
     echo "  staging     $1 — couldn't set via CLI; set it in Vercel → Settings → Environment Variables (Preview, branch: staging)"
   fi
 }
+
+for tool in vercel neon git openssl; do
+  command -v "$tool" >/dev/null || { echo "$tool isn't installed." >&2; exit 1; }
+done
 
 # Guard against copy-pasted placeholders or malformed values.
 if [ -n "${CLARITY_ID:-}" ]; then
@@ -40,8 +50,12 @@ set_prod APP_ENV research
 set_prod NEXT_PUBLIC_APP_ENV research
 set_prod DEMO_MODE true
 set_prod NEXT_PUBLIC_SITE_URL https://gethousemate.vercel.app
-set_prod DATABASE_URL "$(neon connection-string research --pooled)"
-set_prod DIRECT_URL "$(neon connection-string research)"
+neon connection-string research --pooled | tr -d '\n' | set_prod_stdin DATABASE_URL
+neon connection-string research | tr -d '\n' | set_prod_stdin DIRECT_URL
+# Salt for hashing IPs in the sign-in code rate limit (HM-23). Without it, deployments
+# record no IPs and the per-IP cap is off. Generated here, never shown; rotating it only
+# resets the per-IP counts.
+openssl rand -hex 32 | tr -d '\n' | set_prod_stdin IP_HASH_SALT
 [ -n "${CLARITY_ID:-}" ] && set_prod NEXT_PUBLIC_CLARITY_ID "$CLARITY_ID"
 [ -n "${FEEDBACK_URL:-}" ] && set_prod NEXT_PUBLIC_FEEDBACK_URL "$FEEDBACK_URL"
 

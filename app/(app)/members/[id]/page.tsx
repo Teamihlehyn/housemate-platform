@@ -7,6 +7,10 @@ import { formatMoney } from "@/lib/money";
 import { formatDateRange } from "@/lib/dates";
 import { CITIES, QUESTIONNAIRE, answerLabel } from "@/lib/constants";
 import ReportDialog from "@/components/ReportDialog";
+import { ChecksCard, IdCheckedChip } from "@/components/ChecksCard";
+import { identityChecked } from "@/lib/checks";
+
+const IS_BETA = process.env.NEXT_PUBLIC_APP_ENV === "beta";
 
 export default function MemberProfile({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -69,7 +73,9 @@ export default function MemberProfile({ params }: { params: Promise<{ id: string
               {profile.isSample && <span className="chip ml-1 mt-1 bg-ink-50 text-ink-600">Sample housemate · replies automatically</span>}
             </div>
           </div>
-          <span className="chip bg-brand-100 text-brand-800">Demo {profile.credibility.score}/100</span>
+          {IS_BETA
+            ? identityChecked(profile.credibility.checks) && <IdCheckedChip className="shrink-0" />
+            : <span className="chip bg-brand-100 text-brand-800">Demo {profile.credibility.score}/100</span>}
         </div>
 
         <p className="mt-4 text-ink-700" data-clarity-mask="true">{profile.bio}</p>
@@ -102,7 +108,10 @@ export default function MemberProfile({ params }: { params: Promise<{ id: string
         </dl>
       </div>
 
-      {/* Credibility breakdown */}
+      {/* Credibility: beta lists completed checks with no number (ENG-04); demo modes keep the labelled breakdown. */}
+      {IS_BETA ? (
+        <ChecksCard checks={profile.credibility.checks ?? []} own={false} />
+      ) : (
       <div className="card mt-4 p-6">
         <h2 className="font-semibold text-ink">Demo credibility: {profile.credibility.score}/100</h2>
         <p className="text-xs text-ink-600">Checks completed — not a guarantee of safety.</p>
@@ -117,6 +126,7 @@ export default function MemberProfile({ params }: { params: Promise<{ id: string
           ))}
         </ul>
       </div>
+      )}
 
       <div className="mt-4 flex gap-2">
         <button className="btn-primary flex-1" onClick={() => setComposer(true)}>Send introduction</button>

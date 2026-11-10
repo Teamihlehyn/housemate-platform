@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { writeAudit, writeOutbox, notify } from "@/lib/audit";
 import { snapshotScore } from "@/lib/credibility";
 import { RUBRIC } from "@/lib/constants";
+import { IS_BETA } from "@/lib/env";
 
 // POST /api/v1/staff/verifications/[userId] {action: approve|reject, reason}
 // Records the outcome of a human, out-of-band identity check. No ID documents are stored.
@@ -25,7 +26,7 @@ export const POST = handler(async (req: NextRequest, { rid, params }) => {
       await tx.user.update({ where: { id: userId }, data: { adultEligible: true, phoneVerified: true } });
       await tx.verificationCheck.update({
         where: { userId_category: { userId, category: "identity" } },
-        data: { status: "verified", points: RUBRIC.identity },
+        data: { status: "verified", points: RUBRIC.identity, checkedAt: new Date() },
       });
       // Phone confirmed during the same live check.
       await tx.verificationCheck.upsert({
@@ -49,7 +50,8 @@ export const POST = handler(async (req: NextRequest, { rid, params }) => {
       await notify(tx, userId, "check_result", "Identity verified", "Your identity has been verified. You're now live in discovery.");
       return score;
     });
-    return ok({ status: "verified", credibility: bd }, rid);
+    // Beta shows no score anywhere, staff screens included (ENG-04).
+    return ok({ status: "verified", credibility: IS_BETA ? undefined : bd }, rid);
   }
 
   if (action === "reject") {

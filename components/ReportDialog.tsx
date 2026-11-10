@@ -56,7 +56,7 @@ export default function ReportDialog({
         ) : (
           <>
             <h2 id="report-title" className="text-lg font-bold text-ink">Report {targetName}</h2>
-            <p className="mt-1 text-sm text-ink-600">Reports are private. They don&apos;t change anyone&apos;s score on their own.</p>
+            <p className="mt-1 text-sm text-ink-600">Reports are private. {process.env.NEXT_PUBLIC_APP_ENV === "beta" ? "We review every one." : <>They don&apos;t change anyone&apos;s score on their own.</>}</p>
             <fieldset className="mt-4">
               <legend className="label">What happened?</legend>
               <div className="space-y-1.5">

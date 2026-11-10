@@ -1,5 +1,8 @@
 // Unit checks for sign-in helpers (ENG-06). Run: npm run test:unit
-import { clientIp, codesMatch, generateLoginCode, hashIp, isReconsent, needsConsent } from "../lib/auth";
+import {
+  MAX_CODES_PER_EMAIL_HOUR, MAX_EMAILED_CODES_PER_HOUR, MAX_EMAILED_CODES_PER_IP_HOUR,
+  clientIp, codesMatch, decideCodeRequest, generateLoginCode, hashIp, ipBucket, ipHashSalt, isReconsent, needsConsent,
+} from "../lib/auth";
 import { demoModeFor, resolveAppEnv } from "../lib/env";
 
 const cases: [string, boolean][] = [];
@@ -35,7 +38,42 @@ check("different length doesn't match (and doesn't throw)", !codesMatch("123456"
 const hdr = (h: Record<string, string>) => ({ headers: { get: (n: string) => h[n.toLowerCase()] ?? null } });
 check("client IP is the first forwarded address", clientIp(hdr({ "x-forwarded-for": "203.0.113.7, 10.0.0.1" })) === "203.0.113.7");
 check("client IP falls back to unknown", clientIp(hdr({})) === "unknown");
-check("IP hash is stable and doesn't contain the IP", hashIp("203.0.113.7") === hashIp("203.0.113.7") && !hashIp("203.0.113.7").includes("203"));
+check("IP hash is stable and doesn't contain the IP", hashIp("203.0.113.7") === hashIp("203.0.113.7") && !hashIp("203.0.113.7")!.includes("203"));
+
+// IPv6 grouped by /64 (HM-08).
+check("IPv4 is its own bucket", ipBucket("203.0.113.7") === "203.0.113.7" && ipBucket("203.0.113.8") !== ipBucket("203.0.113.7"));
+check("IPv6 in the same /64 share a bucket",
+  ipBucket("2001:db8:1:2:aaaa:bbbb:cccc:dddd") === ipBucket("2001:db8:1:2::1") &&
+  ipBucket("2001:0db8:0001:0002:0:0:0:ffff") === "2001:db8:1:2::/64");
+check("IPv6 in different /64s don't", ipBucket("2001:db8:1:2::1") !== ipBucket("2001:db8:1:3::1"));
+check("IPv6 case and zero-padding don't matter", ipBucket("2001:DB8:0:0::1") === ipBucket("2001:db8::2"));
+check("bracketed IPv6 and zone IDs are handled", ipBucket("[2001:db8:1:2::9]") === "2001:db8:1:2::/64" && ipBucket("fe80::1%en0") === "fe80:0:0:0::/64");
+check("IPv4-mapped IPv6 counts as the IPv4 address", ipBucket("::ffff:203.0.113.7") === "203.0.113.7" && ipBucket("::ffff:cb00:7107") === "203.0.113.7");
+check("rotating the interface ID doesn't dodge the cap", hashIp("2001:db8:5:6::1") === hashIp("2001:db8:5:6:ffff:ffff:ffff:ffff"));
+check("junk input doesn't throw", ipBucket("unknown") === "unknown" && ipBucket("1:2:3") === "1:2:3" && ipBucket("::1:2:3:4:5:6:7:8:9") !== "");
+
+// IP_HASH_SALT (HM-23): no public fallback in any Vercel deployment.
+check("deployed without a salt: IPs aren't recorded", ipHashSalt({ VERCEL_ENV: "production" }) === null && ipHashSalt({ VERCEL_ENV: "preview" }) === null);
+check("deployed with a short salt: treated as missing", ipHashSalt({ VERCEL_ENV: "production", IP_HASH_SALT: "short" }) === null);
+check("deployed with a real salt: used", ipHashSalt({ VERCEL_ENV: "production", IP_HASH_SALT: "a".repeat(64) }) === "a".repeat(64));
+check("local without a salt: a local-only salt", typeof ipHashSalt({}) === "string");
+check("no salt → no hash", hashIp("203.0.113.7", null) === null);
+check("the old public default salt is gone", ipHashSalt({}) !== "peabudy-ip-v1");
+check("different salts give different hashes", hashIp("203.0.113.7", "x".repeat(16)) !== hashIp("203.0.113.7", "y".repeat(16)));
+
+// Code request caps (HM-08).
+const base = { emailedCode: true, isStaff: false, fromEmail: 0, fromIp: 0, sitewide: 0 };
+check("under every cap: send", decideCodeRequest(base) === "send");
+check("per-email cap: 429 for everyone",
+  decideCodeRequest({ ...base, fromEmail: MAX_CODES_PER_EMAIL_HOUR }) === "email_limited" &&
+  decideCodeRequest({ ...base, isStaff: true, fromEmail: MAX_CODES_PER_EMAIL_HOUR }) === "email_limited" &&
+  decideCodeRequest({ ...base, emailedCode: false, fromEmail: MAX_CODES_PER_EMAIL_HOUR }) === "email_limited");
+check("per-IP cap: 429, staff included", decideCodeRequest({ ...base, fromIp: MAX_EMAILED_CODES_PER_IP_HOUR }) === "ip_limited" &&
+  decideCodeRequest({ ...base, isStaff: true, fromIp: MAX_EMAILED_CODES_PER_IP_HOUR }) === "ip_limited");
+check("site-wide cap: members silently dropped", decideCodeRequest({ ...base, sitewide: MAX_EMAILED_CODES_PER_HOUR }) === "drop");
+check("site-wide cap: staff still get a code", decideCodeRequest({ ...base, isStaff: true, sitewide: MAX_EMAILED_CODES_PER_HOUR + 50 }) === "send");
+check("on-screen codes ignore the IP and site-wide caps",
+  decideCodeRequest({ ...base, emailedCode: false, fromIp: 99, sitewide: 9999 }) === "send");
 
 // Mode resolution fails closed (HM-05).
 const throws = (f: () => unknown) => { try { f(); return false; } catch { return true; } };

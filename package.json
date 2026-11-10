@@ -7,7 +7,7 @@
     "build": "prisma migrate deploy && next build",
     "start": "next start -p 3000",
     "typecheck": "tsc --noEmit",
-    "test:unit": "tsx tests/gender.unit.ts && tsx tests/auth.unit.ts && APP_ENV=beta tsx tests/beta.unit.ts && APP_ENV=research tsx tests/beta.unit.ts",
+    "test:unit": "tsx tests/gender.unit.ts && tsx tests/auth.unit.ts && tsx tests/checks.unit.ts && APP_ENV=beta tsx tests/beta.unit.ts && APP_ENV=research tsx tests/beta.unit.ts",
     "postinstall": "prisma generate",
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",

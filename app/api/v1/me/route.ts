@@ -2,7 +2,8 @@ import { NextRequest } from "next/server";
 import { handler, ok } from "@/lib/api";
 import { requireUser } from "@/lib/guard";
 import { prisma } from "@/lib/db";
-import { computeScore } from "@/lib/credibility";
+import { credibilityDto } from "@/lib/credibility";
+import { IS_BETA } from "@/lib/env";
 import { parseGenderPreference } from "@/lib/constants";
 
 // GET /api/v1/me — private own account, progress, credibility.
@@ -15,7 +16,8 @@ export const GET = handler(async (_req: NextRequest, { rid }) => {
       search: { include: { areas: true, preferences: true } },
     },
   });
-  const score = await computeScore(prisma, user.id);
+  // Own checks, including pending/failed ones; no score in beta (ENG-04).
+  const credibility = await credibilityDto(prisma, user.id, { beta: IS_BETA, verifiedOnly: false });
 
   return ok(
     {
@@ -40,7 +42,7 @@ export const GET = handler(async (_req: NextRequest, { rid }) => {
             })),
           }
         : null,
-      credibility: score,
+      credibility,
     },
     rid
   );
