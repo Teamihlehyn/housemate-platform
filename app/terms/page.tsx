@@ -1,11 +1,39 @@
 import Link from "next/link";
 import Logo from "@/components/brand/Logo";
 import { IS_BETA } from "@/lib/env";
+import { readLegal } from "@/lib/legal/source";
+import Markdown from "@/lib/legal/Markdown";
 import { FeedbackLink } from "@/components/ResearchTools";
 
 export const metadata = { title: "Terms of use — Peabudy" };
 
+// Beta: the interim draft from docs/product/beta/legal/ (ENG-25), clearly marked as a draft
+// under review, with unfilled placeholders visible. Other modes keep the prototype text.
+function Draft() {
+  return (
+    <div className="min-h-screen font-sans">
+      <header className="border-b border-ink/10 bg-white">
+        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4">
+          <Logo size="sm" />
+          <Link href="/signin" className="btn-primary">Get started</Link>
+        </div>
+      </header>
+      <main className="mx-auto max-w-3xl px-4 py-10">
+        <div role="note" className="mb-8 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <p className="font-semibold">Draft — under review</p>
+          <p className="mt-1">
+            These terms are a draft that a reviewer is finalising. Items <mark className="rounded bg-amber-100 px-1">[IN BRACKETS]</mark> haven&apos;t been filled in yet.
+            We&apos;ll ask you to agree again if it changes in a way that matters.
+          </p>
+        </div>
+        <Markdown source={readLegal("terms")} />
+      </main>
+    </div>
+  );
+}
+
 export default function Terms() {
+  if (IS_BETA) return <Draft />;
   const sections: [string, string][] = [
     [
       "What Peabudy is",

@@ -26,6 +26,13 @@ export const POST = handler(async (_req: NextRequest, { rid }) => {
       data: { status: "archived" },
     });
     await tx.session.deleteMany({ where: { userId: user.id } });
+    // Feedback is deleted with the account (privacy notice), and survey emails stop at once.
+    await tx.testerFeedback.deleteMany({ where: { userId: user.id } });
+    await tx.user.update({ where: { id: user.id }, data: { surveyOptIn: false } });
+    // Access request and invite data go too (HM-30): the request is deleted, and invites keep
+    // only the account link (usedByUserId), not the address.
+    await tx.accessRequest.deleteMany({ where: { email: user.email } });
+    await tx.invite.updateMany({ where: { email: user.email }, data: { email: null } });
 
     // Stop everything in flight with other people (HM-07): pending intros end, chats
     // close, and an open household closes as if they had left it.

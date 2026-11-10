@@ -1,9 +1,11 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Logo from "@/components/brand/Logo";
 import Pea from "@/components/brand/Pea";
+import WaitingRoom, { formatCountdown, useCountdown } from "@/components/signin/WaitingRoom";
 import { api, ApiClientError } from "@/lib/client";
 import { CITIES } from "@/lib/constants";
 import { PERSONAS } from "@/lib/personas";
@@ -11,14 +13,17 @@ import { PERSONAS } from "@/lib/personas";
 const APP_ENV = process.env.NEXT_PUBLIC_APP_ENV;
 const IS_BETA = APP_ENV === "beta";
 const PERSONAS_ON = !IS_BETA;
+// The beta is invite-only (D15): new people need an invite code; members sign in without one.
+const INVITES_ON = IS_BETA;
 const CONSENT_REQUIRED = IS_BETA || APP_ENV === "research";
 const SEND_ERRORS = ["EMAIL_SEND_FAILED", "EMAIL_NOT_CONFIGURED"];
 const LIMIT_ERRORS = ["RATE_LIMITED", "TOO_MANY_ATTEMPTS"];
+const WAIT_KEY = "pb_signin_wait";
 
 // The two sign-in calls read Retry-After, which lib/client's api() doesn't expose.
 class AuthError extends ApiClientError {
-  constructor(code: string, message: string, status: number, public retryAfter: number | null) {
-    super(code, message, status);
+  constructor(code: string, message: string, status: number, fieldErrors: Record<string, string> | null, public retryAfter: number | null) {
+    super(code, message, status, fieldErrors);
   }
 }
 async function authPost<T>(path: string, body: unknown): Promise<T> {
@@ -32,7 +37,7 @@ async function authPost<T>(path: string, body: unknown): Promise<T> {
   if (!res.ok) {
     const err = json.error ?? {};
     const ra = parseInt(res.headers.get("Retry-After") ?? "", 10);
-    throw new AuthError(err.code ?? "ERROR", err.message ?? "Something went wrong.", res.status, Number.isFinite(ra) ? ra : null);
+    throw new AuthError(err.code ?? "ERROR", err.message ?? "Something went wrong.", res.status, err.field_errors ?? null, Number.isFinite(ra) ? ra : null);
   }
   return json.data as T;
 }
@@ -41,20 +46,59 @@ function waitText(seconds: number) {
   const m = Math.ceil(seconds / 60);
   return m < 90 ? `You can try again in about ${m} minutes.` : `You can try again in about ${Math.round(m / 60)} hour${Math.round(m / 60) === 1 ? "" : "s"}.`;
 }
+function readWait(): { until: number; message: string } | null {
+  try {
+    const v = JSON.parse(sessionStorage.getItem(WAIT_KEY) || "null");
+    return v && typeof v.until === "number" && v.until > Date.now() ? v : null;
+  } catch {
+    return null;
+  }
+}
+function writeWait(v: { until: number; message: string } | null) {
+  try {
+    if (v) sessionStorage.setItem(WAIT_KEY, JSON.stringify(v));
+    else sessionStorage.removeItem(WAIT_KEY);
+  } catch {}
+}
+
+type Err = { message: string; sendFailed?: boolean; requestAccess?: boolean; paused?: boolean };
 
 export default function SignIn() {
   const router = useRouter();
   const [email, setEmail] = useState("");
+  const [invite, setInvite] = useState("");
+  const [inviteFromLink, setInviteFromLink] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
   const [code, setCode] = useState("");
   const [sinkCode, setSinkCode] = useState<string | null>(null);
   const [stage, setStage] = useState<"email" | "code">("email");
-  const [error, setError] = useState<{ message: string; sendFailed?: boolean } | null>(null);
+  const [error, setError] = useState<Err | null>(null);
   const [consentError, setConsentError] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [consent, setConsent] = useState(false);
   const [lockedUntil, setLockedUntil] = useState<{ step: "code" | "verify"; at: number } | null>(null);
+  // HM-26: site-wide sign-in limit. Survives a reload in this tab.
+  const [wait, setWait] = useState<{ until: number; message: string } | null>(null);
+  const waitLeft = useCountdown(wait?.until ?? null);
+  const waiting = !!wait && waitLeft > 0;
   const personasRef = useRef<HTMLDivElement>(null);
   const consentRef = useRef<HTMLLabelElement>(null);
+  const inviteRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("invite");
+    if (q) {
+      setInvite(q.trim().slice(0, 64));
+      setInviteFromLink(true);
+    }
+    const w = readWait();
+    if (w) setWait(w);
+  }, []);
+
+  // When the wait ends, clear it so the button works again.
+  useEffect(() => {
+    if (wait && waitLeft <= 0) writeWait(null);
+  }, [wait, waitLeft]);
 
   // Rate limits: keep the button working, but explain instead of calling again too soon.
   function stillLocked(step: "code" | "verify"): boolean {
@@ -84,18 +128,45 @@ export default function SignIn() {
 
   async function requestCode() {
     setError(null);
+    setInviteError(null);
+    if (waiting) return; // the waiting room explains; the button says when
+    setWait(null);
     if (!email.trim()) return setError({ message: "Enter your email address." });
     if (needConsent()) return;
     if (stillLocked("code")) return;
     setBusy("code");
     try {
-      const data = await authPost<{ sink_code?: string }>("/auth/request-code", { email });
+      const body: Record<string, unknown> = { email };
+      if (invite.trim()) body.invite_code = invite.trim();
+      const data = await authPost<{ sink_code?: string }>("/auth/request-code", body);
       setStage("code");
       if (data.sink_code) {
         setSinkCode(data.sink_code);
         setCode(data.sink_code);
       }
     } catch (e) {
+      // HM-26: the site-wide limit gets the waiting room, with a real countdown.
+      if (e instanceof AuthError && e.code === "RATE_LIMITED" && e.retryAfter) {
+        const w = { until: Date.now() + e.retryAfter * 1000, message: e.message };
+        setWait(w);
+        writeWait(w);
+        return;
+      }
+      if (e instanceof AuthError && e.code === "INVITE_REQUIRED") {
+        setError({ message: INVITES_ON ? "Peabudy is invite-only for now. If you have an invite code, add it in the Invite code box. If not, you can ask for one." : e.message, requestAccess: true });
+        inviteRef.current?.focus();
+        return;
+      }
+      // SIGNUPS_PAUSED (ENG-32): request-code answers 403 FORBIDDEN for new accounts only.
+      if (e instanceof AuthError && e.code === "FORBIDDEN" && e.status === 403) {
+        setError({ message: e.message, paused: true });
+        return;
+      }
+      if (e instanceof AuthError && e.code === "INVITE_INVALID") {
+        setInviteError(e.fieldErrors?.invite_code ?? "That invite code doesn't work. Check it against your invite, or ask for a new one.");
+        inviteRef.current?.focus();
+        return;
+      }
       const sendFailed = e instanceof ApiClientError && SEND_ERRORS.includes(e.code);
       const limited = limitMessage(e, "code");
       setError({
@@ -151,34 +222,37 @@ export default function SignIn() {
     }
   }
 
+  const title = INVITES_ON ? (inviteFromLink ? "Welcome. Let's get you in." : "Sign in to Peabudy") : "Sign in or join Peabudy";
+
   return (
-    <div className="min-h-screen bg-pastel">
-      <header className="border-b border-ink-100/70">
-        <div className="mx-auto max-w-5xl px-4 py-2">
+    <div className="min-h-[100dvh] bg-pastel">
+      <header className="border-b border-ink-100/70 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))]">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 py-2">
           <Logo size="sm" />
+          {INVITES_ON && <Link href="/request-access" className="btn-ghost px-4">Request an invite</Link>}
         </div>
       </header>
-      <main className="mx-auto grid max-w-5xl items-start gap-5 px-4 py-6 md:grid-cols-2 md:gap-8 md:py-10">
+      <main className={`mx-auto grid items-start gap-5 px-4 pb-[calc(env(safe-area-inset-bottom)+6rem)] pt-6 md:gap-8 md:pt-10 ${PERSONAS_ON ? "max-w-5xl md:grid-cols-2" : "max-w-xl"}`}>
         <div className="card p-5 sm:p-8">
           <div className="mb-4 flex items-end gap-2" aria-hidden="true">
             <Pea size={48} mood="happy" blink />
             <Pea size={40} mood="awake" tone="fresh" blink />
           </div>
-          <h1 className="font-display text-h1 text-ink md:text-h1-md">Sign in or join Peabudy</h1>
+          <h1 className="font-display text-h1 text-ink md:text-h1-md">{title}</h1>
           <p className="mt-2 text-sm text-ink-600">
             {IS_BETA
-              ? "We'll email you a 6-digit code to sign in. It expires in 10 minutes."
+              ? "We'll email you a 6-digit code from hello@peabudy.com. It expires in 10 minutes."
               : "Enter any email and your 6-digit code appears right here on screen — no inbox needed."}
           </p>
 
           {/* Consent applies to both email sign-in and demo personas. */}
           <label
             ref={consentRef}
-            className={`mt-6 flex items-start gap-3 min-h-[44px] rounded-field border p-3 text-sm ${consentError ? "border-red-300 bg-red-50" : "border-ink-100 bg-cream"}`}
+            className={`mt-6 flex items-start gap-3 min-h-[44px] rounded-field border p-3 text-sm ${consentError ? "border-danger-200 bg-danger-50" : "border-ink-100 bg-cream"}`}
           >
             <input
               type="checkbox"
-              className="mt-0.5 h-5 w-5 accent-ink"
+              className="mt-0.5 h-5 w-5 shrink-0 accent-ink"
               checked={consent}
               onChange={(e) => { setConsent(e.target.checked); setConsentError(false); }}
             />
@@ -190,7 +264,7 @@ export default function SignIn() {
               ) : (
                 " (optional here)"
               )}
-              {consentError && <span className="mt-1 block text-xs font-medium text-red-700" role="alert">Tick this box to continue.</span>}
+              {consentError && <span className="mt-1 block text-xs font-medium text-danger-700" role="alert">Tick this box to continue.</span>}
             </span>
           </label>
 
@@ -201,6 +275,7 @@ export default function SignIn() {
                 <input
                   id="email"
                   type="email"
+                  inputMode="email"
                   className="input"
                   placeholder="you@example.com"
                   value={email}
@@ -209,27 +284,82 @@ export default function SignIn() {
                   data-clarity-mask="true"
                 />
               </div>
-              <ErrorBox error={error} onPersonas={() => personasRef.current?.scrollIntoView({ behavior: "smooth" })} />
-              <button className="btn-primary w-full" disabled={busy === "code"} aria-busy={busy === "code"}>
-                {busy === "code" ? "Sending…" : IS_BETA ? "Email me a code" : "Get my code"}
+
+              {INVITES_ON && (
+                <div>
+                  <label className="label" htmlFor="invite">
+                    Invite code <span className="font-normal text-ink-600">(new members)</span>
+                  </label>
+                  <input
+                    ref={inviteRef}
+                    id="invite"
+                    className="input font-mono uppercase tracking-wider"
+                    value={invite}
+                    onChange={(e) => { setInvite(e.target.value); setInviteError(null); }}
+                    autoComplete="off"
+                    autoCapitalize="characters"
+                    spellCheck={false}
+                    maxLength={64}
+                    aria-invalid={!!inviteError}
+                    aria-describedby={`invite-help${inviteError ? " invite-err" : ""}`}
+                  />
+                  <p id="invite-help" className="helper">
+                    {inviteFromLink && invite ? "Added from your invite link." : "It's in your invite. Already a member? Leave this empty."}
+                  </p>
+                  {inviteError && (
+                    <p id="invite-err" className="field-error" role="alert">
+                      {inviteError} <Link href="/request-access" className="underline underline-offset-2">Request an invite</Link>
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {wait ? (
+                <WaitingRoom until={wait.until} message={wait.message} />
+              ) : (
+                <ErrorBox error={error} onPersonas={() => personasRef.current?.scrollIntoView({ behavior: "smooth" })} />
+              )}
+
+              <button
+                className="btn-primary w-full aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
+                disabled={busy === "code"}
+                aria-disabled={waiting || undefined}
+                aria-busy={busy === "code"}
+                data-waiting={waiting || undefined}
+              >
+                {busy === "code"
+                  ? "Sending…"
+                  : waiting
+                    ? <span className="num">Try again in {formatCountdown(waitLeft)}</span>
+                    : IS_BETA ? "Email me a code" : "Get my code"}
               </button>
+              {INVITES_ON && !waiting && (
+                <p className="text-center text-sm text-ink-600">
+                  No invite yet?{" "}
+                  <Link href="/request-access" className="inline-flex min-h-[44px] items-center font-semibold text-brand-700 underline underline-offset-4">Request one</Link>
+                </p>
+              )}
             </form>
           ) : (
             <form className="mt-4 space-y-4" onSubmit={(e) => { e.preventDefault(); verify(); }}>
               <p className="text-sm text-ink-600">
-                {sinkCode ? "Your code for" : "Code sent to"} <span className="font-medium text-ink">{email}</span>
+                {sinkCode ? "Your code for" : "Code sent to"} <span className="font-medium text-ink" data-clarity-mask="true">{email}</span>
               </p>
               {sinkCode && (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                <div className="rounded-field border border-caution-200 bg-caution-50 px-4 py-3 text-sm text-caution-800">
                   Your code (shown here for testing):{" "}
                   <span className="font-mono text-base font-bold tracking-widest">{sinkCode}</span>
                 </div>
+              )}
+              {!sinkCode && IS_BETA && (
+                <p className="text-sm text-ink-600">It can take a minute. Check your junk or spam folder too.</p>
               )}
               <div>
                 <label className="label" htmlFor="code">6-digit code</label>
                 <input
                   id="code"
                   inputMode="numeric"
+                  autoComplete="one-time-code"
                   className="input font-mono tracking-widest"
                   placeholder="000000"
                   value={code}
@@ -281,11 +411,25 @@ export default function SignIn() {
   );
 }
 
-function ErrorBox({ error, onPersonas }: { error: { message: string; sendFailed?: boolean } | null; onPersonas: () => void }) {
+function ErrorBox({ error, onPersonas }: { error: Err | null; onPersonas: () => void }) {
   if (!error) return null;
+  if (error.paused) {
+    return (
+      <div className="flex gap-3 rounded-field border border-caution-200 bg-caution-50 p-3.5 text-sm text-caution-800" role="alert">
+        <Pea size={40} mood="sleep" className="shrink-0" />
+        <div>
+          <p className="font-semibold">We&apos;ve paused new sign-ups for a moment</p>
+          <p className="mt-0.5">{error.message} If you already have an account, check the email address for typos.</p>
+        </div>
+      </div>
+    );
+  }
   return (
-    <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">
+    <div className="rounded-field border border-danger-200 bg-danger-50 p-3 text-sm text-danger-700" role="alert">
       <p>{error.message}</p>
+      {error.requestAccess && (
+        <Link href="/request-access" className="btn-secondary mt-2 w-full">Request an invite</Link>
+      )}
       {error.sendFailed && PERSONAS_ON && (
         <button type="button" className="btn-secondary mt-2 w-full" onClick={onPersonas}>Use a demo persona instead</button>
       )}

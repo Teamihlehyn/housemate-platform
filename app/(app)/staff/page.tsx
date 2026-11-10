@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiClientError } from "@/lib/client";
+import AccessRequests from "./AccessRequests";
+import SurveyPanel from "./SurveyPanel";
+
+type Tab = "verification" | "access" | "feedback" | "survey" | "audit";
 
 interface VCase { userId: string; displayName: string; email: string | null; phone: string | null; city: string | null; submittedAt: string; }
 
@@ -12,14 +16,19 @@ export default function Staff() {
   const [denied, setDenied] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>("verification");
+  const [role, setRole] = useState<string | null>(null);
+  const [moreBusy, setMoreBusy] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const [audit, vers, res] = await Promise.all([
+      const [audit, vers, res, me] = await Promise.all([
         api<any>("/staff/audit"),
         api<{ cases: VCase[] }>("/staff/verifications"),
         api<any>("/staff/research"),
+        api<{ role: string }>("/me"),
       ]);
+      setRole(me.role);
       setData(audit);
       setCases(vers.cases);
       setResearch(res);
@@ -41,16 +50,47 @@ export default function Staff() {
     } finally { setBusy(null); }
   }
 
+  async function loadMoreFeedback() {
+    const last = research?.feedback?.[research.feedback.length - 1];
+    if (!last) return;
+    setMoreBusy(true);
+    try {
+      const d = await api<any>(`/staff/research?before=${encodeURIComponent(last.createdAt)}`);
+      setResearch((r: any) => ({ ...r, feedback: [...r.feedback, ...d.feedback], more_feedback: d.more_feedback }));
+    } finally { setMoreBusy(false); }
+  }
+
+  const tabs: [Tab, string][] = [
+    ["verification", `ID checks${cases.length ? ` (${cases.length})` : ""}`],
+    ["access", "Access requests"],
+    ["feedback", research?.mode === "beta" ? "Feedback and reports" : "User research"],
+    ...(role === "admin" && research?.mode === "beta" ? ([["survey", "Survey"]] as [Tab, string][]) : []),
+    ["audit", "Audit"],
+  ];
+
   if (denied) return <div className="card p-8 text-center text-ink-600">Staff access required.</div>;
   if (!data) return <div className="h-64 animate-pulse rounded-xl bg-ink-100" />;
 
   return (
     <div>
       <h1 className="mb-4 text-2xl font-bold text-ink">Operations console</h1>
+      <div className="mb-5 flex gap-1 overflow-x-auto border-b border-ink-100" role="tablist" aria-label="Console sections">
+        {tabs.map(([id, text]) => (
+          <button
+            key={id}
+            role="tab"
+            aria-selected={tab === id}
+            onClick={() => setTab(id)}
+            className={`min-h-[44px] whitespace-nowrap px-3 text-sm ${tab === id ? "border-b-2 border-ink font-semibold text-ink" : "text-ink-600"}`}
+          >
+            {text}
+          </button>
+        ))}
+      </div>
       {msg && <div className="mb-4 rounded-lg border border-brand-200 bg-brand-50 px-4 py-2.5 text-sm text-brand-800">{msg}</div>}
 
       {/* Identity verification queue */}
-      <section className="mb-8">
+      {tab === "verification" && <section className="mb-8">
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-ink-600">Identity verification queue</h2>
         {cases.length === 0 ? (
           <div className="card p-6 text-center text-sm text-ink-600">No one waiting for verification.</div>
@@ -72,20 +112,30 @@ export default function Staff() {
           </div>
         )}
         <p className="mt-2 text-xs text-ink-500">Approve only after confirming identity out-of-band (live check). No ID documents are stored.</p>
-      </section>
+      </section>}
 
-      {/* User research */}
-      {research && (
+      {tab === "access" && <AccessRequests isAdmin={role === "admin"} />}
+      {tab === "survey" && role === "admin" && <SurveyPanel />}
+
+      {/* Feedback and reports (beta) / user research */}
+      {tab === "feedback" && research && (
         <section className="mb-8">
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-ink-600">User research</h2>
-          <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Stat label="Testers" value={research.counts.testers} />
-            <Stat label="Via demo persona" value={research.counts.personas} />
-            <Stat label="Households formed" value={research.counts.households} />
-            <Stat label="Moved in (demo)" value={research.counts.completed} />
-          </div>
+          {research.mode === "beta" ? (
+            <div className="mb-4 grid grid-cols-3 gap-3">
+              <Stat label="Members" value={research.counts.members} />
+              <Stat label="Verified" value={research.counts.verified} />
+              <Stat label="Feedback (7 days)" value={research.counts.feedback7d} />
+            </div>
+          ) : (
+            <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Stat label="Testers" value={research.counts.testers} />
+              <Stat label="Via demo persona" value={research.counts.personas} />
+              <Stat label="Households formed" value={research.counts.households} />
+              <Stat label="Moved in (demo)" value={research.counts.completed} />
+            </div>
+          )}
 
-          <h3 className="mb-2 mt-5 font-semibold text-ink">Feedback ({research.feedback.length})</h3>
+          <h3 className="mb-2 mt-5 font-semibold text-ink">Feedback</h3>
           {research.feedback.length === 0 ? (
             <div className="card p-5 text-center text-sm text-ink-600">No feedback yet.</div>
           ) : (
@@ -93,7 +143,11 @@ export default function Staff() {
               {research.feedback.map((f: any) => (
                 <div key={f.id} className="card p-4 text-sm">
                   <div className="flex flex-wrap items-center gap-2 text-xs text-ink-500">
-                    <span className="font-mono">{f.testerId ?? "—"}</span>
+                    {f.sender.signedIn ? (
+                      <span className="font-semibold text-ink-700">{f.sender.displayName} <span className="font-mono font-normal text-ink-500">· {f.sender.ref}</span></span>
+                    ) : (
+                      <span>Signed out{f.testerId ? <span className="font-mono"> · {f.testerId}</span> : null}</span>
+                    )}
                     <span>· {f.page}</span>
                     {f.source && <span className="chip bg-ink-50 text-ink-600">{f.source}</span>}
                     {f.rating && <span>· {["😣", "🙁", "😐", "🙂", "😍"][f.rating - 1]}</span>}
@@ -103,6 +157,10 @@ export default function Staff() {
                 </div>
               ))}
             </div>
+          )}
+
+          {research.more_feedback && (
+            <button className="btn-secondary mt-3 min-h-[44px]" disabled={moreBusy} onClick={loadMoreFeedback}>Load more feedback</button>
           )}
 
           <h3 className="mb-2 mt-5 font-semibold text-ink">Safety reports ({research.reports.length})</h3>
@@ -127,7 +185,7 @@ export default function Staff() {
       )}
 
       {/* Audit explorer */}
-      <section>
+      {tab === "audit" && <section>
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-ink-600">Audit explorer</h2>
         <div className="mb-4 grid grid-cols-3 gap-3">
           <Stat label="Audit events" value={data.health.totalAudit} />
@@ -154,7 +212,7 @@ export default function Staff() {
             </table>
           </div>
         </div>
-      </section>
+      </section>}
     </div>
   );
 }

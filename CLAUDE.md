@@ -29,10 +29,11 @@ The core journey, end to end:
 Trust layer: a transparent **credibility score** (evidence breakdown, "not a guarantee of
 safety"), block, report, privacy controls, an ops console, and an audit trail on every mutation.
 
-**Current phase (Nov 2026): user-testing research round.** Production
-(`gethousemate.vercel.app`) runs in `research` mode: every person, check and home is a sample,
-and each tester gets a private world of sample housemates who reply automatically. A real-user
-`beta` mode (manual identity checks, real email) exists in code and is dormant. The product
+**Current phase (Nov 2026): invite-only Lagos beta (launch Fri 13 Nov).** Production goes to
+`beta` mode (real people, real email, staff ID checks) and stays there; staging is the beta
+rehearsal. **Research mode is retired** for deployments (`scripts/switch-to-research.sh` refuses
+to run); its code (personas, sample worlds, demo bots) stays and runs locally for the research and
+gender e2e suites. Roll back only to an earlier *beta* deployment. The product
 spec is `~/Downloads/Housemate_MVP_PRD.docx` (P0 = required; most P1/P2 are out of scope).
 
 **The single most important principle: honesty.** Never let a simulated check, sample person or
@@ -90,8 +91,8 @@ where everyone is real); sample people are labelled.
 | New migration | `npm run db:migrate:dev -- --name short_snake_case` |
 | Apply migrations | `npm run db:migrate` |
 | Reset + reseed local DB | `npm run db:reset` |
-| E2E — beta gates (local beta server on another port, local DB only) | `python3 tests/e2e_beta.py http://localhost:3100 "postgresql://$USER@localhost:5432/<beta_test_db>"` |
-| Switch production to research mode / add Clarity or Tally, then deploy | `bash scripts/switch-to-research.sh` (user runs it) |
+| E2E — beta journey (local beta server on another port, local DB only; runs a fake Resend on :8025 — server env in the file's docstring) | `python3 tests/e2e_beta.py http://localhost:3100 "postgresql://$USER@localhost:5432/<beta_test_db>"` |
+| Sync the designer's email templates (`docs/design/emails/*`) into `lib/emails/templates.ts` — after **any** edit there; a unit test fails on drift | `node scripts/sync-email-templates.mjs` |
 | Switch production to beta (real users), then deploy | `bash scripts/switch-to-beta.sh` (user runs it; read its header) |
 
 `npm run lint` does not exist (Next 16 removed `next lint`). There is no ESLint config.
@@ -110,8 +111,8 @@ All flags live in `lib/env.ts` — import them, don't re-derive from `process.en
 |---|---|---|---|---|---|---|
 | `development` | local | on screen | yes | personas only | optional | auto (demo) |
 | `staging` | Vercel preview | on screen | yes | personas only | optional | auto (demo) |
-| `research` | **production now** + staging branch | on screen (not staff) | yes | **every account** | required | auto (demo) |
-| `beta` | dormant | **real email** (Resend) | no | no | required | **manual staff review** |
+| `research` | local only (retired in deployments) | on screen (not staff) | yes | **every account** | required | auto (demo) |
+| `beta` | **production + staging** | **real email** (Resend); **invite-only** sign-up | no | no | required | **manual staff review** |
 
 Key flags: `IS_BETA`, `IS_RESEARCH`, `DEMO_MODE` (forced off in beta), `SANDBOX_ON_SIGNUP`,
 `CONSENT_REQUIRED`, `HOMES_ENABLED` and `VERIFIED_ONLY_BROWSING` (both beta gates), `CLARITY_ID`
@@ -146,6 +147,11 @@ Connection strings: `neon connection-string <branch>` (direct, for migrations) a
 | `NEXT_PUBLIC_SITE_URL` | Absolute base for OG/link previews (falls back to `VERCEL_PROJECT_PRODUCTION_URL`) |
 | `NEXT_PUBLIC_CLARITY_ID` | Loads Microsoft Clarity (validated alphanumeric) |
 | `NEXT_PUBLIC_FEEDBACK_URL` | Tally form; Feedback button opens it with `page`, `tester`, `source` params. Unset → built-in form saved to the ops console |
+| `EMAIL_LINK_SECRET` | 32+ chars; signs survey unsubscribe links and `survey_ref`. Unset in a deployment → survey send refuses, every unsubscribe token is invalid |
+| `SIGNUPS_PAUSED` | `"true"` refuses every new account (invite or not); members carry on. Emergency stop |
+| `OPEN_CITIES` | e.g. `lagos`; access requests from other cities are kept but shown to staff as waitlisted. Unset = all |
+| `NEXT_PUBLIC_SURVEY_URL` | Default https survey link for the staff survey send |
+| `EMAIL_API_URL` | Local only (ignored when `VERCEL_ENV` is set): sends Resend calls to a fake, for e2e |
 | `TEST_TODAY` | Pins "today" (`YYYY-MM-DD`) for deterministic dates |
 | `FORCE_SEED` | Seed refuses `APP_ENV=beta` unless `true` |
 
@@ -201,7 +207,8 @@ lib/
   verification.ts identityVerified, canSeeEachOther (beta browsing gate)
   money.ts dates.ts email.ts db.ts client.ts ogImage.tsx
 prisma/         schema.prisma, migrations/, seed.ts
-scripts/        switch-to-research.sh, switch-to-beta.sh (production mode switch + deploy)
+scripts/        switch-to-beta.sh (production → beta + deploy), switch-to-research.sh (retired:
+                refuses to run), sync-email-templates.mjs
 tests/          e2e_research.py, e2e_gender.py, e2e_beta.py, *.unit.ts
 ```
 
@@ -348,6 +355,14 @@ atomically before a constant-time compare), 10 failed guesses/hour/email, 5 requ
 emailed codes are also capped per IP (10/h) and site-wide (300/h). `deletion_pending` accounts
 can't sign in and their sessions stop working; a new `PRIVACY_VERSION` forces re-consent. Consent to the privacy
 notice is checked **before** the code is consumed (so a missing tick doesn't burn the code).
+**Invite-only sign-up (beta, D15):** people ask at `/request-access` (always 202, never reveals
+membership); staff invite from `/staff` (bound to the email, 14 days; admin-only direct codes,
+unbound ones 72 h; revocable). A new address needs a usable invite at `request-code`
+(`403 INVITE_REQUIRED` / `422 INVITE_INVALID`); `verify-code` consumes it atomically with account
+creation. Existing accounts and `ADMIN_EMAILS` never need one. Invite guessing is capped per IP and
+site-wide. Design and the enumeration trade-off: `docs/engineering/invite-only-signup.md`.
+**Survey emails** are consent-only (`User.surveyOptIn*`, `/me/preferences`, signed `/unsubscribe`
+links); send and export are admin-only and beta-only.
 Settings offers data export (`/me/export`) and deletion (`/me/delete`: soft —
 `deletion_pending`, unpublished, sessions revoked; no purge job exists yet). Mark sensitive DOM
 with `data-clarity-mask="true"` (emails, codes, chat bodies, bios, report text).
@@ -375,8 +390,9 @@ with `data-clarity-mask="true"` (emails, codes, chat bodies, bios, report text).
 
 ## 10. Verifying and shipping
 
-**Definition of done:** `npm run typecheck` clean · `npm run test:unit` passes · both e2e suites
-pass against a local research-mode server · UI checked in the browser at 375 px for anything
+**Definition of done:** `npm run typecheck` clean · `npm run test:unit` passes · the research and
+gender e2e suites pass against a local research-mode server, and `e2e_beta.py` against a local
+beta-mode server · UI checked in the browser at 375 px for anything
 visual · migration (if any) applied locally · commit with a descriptive message.
 
 Then:
@@ -385,8 +401,7 @@ Then:
    (allowed) → wait for the preview to be Ready (`vercel ls housemate-platform`) → run the e2e
    suites against the staging URL.
 2. Ask the user to deploy production: `git push origin main` — or, for env changes,
-   `CLARITY_ID=… FEEDBACK_URL=… bash scripts/switch-to-research.sh` (it rejects placeholder values
-   and forces a rebuild when there's no new code).
+   `scripts/switch-to-beta.sh` (read its header; `switch-to-research.sh` is retired).
 3. After it's live, re-run the e2e suite against https://gethousemate.vercel.app and clean up (§11).
 
 Notes: Vercel's free plan builds one deployment at a time (a stuck "BLOCKED" usually means

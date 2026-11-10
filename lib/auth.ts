@@ -9,26 +9,47 @@ export const MAX_CODES_PER_EMAIL_HOUR = 5;
 export const MAX_EMAILED_CODES_PER_IP_HOUR = 10;
 export const MAX_EMAILED_CODES_PER_HOUR = 300; // site-wide
 
-export type CodeRequestDecision = "send" | "email_limited" | "ip_limited" | "drop";
+// HM-26: the one answer everyone gets above the site-wide cap.
+export const BUSY_MESSAGE = "We're getting a lot of sign-in requests right now. Try again in an hour.";
+
+export type CodeRequestDecision =
+  | "send"
+  | "email_limited"
+  | "ip_limited"
+  | "signups_paused"
+  | "invite_required"
+  | "invite_invalid"
+  | "sitewide_limited" // members: 429, nothing sent
+  | "send_sitewide_limited"; // staff: the same 429, but the code is still sent
+
+// Where a request for an address with no account stands (null = an account exists, or no
+// invite is needed here: staff bootstrap emails and demo modes).
+export type NewAccountGate = null | "ok" | "paused" | "required" | "invalid";
 
 // What to do with a code request, given counts taken under a per-email/per-IP lock.
 // - Per email (everyone, staff too): 429. The caller already knows the address.
 // - Per IP bucket (emailed codes only): 429. Applies to staff too, so it can't reveal them.
-// - Site-wide (emailed codes only): staff are exempt so a flood can't lock them out of the
-//   ops console. Everyone else is dropped *silently*: the response is the same "sent" a
-//   staff address gets, so the cap can't be used to discover which addresses are staff.
-//   Their own cap is the per-email one.
+//   Refused new-account requests (no invite, bad invite, paused) count towards it, which
+//   caps how fast anyone can probe for accounts.
+// - New accounts: paused → 403; no invite → 403 INVITE_REQUIRED; bad invite → 422.
+// - Site-wide (emailed codes only, HM-26): over the cap everyone gets the same honest 429.
+//   Staff codes are still sent behind it, so a flood can't lock staff out of the console,
+//   and the identical answer means the cap can't be used to discover staff addresses.
 export function decideCodeRequest(c: {
   emailedCode: boolean;
   isStaff: boolean;
   fromEmail: number;
   fromIp: number; // 0 when IPs aren't recorded
   sitewide: number;
+  newAccount?: NewAccountGate;
 }): CodeRequestDecision {
   if (c.fromEmail >= MAX_CODES_PER_EMAIL_HOUR) return "email_limited";
+  if (c.emailedCode && c.fromIp >= MAX_EMAILED_CODES_PER_IP_HOUR) return "ip_limited";
+  if (c.newAccount === "paused") return "signups_paused";
+  if (c.newAccount === "required") return "invite_required";
+  if (c.newAccount === "invalid") return "invite_invalid";
   if (!c.emailedCode) return "send";
-  if (c.fromIp >= MAX_EMAILED_CODES_PER_IP_HOUR) return "ip_limited";
-  if (!c.isStaff && c.sitewide >= MAX_EMAILED_CODES_PER_HOUR) return "drop";
+  if (c.sitewide >= MAX_EMAILED_CODES_PER_HOUR) return c.isStaff ? "send_sitewide_limited" : "sitewide_limited";
   return "send";
 }
 

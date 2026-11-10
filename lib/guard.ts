@@ -1,7 +1,7 @@
 import { getCurrentUser } from "./session";
 import { ApiError } from "./api";
 import { prisma } from "./db";
-import { HOMES_ENABLED } from "./env";
+import { HOMES_ENABLED, IS_BETA } from "./env";
 
 // Emails granted the admin role on sign-in (comma-separated ADMIN_EMAILS).
 export function adminEmails(): string[] {
@@ -33,6 +33,21 @@ export async function requireStaff(role?: string) {
   if (role && user.role !== role && user.role !== "admin")
     throw new ApiError("FORBIDDEN", "Insufficient role.", 403);
   return user;
+}
+
+// Admin-only staff tools (survey send and export, D17/ENG-30). Everyone else, other staff
+// roles included, gets 404: these routes don't exist for them.
+export async function requireAdmin() {
+  const user = await requireUser();
+  if (user.role !== "admin") throw new ApiError("NOT_FOUND", "Not found.", 404);
+  return user;
+}
+
+// Survey send and export only exist in beta (HM-33): elsewhere the accounts are samples or
+// testers who never opted in. Checked before sign-in so other modes always get 404.
+export async function requireSurveyAdmin() {
+  if (!IS_BETA) throw new ApiError("NOT_FOUND", "Not found.", 404);
+  return requireAdmin();
 }
 
 // Idempotency: same key + same body → original response; different body → 409.

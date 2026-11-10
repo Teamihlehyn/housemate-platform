@@ -128,10 +128,11 @@ export default function MemberProfile({ params }: { params: Promise<{ id: string
       </div>
       )}
 
-      <div className="mt-4 flex gap-2">
-        <button className="btn-primary flex-1" onClick={() => setComposer(true)}>Send introduction</button>
-        <button className="btn-secondary" onClick={() => setReporting(true)}>Report</button>
-        <button className="btn-danger" onClick={block}>Block</button>
+      {/* Wraps at 320 px: the primary action takes the full row, Report and Block share the next. */}
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button className="btn-primary min-w-[12rem] flex-1 basis-full sm:basis-auto" onClick={() => setComposer(true)}>Send introduction</button>
+        <button className="btn-secondary flex-1 sm:flex-none" onClick={() => setReporting(true)}>Report</button>
+        <button className="btn-danger flex-1 sm:flex-none" onClick={block}>Block</button>
       </div>
 
       {reporting && <ReportDialog targetUserId={id} targetName={profile.displayName} onClose={() => setReporting(false)} />}

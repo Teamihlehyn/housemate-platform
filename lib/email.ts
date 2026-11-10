@@ -20,33 +20,13 @@ export async function sendLoginCode(
     return { sink: true, sinkCode: code };
   }
 
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM;
-  if (!apiKey || !from) {
-    throw new ApiError("EMAIL_NOT_CONFIGURED", "We couldn't send your code: email isn't set up here.", 503);
-  }
-
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from,
-      to: [email],
-      subject: `Your Peabudy sign-in code: ${code}`,
-      text: `Your Peabudy sign-in code is ${code}. It expires in 10 minutes.\n\nIf you didn't request this, you can ignore this email.`,
-      html: loginEmailHtml(code),
-    }),
+  await sendEmail({
+    to: email,
+    what: "your code",
+    subject: `Your Peabudy sign-in code: ${code}`,
+    text: `Your Peabudy sign-in code is ${code}. It expires in 10 minutes.\n\nPeabudy will never ask you for this code.\n\nIf you didn't request this, you can ignore this email.`,
+    html: loginEmailHtml(code),
   });
-
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    console.error("Resend delivery failed", res.status, detail);
-    throw new ApiError("EMAIL_SEND_FAILED", "We couldn't send your code to that address.", 502);
-  }
-
   return { sink: false };
 }
 
@@ -59,4 +39,43 @@ function loginEmailHtml(code: string): string {
     <div style="font-size:34px;font-weight:700;letter-spacing:8px;background:#fff;border:1px solid #e7e5df;border-radius:12px;padding:18px;text-align:center">${code}</div>
     <p style="color:#9a988f;font-size:12px;margin-top:24px">If you didn't request this, you can safely ignore this email.</p>
   </div></body></html>`;
+}
+
+// Resend's API. Locally (no VERCEL_ENV) EMAIL_API_URL can point at a fake mail server so the
+// e2e suite can read what was sent; deployments always use Resend.
+function emailApiUrl(): string {
+  const local = !process.env.VERCEL_ENV && process.env.EMAIL_API_URL;
+  return (local || "https://api.resend.com").replace(/\/+$/, "") + "/emails";
+}
+
+export function emailConfigured(): boolean {
+  return !!(process.env.RESEND_API_KEY && process.env.EMAIL_FROM);
+}
+
+// Send one email through Resend. Throws ApiError 503 when email isn't set up here and 502
+// when Resend refuses it. Never logs the address or the content.
+export async function sendEmail(msg: {
+  to: string;
+  subject: string;
+  text: string;
+  html: string;
+  headers?: Record<string, string>;
+  what?: string; // for error messages: "your code", "the invite"
+}): Promise<void> {
+  const what = msg.what ?? "the email";
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.EMAIL_FROM;
+  if (!apiKey || !from) {
+    throw new ApiError("EMAIL_NOT_CONFIGURED", `We couldn't send ${what}: email isn't set up here.`, 503);
+  }
+  const res = await fetch(emailApiUrl(), {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ from, to: [msg.to], subject: msg.subject, text: msg.text, html: msg.html, headers: msg.headers }),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    console.error("Resend delivery failed", res.status, detail.slice(0, 300));
+    throw new ApiError("EMAIL_SEND_FAILED", `We couldn't send ${what} to that address.`, 502);
+  }
 }

@@ -2,7 +2,7 @@
 // research — because mode flags are fixed at import. Run: npm run test:unit
 import { APP_ENV, HOMES_ENABLED, VERIFIED_ONLY_BROWSING } from "../lib/env";
 import { canSeeEachOther } from "../lib/verification";
-import { requireHomesEnabled } from "../lib/guard";
+import { requireHomesEnabled, requireSurveyAdmin } from "../lib/guard";
 import { ApiError } from "../lib/api";
 
 const beta = APP_ENV === "beta";
@@ -38,6 +38,14 @@ check("verified viewer sees an unverified person only outside beta",
 check("neither verified: only outside beta",
   canSeeEachOther({ verifiedOnly: v, viewerVerified: false, targetVerified: false }) === !beta);
 
+async function surveyGate() {
+  if (beta) return;
+  // HM-33: survey tools don't exist outside beta — 404 before any sign-in check.
+  const e = await requireSurveyAdmin().then(() => null, (x) => x);
+  check("survey send/export are 404 outside beta", e instanceof ApiError && e.status === 404 && e.code === "NOT_FOUND");
+}
+
+surveyGate().then(() => {
 let failed = 0;
 for (const [name, pass] of cases) {
   if (!pass) failed++;
@@ -45,3 +53,4 @@ for (const [name, pass] of cases) {
 }
 console.log(failed ? `${failed} FAILED` : "ALL PASSED");
 process.exit(failed ? 1 : 0);
+});

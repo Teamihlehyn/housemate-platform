@@ -31,6 +31,51 @@
 | SEC-09 | Data export and deletion | S2 | 7 Dec |
 | SEC-10 | DPIA inputs (UK GDPR + NDPA 2023) | S1–S2 | 7 Dec |
 | SEC-12 | Back office MVP (roles, staff audit, PII exposure) | S1–S2 | 27 Nov |
+| **SEC-14** | **Live-launch sign-off** (replaces SEC-11): beta in production, Lagos first, open sign-up | Wed 11 – Thu 12 Nov, by 17:00 | **Fri 13 Nov launch** |
+| **SEC-13** | **Didit integration review** (ENG-35): webhook, data minimisation, biometric consent, provider settings | Mon 23 – Wed 25 Nov | Didit go-live, about 27 Nov |
+
+> **Live launch re-plan (10 Nov):** research mode is retired, and production goes to beta once. Open sign-up, with the link shared with a few people; **Lagos first**; launch **Fri 13 Nov** (README "Live launch plan").
+> - **Not needed any more:** HM-22 (Clarity masks for research production), HM-14, and the research parts of HM-18 and SEC-02.
+> - **Raised for open sign-up:**
+>   - HM-13 (unauthenticated feedback with no limit) → before launch (ENG-31).
+>   - HM-11 (the scam caution shown only to the sender; Nigerian wording) → "should" before launch (ENG-34).
+>   - HM-17 (export and deletion mismatch) → feedback and consent are added to the export (ENG-29, ENG-31). The purge is still the F-10 manual SOP.
+
+## SEC-14: Live-launch sign-off (Thu 12 Nov, by 17:00)
+
+**Exit criteria (all needed):**
+- HM-08 closed: per-IP with IPv6 grouped by /64, site-wide caps, staff exempt.
+- HM-23 closed: `IP_HASH_SALT` set in production and staging.
+- HM-25 closed: switch-script ordering and confirmations.
+- HM-13 closed (ENG-31).
+- Review of the new surfaces:
+  - **ENG-29:** the unsubscribe token (HMAC, constant-time, no enumeration, POST-only change); consent records and audit.
+  - **ENG-30** (even though it ships later; review the design now): admin-only, 404 for others, CSV formula injection, no-store, audit with no emails.
+  - **ENG-32:** pause switch and `OPEN_CITIES`. The pause must not reveal whether an email has an account. Recommended: the same message for new and unknown emails, and normal behaviour for existing ones. Assess the enumeration risk.
+  - **ENG-33:** staging is beta on its own branch; no all-Preview `RESEND_API_KEY`; `switch-to-research.sh` refuses to run; the rollback rule is documented.
+- **Invite-only (D15, founder 10 Nov evening), review ENG-37 and ENG-38:**
+  - access requests return an identical response whatever the email, are rate-limited and honeypotted, and audits contain no emails;
+  - invite codes are random, stored only as hashes, single-use, tied to one email, expire and can be revoked; they're consumed in the account-creation transaction;
+  - approve, decline and invite need the `admin` role;
+  - `INVITE_REQUIRED` vs "sent" reveals whether an email has an account. Judge whether that's acceptable for launch (PM's view: yes, given the caps).
+- **ENG-36** (survey sender, after launch): admin only; opted-in recipients only; dedupe; one-click unsubscribe headers; a restricted key on `updates.peabudy.com`.
+- HM-26 (**approved by the founder**): an honest generic 429 above the site-wide cap, with staff codes still sent. HM-27: retire `switch-to-research.sh` (ENG-33). The rollback ladder is in README L1.
+- `IP_HASH_SALT` is set in production. After launch, watch the `ip_limited` 429s from Lagos (carrier NAT).
+- The e2e_beta suite (README L6, T2) passes on staging-as-beta.
+- No open Blocker or High findings.
+- **Rollback hazard:** confirm that Vercel Instant Rollback to a research-era deployment is understood and documented as forbidden.
+
+## SEC-13: Didit integration review (ENG-35)
+
+**Check:**
+- **Webhook:** signature verification against Didit's documented scheme, timestamp/replay window, idempotency, lookup only by our stored session ID, and no trust in payload user identifiers.
+- **Session binding:** a member can't attach another member's session or result. Budget and attempt caps can't be bypassed.
+- **Minimisation:** a test proves that nothing beyond status, session ID, `checkedAt`, the reason code and the adult flag is persisted or logged (including error logs and audit). No NIN or BVN calls in code or configuration.
+- **Consent:** explicit biometric consent is recorded with a version before any session is created; the video fallback is always available.
+- **Staff override:** audited; staff can't approve their own identity (HM-10).
+- **Provider settings (with the founder, F-18):** the shortest retention available, the data region, a signed DPA, and whether a delete-session API exists. Record what the Free plan allows.
+- **Fraud residuals:** deepfake or injection attacks are Didit's responsibility. Record the residual risk, and that "checked" isn't "safe".
+- **Legal inputs for counsel (F-19):** UK GDPR Art. 9 explicit consent; NDPA 2023 sensitive data; Nigeria → EU transfer; the DPIA updated (`legal/dpia.md`).
 
 ---
 

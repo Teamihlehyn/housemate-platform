@@ -78,3 +78,31 @@ export const CLARITY_ID: string | null =
   !IS_BETA && /^[a-z0-9]+$/i.test(process.env.NEXT_PUBLIC_CLARITY_ID || "")
     ? (process.env.NEXT_PUBLIC_CLARITY_ID as string)
     : null;
+
+// Invite-only sign-up (D15): in beta a new account needs a staff invite. Existing accounts
+// and ADMIN_EMAILS sign in without one. Demo modes stay open so research testing works.
+export const INVITE_ONLY = IS_BETA;
+
+// Emergency stop (ENG-32): SIGNUPS_PAUSED=true refuses every new account, invite or not,
+// while existing members carry on. Needs a redeploy to change.
+export const SIGNUPS_PAUSED = process.env.SIGNUPS_PAUSED === "true";
+
+// Cities taking new members (ENG-32). OPEN_CITIES=lagos (comma list); unset = every city.
+// Access requests from other cities are still accepted and shown to staff as waitlisted.
+export function openCities(raw: string | undefined = process.env.OPEN_CITIES): string[] | null {
+  const list = (raw || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+  return list.length ? list : null;
+}
+export function isCityOpen(cityId: string, open: string[] | null = openCities()): boolean {
+  return open === null || open.includes(cityId);
+}
+
+// Absolute base URL for links in emails. NEXT_PUBLIC_SITE_URL first, then Vercel's
+// production URL, then localhost.
+export function siteUrl(env: Record<string, string | undefined> = process.env): string {
+  const raw =
+    env.NEXT_PUBLIC_SITE_URL ||
+    (env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${env.VERCEL_PROJECT_PRODUCTION_URL}` : "") ||
+    "http://localhost:3000";
+  return raw.replace(/\/+$/, "");
+}

@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { preferencesDto } from "@/lib/surveyConsent";
 import { handler, ok } from "@/lib/api";
 import { requireUser } from "@/lib/guard";
 import { prisma } from "@/lib/db";
@@ -25,6 +26,8 @@ export const GET = handler(async (_req: NextRequest, { rid }) => {
       email: full!.email,
       displayName: full!.displayName,
       role: full!.role,
+      // Survey email choice (ENG-29); same shape as GET /me/preferences.
+      preferences: preferencesDto(full!),
       accountStatus: full!.accountStatus,
       emailVerified: full!.emailVerified,
       phone: full!.phone,
