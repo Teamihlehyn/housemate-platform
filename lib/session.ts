@@ -1,3 +1,4 @@
+import { effectiveRole } from "./staff";
 import { cookies } from "next/headers";
 import { randomBytes } from "crypto";
 import { prisma } from "./db";
@@ -38,5 +39,6 @@ export async function getCurrentUser() {
   });
   // An account being deleted is treated as gone: its sessions stop working (HM-07).
   if (!user || user.accountStatus === "deleted" || user.accountStatus === "deletion_pending") return null;
-  return user;
+  // Staff roles count only while the email is in ADMIN_EMAILS (lib/staff.ts).
+  return { ...user, role: effectiveRole(user) };
 }

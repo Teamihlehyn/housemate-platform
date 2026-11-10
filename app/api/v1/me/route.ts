@@ -25,7 +25,7 @@ export const GET = handler(async (_req: NextRequest, { rid }) => {
       id: full!.id,
       email: full!.email,
       displayName: full!.displayName,
-      role: full!.role,
+      role: user.role, // effective role (lib/staff.ts), not the stored one
       // Survey email choice (ENG-29); same shape as GET /me/preferences.
       preferences: preferencesDto(full!),
       accountStatus: full!.accountStatus,

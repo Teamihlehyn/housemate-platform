@@ -1,3 +1,4 @@
+import { effectiveRole } from "@/lib/staff";
 import { NextRequest } from "next/server";
 import { randomInt } from "crypto";
 import { handler, ok, fail } from "@/lib/api";
@@ -40,9 +41,9 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
 
   // On-screen codes where allowed — but never for staff, whose accounts open the
   // ops console. Those always go to the real inbox.
-  const existing = await prisma.user.findUnique({ where: { email: clean }, select: { role: true } });
+  const existing = await prisma.user.findUnique({ where: { email: clean }, select: { role: true, email: true } });
   const bootstrapAdmin = adminEmails().includes(clean);
-  const isStaff = bootstrapAdmin || (!!existing && existing.role !== "member" && (IS_RESEARCH || IS_BETA));
+  const isStaff = bootstrapAdmin || (!!existing && effectiveRole(existing) !== "member" && (IS_RESEARCH || IS_BETA));
   const emailed = isStaff || !DEMO_MODE;
 
   // New accounts: pause switch, then the invite.

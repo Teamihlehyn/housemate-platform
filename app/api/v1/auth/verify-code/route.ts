@@ -1,3 +1,4 @@
+import { staffRoleAllowed } from "@/lib/staff";
 import { NextRequest } from "next/server";
 import { handler, ok, fail, ApiError } from "@/lib/api";
 import { prisma } from "@/lib/db";
@@ -158,10 +159,20 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
     });
     return created;
   });
-  // Staff bootstrap: emails in ADMIN_EMAILS are granted the admin role on sign-in.
+  // Staff bootstrap: emails in ADMIN_EMAILS are granted the admin role on sign-in, and a
+  // stored staff role whose email is no longer listed is removed (HM-10).
   if (bootstrapAdmin && user.role !== "admin") {
     await prisma.user.update({ where: { id: user.id }, data: { role: "admin" } });
     user.role = "admin";
+  } else if (user.role !== "member" && !staffRoleAllowed(user.email)) {
+    const before = user.role;
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({ where: { id: user.id }, data: { role: "member" } });
+      await writeAudit(tx, { eventType: "staff.role_revoked", actorId: user.id, subjectId: user.id,
+        resourceType: "user", resourceId: user.id, action: "revoke_role", reasonCode: "not_in_admin_emails",
+        safeBefore: { role: before }, safeAfter: { role: "member" } }, rid);
+    });
+    user.role = "member";
   }
 
   if (accept_privacy && user.privacyConsentVersion !== PRIVACY_VERSION) {

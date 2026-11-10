@@ -3,13 +3,7 @@ import { ApiError } from "./api";
 import { prisma } from "./db";
 import { HOMES_ENABLED, IS_BETA } from "./env";
 
-// Emails granted the admin role on sign-in (comma-separated ADMIN_EMAILS).
-export function adminEmails(): string[] {
-  return (process.env.ADMIN_EMAILS || "")
-    .split(",")
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
-}
+export { adminEmails } from "./staff";
 
 // Server-side authorization — a hidden button is not authorization.
 export async function requireUser() {
