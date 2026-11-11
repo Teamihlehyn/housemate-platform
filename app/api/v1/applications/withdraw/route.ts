@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { requireAccount } from "@/lib/guard";
 import { writeAudit, writeOutbox } from "@/lib/audit";
 import { canWithdraw } from "@/lib/applications";
-import { applicationStatusFor } from "@/lib/applicationService";
+import { applicationStatusFor, clearApprovalClaims } from "@/lib/applicationService";
 import { lockKey } from "@/lib/rateLimit";
 
 // POST /api/v1/applications/withdraw {}   (ENG-40)
@@ -22,6 +22,7 @@ export const POST = handler(async (_req: NextRequest, { rid }) => {
     if (user.accountStatus !== "applicant") throw new ApiError("STATE_CONFLICT", "This application is already closed.", 409);
     await tx.application.update({ where: { id: app.id }, data: { status: "withdrawn", version: { increment: 1 } } });
     await tx.invite.updateMany({ where: { applicationId: app.id, usedAt: null, revokedAt: null }, data: { revokedAt: new Date() } });
+    if (cur.status === "approved") await clearApprovalClaims(tx, user.id);
     await writeAudit(tx, {
       eventType: "application.withdrawn",
       actorId: user.id,

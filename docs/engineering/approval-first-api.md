@@ -66,10 +66,14 @@ Body `{ email, code }`. Sets the cookie when it returns a session.
 |---|---|---|---|
 | `"application"` | new address (an applicant + draft application are created), or an existing applicant | `application` | `application.status === "draft"` → the questions; anything else → `/join/status` |
 | `"member"` | the address is an active user (proved by the code; not a bypass) | `member` | `/discover` |
-| `"unavailable"` | suspended, being deleted, or a staff address | none | neutral page: "We can't take an application from this address. Contact hello@peabudy.com." |
+| `"unavailable"` | suspended, being deleted, or an allowlisted staff address with no account yet | none | neutral page: "We can't take an application from this address. Contact hello@peabudy.com." |
 
 `user` (`outcome: "member"` only) = `{ id, displayName, role }`, plus `redirect`: `"/staff"`
-for staff, `"/discover"` otherwise. `application` is the status
+for staff, `"/discover"` otherwise. **Staff at `/join`:** staff can't apply. An existing staff
+account that proves its address is signed in to the back office (`outcome: "member"`,
+`redirect: "/staff"`, codes always emailed, never on screen); an allowlisted address with no
+account gets `"unavailable"` (staff sign in at `/signin`). A user whose privacy consent is out of
+date is re-consented by the step-1 tick (or `accept_privacy: true`), else 422 `CONSENT_REQUIRED`. `application` is the status
 object below.
 A declined applicant before `reapply_after` gets `outcome: "application"` with
 `status: "declined"` (no new application). After that date, or after a withdrawal, the same
@@ -213,13 +217,15 @@ Visitors, users and applicants get **404** on `/staff` and every `/staff/*` API.
   `missing[]`, `waiting_hours`, `private_hidden: true`, the activation state when approved.
 - `POST /api/v1/staff/applications/[id]/reveal` → `{ gender, gender_preference }` (audited
   `staff.application_private_revealed`).
-- `POST /api/v1/staff/applications/[id]` `{ action, expected_version, … }`:
+- `POST /api/v1/staff/applications/[id]` `{ action, expected_version, … }`. `expected_version`
+  is **required** for `approve` and `decline` (422 without it, 409 `VERSION_CONFLICT` when
+  stale). An applicant's own edits also bump the version (HM-36).
 
 | `action` | From | Extra body | Result |
 |---|---|---|---|
 | `start_review` | submitted, waitlisted | | `in_review` |
 | `call_booked` | submitted, in_review, call_booked | `call_at` (ISO, future), `send_email?: boolean` (E4), `call_link?` (https, ≤ 300, email only, not stored) | `call_booked` |
-| `approve` | submitted, in_review, call_booked | `id_check_confirmed: true`, `id_check_method: "video"`, `own_account?: boolean`, `relationship_note?` (≤ 300; **required, 5+ characters, when `own_account` is true**) | `approved`; identity verified; E2 sent; note audited |
+| `approve` | in_review, call_booked (both lock the applicant's answers) | `id_check_confirmed: true`, `id_check_method: "video"`, `own_account?: boolean`, `relationship_note?` (≤ 300; **required, 5+ characters, when `own_account` is true**) | `approved`; identity verified; E2 sent; note audited |
 | `decline` | submitted, in_review, call_booked, waitlisted, approved | `reason`: `not_genuine` \| `agent_or_landlord` \| `id_failed` \| `no_show` \| `duplicate` \| `other` | `declined`, reapply after 30 days; E3 sent |
 | `waitlist` | submitted, in_review, call_booked | | `waitlisted` |
 | `resend_activation` | approved | | new code, old one revoked; E2 sent |

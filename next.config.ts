@@ -6,7 +6,18 @@ const nextConfig: NextConfig = {
   // City photos (public/cities): the file names aren't content-hashed, so a day's cache with
   // background revalidation rather than "immutable". Rename a file to bust it sooner.
   async headers() {
-    return [{ source: "/cities/:path*", headers: [{ key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" }] }];
+    return [
+      { source: "/cities/:path*", headers: [{ key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" }] },
+      // No page may be framed (clickjacking, SEC-15): the back office above all, but nothing on
+      // the site needs to be embedded elsewhere.
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+        ],
+      },
+    ];
   },
   async redirects() {
     return [{ source: "/request-access", destination: "/join", permanent: false }];

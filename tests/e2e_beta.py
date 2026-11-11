@@ -17,7 +17,7 @@ app sends, so start the server with:
 (EMAIL_API_URL is honoured only outside Vercel.) Some setup goes straight to the database:
 pre-made members, codes for them, roles. Never point this at a shared or cloud database.
 """
-import datetime, hashlib, http.cookiejar, http.server, json, os, random, re, statistics, subprocess, sys, threading, time
+import datetime, hashlib, hmac, http.cookiejar, http.server, json, os, random, re, statistics, subprocess, sys, threading, time
 import urllib.error, urllib.parse, urllib.request, uuid
 from concurrent.futures import ThreadPoolExecutor
 
@@ -136,9 +136,14 @@ def first_hop(c, path):
         return e.code, e.headers.get("Location")
 
 
+def email_key(email):
+    """lib/auth.ts hashEmailKey with the local-only EMAIL_HASH_SECRET fallback."""
+    return hmac.new(b"peabudy-email-hash-local-only-not-a-secret", ("email:" + email.strip().lower()).encode(), hashlib.sha256).hexdigest()[:32]
+
+
 def reset_email_bucket(email):
     """Forget this run's per-address code requests (5 an hour), so later steps can ask again."""
-    key = hashlib.sha256(("peabudy-ip-local-only:email:" + email.lower()).encode()).hexdigest()[:32]
+    key = email_key(email)
     sql(f'delete from "AuditEvent" where "eventType" = \'auth.code_email\' and "resourceId" = {lit(key)}')
 
 
@@ -259,6 +264,7 @@ def activate(email, admin, own_note=None):
     aid = application_id(email)
     before = len(mails_to(email))
     extra = {"own_account": True, "relationship_note": own_note} if own_note else {}
+    assert staff_act(admin, aid, "start_review")[0] == 200
     r = staff_act(admin, aid, "approve", id_check_confirmed=True, id_check_method="video", **extra)
     assert r[0] == 200, r
     code = d(r)["activation_code"]
@@ -338,7 +344,10 @@ for method, path in [("GET", "/recommendations"), ("GET", "/users/x"), ("POST", 
     r = staff_c.call(path, {} if method != "GET" else None, method)
     check(f"staff {method} {path}: 404", r[0] == 404 and err(r) == "NOT_FOUND", f"{r[0]} {err(r)}")
 check("staff keep /me, export and sign-out", staff_c.call("/me")[0] == 200 and staff_c.call("/me/export")[0] == 200)
-st, _, html = staff_c.raw("/staff")
+st, hdrs_bo, html = staff_c.raw("/staff")
+check("no framing anywhere (SEC-15): X-Frame-Options DENY and frame-ancestors 'none'",
+      hdrs_bo.get("x-frame-options") == "DENY" and "frame-ancestors 'none'" in hdrs_bo.get("content-security-policy", "")
+      and C().raw("/")[1].get("x-frame-options") == "DENY", hdrs_bo.get("x-frame-options"))
 check("the back office renders its own shell: no member nav, no Feedback pill",
       st == 200 and "Back office" in html and 'aria-label="Main"' not in html and ">Discover<" not in html and ">Household<" not in html, st)
 st, loc = first_hop(admin_c, "/staff")
@@ -532,14 +541,9 @@ check("own /me: no score; pending identity shown as pending",
 p_id = user_id(sql(f'select email from "User" where email like {lit("beta-pending-" + RUN + "%")}'))
 sql(f'update "VerificationCheck" set "checkedAt" = \'2026-01-15\' where "userId" = {lit(p_id)} and category = \'identity\'')
 r = staff_c.call(f"/staff/verifications/{p_id}", {"action": "approve"})
-check("older-queue staff approval works", r[0] == 200, r[1].get("error"))
-check("approval dates the identity check to the approval, not the publish",
-      sql(f'select to_char("checkedAt", \'YYYY-MM\') from "VerificationCheck" where "userId" = {lit(p_id)} and category = \'identity\'')
-      == datetime.datetime.utcnow().strftime("%Y-%m"))
-check("staff approval response has no score", "score" not in json.dumps(d(r)), d(r))
-check("case 13 (older queue): approval grants identity only, no phone check or phoneVerified",
-      sql(f'select count(*) from "VerificationCheck" where "userId" = {lit(p_id)} and category = \'phone\'') == "0"
-      and sql(f'select "phoneVerified" from "User" where id = {lit(p_id)}') == "f")
+check("HM-39: the older identity queue is gone in beta (404 for list and approve)",
+      r[0] == 404 and staff_c.call("/staff/verifications")[0] == 404 and admin_c.call("/staff/verifications")[0] == 404, r[0])
+check("…and nothing was granted", sql(f'select status from "VerificationCheck" where "userId" = {lit(p_id)} and category = \'identity\'') == "manual_review")
 
 print("== ENG-01: plan.propertyId is ignored in beta ==")
 g, _, g_id = verified_member("gus")
@@ -729,6 +733,7 @@ check("approval audited", audits("application.approved", f'and "resourceId" = {l
 check("the applicant still can't reach member routes", ada_c.call("/recommendations")[0] == 404)
 
 print("== Cases 5–8: sign-in gives every address the identical answer ==")
+SIGNIN_TARGETS_BUILT = True
 # Applicants in each state, a declined one, a suspended member, an unknown address — and an
 # active member for comparison.
 dru = f"beta-dru-app-{RUN}@example.com"
@@ -788,6 +793,30 @@ new_code(active)
 wrong = C().call("/auth/verify-code", {"email": active, "code": "000001", "accept_privacy": True})
 check("an applicant's real code at /signin looks exactly like a wrong code", r[0] == wrong[0] == 422 and r[1]["error"] == wrong[1]["error"], r)
 check("no member session for the applicant", sql(f'select count(*) from "Session" where "userId" = {lit(user_id(sub))} and scope = \'member\'') == "0")
+
+print("== HM-35: a wrong code at /signin looks the same for every address ==")
+strip = lambda r: (r[0], json.dumps({k: v for k, v in r[1].items() if k != "meta"}, sort_keys=True))
+for addr in targets.values():
+    reset_email_bucket(addr)
+    sql(f'delete from "AuthCode" where email = {lit(addr)}')
+wrongs = {}
+for k, addr in targets.items():
+    C().call("/auth/request-code", {"email": addr})
+    wrongs[k] = strip(C().call("/auth/verify-code", {"email": addr, "code": "000000", "accept_privacy": True}))
+ref_w = wrongs["active member"]
+check("the active member's wrong code: 422 INVALID_CODE", ref_w[0] == 422 and '"INVALID_CODE"' in ref_w[1], ref_w)
+for k, w in wrongs.items():
+    if k != "active member":
+        check(f"{k}: byte-identical status and body for a wrong code", w == ref_w, w)
+check("every address got a code row (a never-sent decoy for non-users)",
+      all(sql(f'select count(*) from "AuthCode" where email = {lit(addr)}') == "1" for addr in targets.values()))
+lock = {}
+for k in ("unknown", "suspended", "active member"):
+    for _ in range(4):
+        C().call("/auth/verify-code", {"email": targets[k], "code": "000000", "accept_privacy": True})
+    lock[k] = strip(C().call("/auth/verify-code", {"email": targets[k], "code": "000000", "accept_privacy": True}))
+check("…and the per-code attempt cap answers identically (TOO_MANY_ATTEMPTS)",
+      lock["unknown"] == lock["suspended"] == lock["active member"] and lock["unknown"][0] == 429, lock)
 
 print("== Case 11: reapplying before the date ==")
 c11, r = start_application(dec)
@@ -852,6 +881,18 @@ check("matching changes still write a search version", r[0] == 200 and int(sql(f
 print("== Resend and revoke ==")
 sub_aid = application_id(sub)
 r = staff_act(admin_c, sub_aid, "approve", id_check_confirmed=True, id_check_method="video")
+check("HM-36: approving straight from submitted (answers still editable): 409", r[0] == 409 and err(r) == "STATE_CONFLICT", r)
+r = admin_c.call(f"/staff/applications/{sub_aid}", {"action": "decline", "reason": "other"})
+check("HM-36: decline without expected_version: 422", r[0] == 422 and "expected_version" in (r[1]["error"]["field_errors"] or {}), r)
+v0 = app_version(sub_aid)
+check("an applicant's edit while submitted moves the version",
+      sub_c.call("/me/profile", {"displayName": "Suleiman"}, method="PATCH")[0] == 200 and app_version(sub_aid) == v0 + 1)
+r = admin_c.call(f"/staff/applications/{sub_aid}", {"action": "start_review", "expected_version": v0})
+check("HM-36: acting on the version staff saw before the edit: 409 VERSION_CONFLICT", r[0] == 409 and err(r) == "VERSION_CONFLICT", r)
+check("start review on the fresh version", staff_act(admin_c, sub_aid, "start_review")[0] == 200)
+r = admin_c.call(f"/staff/applications/{sub_aid}", {"action": "approve", "expected_version": v0, "id_check_confirmed": True, "id_check_method": "video"})
+check("HM-36: approve with the old version: 409", r[0] == 409 and err(r) == "VERSION_CONFLICT", r)
+r = staff_act(admin_c, sub_aid, "approve", id_check_confirmed=True, id_check_method="video")
 first_code = d(r)["activation_code"]
 r = staff_act(admin_c, sub_aid, "resend_activation")
 second = d(r).get("activation_code")
@@ -859,6 +900,13 @@ check("resend: a new code, emailed", r[0] == 200 and second and second != first_
 check("the old code stops working, the new one works", d(C().call(f"/invites/{first_code}")) == {"valid": False} and d(C().call(f"/invites/{second}"))["valid"] is True)
 sql(f'''update "Invite" set "expiresAt" = now() - interval '1 minute' where "applicationId" = {lit(sub_aid)} and "revokedAt" is null''')
 check("an expired code: invalid", d(C().call(f"/invites/{second}")) == {"valid": False})
+before_checks = audits("invite.checked")
+C().call("/auth/verify-code", {"activation_code": "ABCDEFGH", "code": "123456"})
+check("HM-42: activation attempts at verify-code count towards the activation caps", audits("invite.checked") == before_checks + 1)
+r = sub_c.call("/applications/withdraw", {})
+check("HM-38: withdrawing an approved application removes the identity check and adultEligible",
+      r[0] == 200 and sql(f'''select count(*) from "VerificationCheck" where "userId" = {lit(user_id(sub))} and category = 'identity' ''') == "0"
+      and sql(f'select "adultEligible" from "User" where id = {lit(user_id(sub))}') == "f", r)
 
 print("== Invite checks are rate-limited ==")
 ipx = next_ip()
@@ -877,16 +925,22 @@ r = C().call("/auth/request-code", {"email": ada})
 k = login_code(ada, after=before)
 r = C().call("/auth/verify-code", {"email": ada, "code": k})
 check("an activated member signs in with an emailed code", r[0] == 200 and bool(k), r)
+sql(f'''update "User" set "privacyConsentVersion" = 'privacy-v0' where id = {lit(ada_id)}''')
 r = C().call("/applications/start", {"email": ada, "consent_privacy": True})
 k = login_code(ada, after=before + 1)
 r = C().call("/applications/verify", {"email": ada, "code": k})
-check("…and /join signs a member in normally too", d(r).get("outcome") == "member", r)
+check("…and /join signs a user in normally too", d(r).get("outcome") == "member" and d(r).get("redirect") == "/discover", r)
+check("…recording the current privacy notice ticked at /join step 1 (re-consent)",
+      sql(f'select "privacyConsentVersion" from "User" where id = {lit(ada_id)}') == "privacy-v2"
+      and audits("auth.consent_recorded", f'''and "actorId" = {lit(ada_id)} and "safeBefore" like '%privacy-v0%' ''') == 1)
 
 print("== Case 3: two activated members see each other ==")
 tobi_c, tobi_email, tobi_id = apply_activated("tobi", admin_c)
 kemi_c, kemi_email, kemi_id = apply_activated("kemi", admin_c, gender="woman", own_note="Founder's own test account for the Lagos launch")
 check("an own-account approval is audited with the note", sql(f'''select count(*) from "AuditEvent" where "eventType" = 'application.approved' and "subjectId" = {lit(kemi_id)}
-      and "reasonCode" = 'own_account_declared' and "safeAfter" like '%own test account%' ''') == "1")
+      and "reasonCode" = 'own_account_declared' and "safeAfter" like '%"own_account":true%' and "safeAfter" not like '%own test account%' ''') == "1")
+check("…the note itself stays on the application, not in the audit log",
+      sql(f'''select "ownAccount" || '/' || "relationshipNote" from "Application" where "userId" = {lit(kemi_id)}''') == "true/Founder's own test account for the Lagos launch")
 cands = [c["userId"] for c in d(ada_c.call("/recommendations")).get("candidates", [])]
 check("activated Lagos members discover each other", tobi_id in cands and kemi_id in cands, cands)
 check("…both ways", ada_id in [c["userId"] for c in d(tobi_c.call("/recommendations")).get("candidates", [])])
@@ -1027,7 +1081,7 @@ check("purge deletes the old draft and the old decline: accounts, answers, appli
       and sql(f'''select count(*) from "Search" where "userId" in ({lit(od_id)}, {lit(odec_id)})''') == "0"
       and sql(f'''select count(*) from "Application" where "userId" in ({lit(od_id)}, {lit(odec_id)})''') == "0", d(r))
 check("…keeps a recent draft and every user", user_id(fresh_draft) != "" and user_id(tobi_email) != "")
-key = hashlib.sha256(("peabudy-ip-local-only:email:" + old_dec).encode()).hexdigest()[:32]
+key = email_key(old_dec)
 check("…keeps only a hashed email + reapply date for the decline",
       sql(f'''select count(*) from "ApplicantTombstone" where "emailHash" = {lit(key)}''') == "1"
       and sql(f'''select count(*) from "ApplicantTombstone" where "emailHash" like '%@%' ''') == "0")

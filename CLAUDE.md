@@ -151,6 +151,7 @@ Connection strings: `neon connection-string <branch>` (direct, for migrations) a
 | `DEMO_MODE` | `"false"` turns on-screen codes off outside beta |
 | `RESEND_API_KEY`, `EMAIL_FROM` | Real login email. `onboarding@resend.dev` only reaches the Resend account owner |
 | `ADMIN_EMAILS` | Comma-separated; these accounts are `admin` (and the only admins) and always get emailed codes |
+| `EMAIL_HASH_SECRET` | 32+ chars, **stable, never rotate**: keys the email hashes for per-address code limits and declined-application tombstones (HM-40). Unset in a deployment → email codes and tombstones refuse to run (503). `switch-to-beta.sh` creates it (and `IP_HASH_SALT`) only if missing |
 | `STAFF_EMAILS` | `email:verifier,email:moderator` (comma list); the only verifiers/moderators. ADMIN_EMAILS wins on overlap |
 | `NEXT_PUBLIC_SITE_URL` | Absolute base for OG/link previews (falls back to `VERCEL_PROJECT_PRODUCTION_URL`) |
 | `NEXT_PUBLIC_CLARITY_ID` | Loads Microsoft Clarity (validated alphanumeric) |
@@ -386,7 +387,12 @@ notice is checked **before** the code is consumed (so a missing tick doesn't bur
   after 30 days) and withdrawn reopen as a draft. Verifiers/admins act, moderators view, nobody
   acts on their own (404); gender/preference reveal is audited. Approved accounts have their
   display name and city locked.
-- `AccessRequest` and the D15 invite flow are retired (read-only rows, purge route kept).
+- `AccessRequest` and the D15 invite flow are retired (read-only rows, purge route kept). The
+  older identity queue (`/staff/verifications*`) returns 404 in beta (HM-39).
+- Approve and decline need `expected_version`; approve only from `in_review`/`call_booked`, and
+  applicant edits bump the application version (HM-36). Staff actions and activation share the
+  `application:<id>` advisory lock (HM-37). Non-users get a never-sent decoy code row at
+  `request-code`, so wrong guesses look the same for every address (HM-35).
 **Survey emails** are consent-only (`User.surveyOptIn*`, `/me/preferences`, signed `/unsubscribe`
 links); send and export are admin-only and beta-only.
 Settings offers data export (`/me/export`) and deletion (`/me/delete`: soft —

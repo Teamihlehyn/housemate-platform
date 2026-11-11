@@ -10,6 +10,8 @@ import { syncRoleAtSignIn } from "@/lib/staffSync";
 import { PRIVACY_VERSION } from "@/lib/constants";
 import { contactHint, isReconsent, needsConsent } from "@/lib/auth";
 import { claimCode, invalidCode } from "@/lib/codes";
+import { lockKey } from "@/lib/rateLimit";
+import { countActivationCheck } from "@/lib/activationLimits";
 import { snapshotScore } from "@/lib/credibility";
 import { ensureSandboxWorld } from "@/lib/sandbox";
 import { activationTarget, missingFor } from "@/lib/applicationService";
@@ -58,7 +60,11 @@ async function recordConsent(userId: string, before: string | null, rid: string)
 export const POST = handler(async (req: NextRequest, { rid }) => {
   const body = await req.json().catch(() => ({}));
   const { code, accept_privacy } = body ?? {};
-  if (body?.activation_code != null) return activate(String(body.activation_code), code, accept_privacy === true, rid);
+  if (body?.activation_code != null) {
+    // HM-42: the same per-connection and site-wide caps as /invites/[code].
+    await countActivationCheck(req, rid);
+    return activate(String(body.activation_code), code, accept_privacy === true, rid);
+  }
 
   const clean = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
   if (!clean || !code) return fail("VALIDATION", "Email and code are required.", 422, rid);
@@ -179,6 +185,11 @@ async function activate(activationCode: string, code: unknown, acceptPrivacy: bo
   }
 
   await prisma.$transaction(async (tx) => {
+    // HM-37: the same lock staff actions take, then re-check the application is still approved
+    // (not declined or withdrawn a moment ago) and move its version on.
+    await lockKey(tx, `application:${app.id}`);
+    const bumped = await tx.application.updateMany({ where: { id: app.id, status: "approved" }, data: { version: { increment: 1 } } });
+    if (bumped.count !== 1) throw activationInvalid();
     const used = await tx.invite.updateMany({
       where: { id: invite.id, usedAt: null, revokedAt: null, expiresAt: { gt: new Date() } },
       data: { usedAt: new Date(), usedByUserId: person.id },

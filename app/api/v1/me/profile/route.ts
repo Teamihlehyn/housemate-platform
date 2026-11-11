@@ -63,6 +63,11 @@ export const PATCH = handler(async (req: NextRequest, { rid }) => {
       action: "patch",
       safeAfter: { changed: Object.keys(body) },
     }, rid);
+    // HM-36: an applicant's edit changes what staff would approve, so it moves the
+    // application's version too (a stale approval then gets 409).
+    if (user.accountStatus === "applicant") {
+      await tx.application.updateMany({ where: { userId: user.id }, data: { version: { increment: 1 } } });
+    }
   });
 
   return ok({ status: "saved" }, rid);

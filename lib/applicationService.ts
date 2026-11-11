@@ -142,3 +142,10 @@ export async function isNameLocked(userId: string): Promise<boolean> {
   if (app?.status === "approved") return true;
   return IS_BETA && identity?.status === "verified";
 }
+
+// An approval granted identity and adultEligible. When an approved application is declined or
+// withdrawn before activation, those claims go too (HM-38).
+export async function clearApprovalClaims(tx: Prisma.TransactionClient, userId: string) {
+  await tx.verificationCheck.deleteMany({ where: { userId, category: "identity" } });
+  await tx.user.update({ where: { id: userId }, data: { adultEligible: false } });
+}

@@ -147,9 +147,21 @@ put_env ADMIN_EMAILS
 put_env NEXT_PUBLIC_CONTACT_EMAIL
 if printenv NEXT_PUBLIC_SURVEY_URL >/dev/null; then put_env NEXT_PUBLIC_SURVEY_URL; fi
 if printenv EMAIL_LINK_SECRET >/dev/null; then put_env EMAIL_LINK_SECRET; fi
-# Salt for hashing IPs in the code-request rate limit (HM-08, HM-23). Generated here and
-# never shown; rotating it only resets the per-IP counts.
-openssl rand -hex 32 | tr -d '\n' | put IP_HASH_SALT
+# Stable secrets, generated only the first time and never shown (HM-40). Re-running this script
+# must not rotate them:
+#   IP_HASH_SALT       salts IP hashes for the per-IP code limits (HM-08, HM-23).
+#   EMAIL_HASH_SECRET  keys the email hashes behind the per-address limits and the declined-
+#                      application tombstones (R7). Rotating it would let a purged, declined
+#                      person reapply early, so it is never rotated here.
+ensure_secret() { # ensure_secret NAME — create it only if production doesn't have it yet
+  if vercel env ls production 2>/dev/null | awk '{print $1}' | grep -qx "$1"; then
+    echo "  kept    $1 (already set)"
+  else
+    openssl rand -hex 32 | tr -d '\n' | put "$1"
+  fi
+}
+ensure_secret IP_HASH_SALT
+ensure_secret EMAIL_HASH_SECRET
 
 # Clarity stays off until the consent banner ships (D8, ENG-14); the built-in feedback
 # form replaces Tally. Test-only switches must never reach real users.

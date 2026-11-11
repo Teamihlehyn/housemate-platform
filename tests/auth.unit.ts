@@ -1,7 +1,7 @@
 // Unit checks for sign-in helpers (ENG-06). Run: npm run test:unit
 import {
   MAX_CODES_PER_EMAIL_HOUR, MAX_EMAILED_CODES_PER_HOUR, MAX_EMAILED_CODES_PER_IP_HOUR,
-  BUSY_MESSAGE, CODE_RESPONSE_FLOOR_MS, clientIp, codesMatch, decideCodeRequest, generateLoginCode, hashEmailKey, hashIp, ipBucket, ipHashSalt, isReconsent, needsConsent,
+  BUSY_MESSAGE, CODE_RESPONSE_FLOOR_MS, clientIp, codesMatch, decideCodeRequest, emailHashSecret, generateLoginCode, hashEmailKey, hashIp, ipBucket, ipHashSalt, isReconsent, needsConsent,
 } from "../lib/auth";
 import { demoModeFor, resolveAppEnv } from "../lib/env";
 
@@ -91,6 +91,10 @@ check("the response floor is long enough to cover a code insert", CODE_RESPONSE_
 check("email keys are salted, stable and case-insensitive",
   hashEmailKey("A@x.co", "s".repeat(16)) === hashEmailKey("a@x.co", "s".repeat(16)) && hashEmailKey("a@x.co", "s".repeat(16)) !== hashEmailKey("a@x.co", "t".repeat(16))
   && !hashEmailKey("a@x.co", "s".repeat(16)).includes("@"));
+check("HM-40: deployed without EMAIL_HASH_SECRET → no secret (callers fail closed)",
+  emailHashSecret({ VERCEL_ENV: "production" }) === null && emailHashSecret({ VERCEL_ENV: "preview", EMAIL_HASH_SECRET: "short" }) === null);
+check("HM-40: the email secret is separate from IP_HASH_SALT",
+  emailHashSecret({ VERCEL_ENV: "production", IP_HASH_SALT: "x".repeat(64) }) === null && emailHashSecret({ VERCEL_ENV: "production", EMAIL_HASH_SECRET: "e".repeat(40) }) === "e".repeat(40));
 check("busy message is the agreed copy", BUSY_MESSAGE === "We're getting a lot of sign-in requests right now. Try again in an hour.");
 check("on-screen codes ignore the IP and site-wide caps",
   decideCodeRequest({ ...base, emailedCode: false, fromIp: 99, sitewide: 9999 }) === "send");

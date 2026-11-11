@@ -22,7 +22,7 @@ import {
   isStaffAction,
   missingMessage,
 } from "@/lib/applications";
-import { EmailStatus, missingFor, sendApplicationEmail } from "@/lib/applicationService";
+import { EmailStatus, clearApprovalClaims, missingFor, sendApplicationEmail } from "@/lib/applicationService";
 import { applicationDetail, requireActingRole, staffApplication } from "@/lib/staffApplications";
 
 // GET /api/v1/staff/applications/[id] — the review view (any staff role). Audited.
@@ -58,6 +58,10 @@ export const POST = handler(async (req: NextRequest, { rid, params }) => {
   const action = body?.action;
   if (!isStaffAction(action)) {
     return fail("VALIDATION", "Unknown action.", 422, rid, { field_errors: { action: "Unknown action." } });
+  }
+  // HM-36: approve and decline must name the version the reviewer looked at.
+  if ((action === "approve" || action === "decline") && !Number.isInteger(body.expected_version)) {
+    return fail("VALIDATION", "Reload the application and try again.", 422, rid, { field_errors: { expected_version: "Required." } });
   }
   if (body.expected_version !== undefined && body.expected_version !== existing.version) {
     return fail("VERSION_CONFLICT", "Someone else has just updated this application. Reload it and try again.", 409, rid);
@@ -119,6 +123,9 @@ export const POST = handler(async (req: NextRequest, { rid, params }) => {
     if (app.version !== existing.version) {
       throw new ApiError("VERSION_CONFLICT", "Someone else has just updated this application. Reload it and try again.", 409);
     }
+    // HM-37: activation takes the same lock, so this re-check can't race it.
+    const fresh = await tx.user.findUniqueOrThrow({ where: { id: app.userId }, select: { accountStatus: true } });
+    if (fresh.accountStatus !== "applicant") throw new ApiError("STATE_CONFLICT", "This person isn't an applicant any more.", 409);
     const now = new Date();
     const next = ACTION_RESULT[action as StaffAction];
     const data: Record<string, unknown> = { status: next, version: app.version + 1 };
@@ -140,10 +147,7 @@ export const POST = handler(async (req: NextRequest, { rid, params }) => {
         activationInviteId: null,
       });
       // Declining after an approval withdraws that approval's identity claim too.
-      if (app.status === "approved") {
-        await tx.verificationCheck.deleteMany({ where: { userId: app.userId, category: "identity" } });
-        await tx.user.update({ where: { id: app.userId }, data: { adultEligible: false } });
-      }
+      if (app.status === "approved") await clearApprovalClaims(tx, app.userId);
     }
     if (action === "approve") {
       await tx.verificationCheck.upsert({
@@ -153,7 +157,11 @@ export const POST = handler(async (req: NextRequest, { rid, params }) => {
       });
       await tx.user.update({ where: { id: app.userId }, data: { adultEligible: true } });
       await snapshotScore(tx, app.userId);
-      Object.assign(data, { reviewedBy: staff.id, reviewedAt: now, idCheckMethod: "video", idCheckAt: now, declineReason: null, reapplyAfter: null });
+      const note = typeof body.relationship_note === "string" ? body.relationship_note.trim().slice(0, 300) : "";
+      Object.assign(data, {
+        reviewedBy: staff.id, reviewedAt: now, idCheckMethod: "video", idCheckAt: now, declineReason: null, reapplyAfter: null,
+        ownAccount: body.own_account === true, relationshipNote: note || null,
+      });
     }
     if (action === "approve" || action === "resend_activation") {
       invite = await createInvite(tx, { email: subject.email, applicationId: app.id, createdBy: staff.id });
@@ -175,9 +183,10 @@ export const POST = handler(async (req: NextRequest, { rid, params }) => {
       action,
       reasonCode: action === "decline" ? body.reason : action === "approve" ? (body.own_account === true ? "own_account_declared" : "id_check_video") : null,
       safeBefore: { status: app.status },
+      // Free text never goes in the audit log: a flag and the note's length only.
       safeAfter:
-        action === "approve" && (body.own_account === true || (typeof body.relationship_note === "string" && body.relationship_note.trim()))
-          ? { status: next, own_account: body.own_account === true, relationship_note: String(body.relationship_note ?? "").trim().slice(0, 300) }
+        action === "approve"
+          ? { status: next, own_account: body.own_account === true, note_length: String(body.relationship_note ?? "").trim().length }
           : { status: next },
       versionBefore: app.version,
       versionAfter: app.version + 1,
