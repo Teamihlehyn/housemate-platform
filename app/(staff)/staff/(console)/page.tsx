@@ -195,6 +195,22 @@ export default function Staff() {
 
       {/* Audit explorer */}
       {tab === "audit" && role === "admin" && data?.health && <section>
+        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-ink-600">Recent back-office sign-ins</h2>
+        {(data.recent_staff_signins ?? []).length === 0 ? (
+          <div className="card mb-6 p-5 text-center text-sm text-ink-600">No back-office sign-ins yet.</div>
+        ) : (
+          <ul className="card mb-6 divide-y divide-ink-100 text-sm">
+            {data.recent_staff_signins.map((x: { email: string; role: string | null; device: string | null; at: string }, i: number) => (
+              <li key={i} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5">
+                <span className="font-medium text-ink" data-clarity-mask="true">{x.email}</span>
+                {x.role && <span className="chip bg-ink-50 text-ink-700">{x.role}</span>}
+                {x.device && <span className="text-ink-600">{x.device}</span>}
+                <span className="ml-auto text-ink-500">{new Date(x.at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="-mt-4 mb-6 text-xs text-ink-500">Every admin also gets an email for each sign-in and each password set. Tell the team at once about any you don't recognise.</p>
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-ink-600">Audit explorer</h2>
         <div className="mb-4 grid grid-cols-3 gap-3">
           <Stat label="Audit events" value={data.health.totalAudit} />

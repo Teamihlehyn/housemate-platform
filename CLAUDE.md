@@ -73,6 +73,9 @@ where everyone is real); sample people are labelled.
    `hm_staff_session`, scope `staff`, 12 h) from email + password + an emailed 6-digit code
    (ENG-47, `lib/staffAuth.ts`); first password via an emailed one-time link, never a default
    password, never an on-screen code. The user sign-in and `/join` refuse staff addresses.
+   Every password set and every back-office sign-in emails a security alert to all
+   `ADMIN_EMAILS` and the address itself (ENG-48, `lib/staffAlerts.ts`; sent after the response,
+   never blocking, no token/code/IP); admins also see the last 20 sign-ins on the Audit tab.
    Staff never appear in the product. To try the product, use a separate user account.
 10. **Schema changes go through Prisma Migrate** (`npm run db:migrate:dev -- --name x`). Never
     `prisma db push` against Neon. Prefer additive migrations with safe defaults.
@@ -213,6 +216,7 @@ lib/
                 and staff), requireStaff / requireAdmin (404 for everyone else), withIdempotency
   staff.ts      the staff allowlist: effectiveRole, listedRole, roleAtSignIn (HM-10)
   staffAuth.ts / staffLimits.ts  back-office sign-in: scrypt passwords, staff sessions, lockout
+  staffAlerts.ts  security alert emails for password sets and back-office sign-ins (ENG-48)
   applications.ts  application state machine, completeness, status object (pure)
   applicationService.ts / staffApplications.ts  application DB helpers, emails, staff DTOs
   codes.ts      shared email-code issue (uniform answers, sent after the response) and checking

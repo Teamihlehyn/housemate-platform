@@ -58,7 +58,13 @@ Sign-up is now an **application** that staff approve before anyone can sign in. 
 - staff never appear in matching;
 - the founder's separate user account has no `/staff` access.
 
-SEC-15 must also be signed off. All other criteria in L6 stand, with these changes:
+SEC-15 must also be signed off.
+
+**HM-44 (accepted with conditions, founder 11 Nov), added to the go/no-go:**
+- **the founder confirms Gmail 2-step verification is on** (Google prompt or passkey, not SMS) for every staff mailbox (F-25);
+- ENG-48 staff security alerts are shipped and tested.
+
+ENG-49 (an authenticator app for staff) follows within 2–3 weeks of launch. All other criteria in L6 stand, with these changes:
 - criterion 9 now reads "at least 8 Lagos people lined up to apply in one cluster";
 - the D13 deadline moves to Tue 17 Nov 12:00.
 

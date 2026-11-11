@@ -9,7 +9,7 @@ export const GET = handler(async (req: NextRequest, { rid }) => {
   const url = new URL(req.url);
   const eventType = url.searchParams.get("event_type") ?? undefined;
 
-  const [events, outboxPending, outboxDead, totalAudit] = await Promise.all([
+  const [events, outboxPending, outboxDead, totalAudit, signins] = await Promise.all([
     prisma.auditEvent.findMany({
       where: eventType ? { eventType } : {},
       orderBy: { occurredAt: "desc" },
@@ -18,11 +18,27 @@ export const GET = handler(async (req: NextRequest, { rid }) => {
     prisma.outboxEvent.count({ where: { status: "pending" } }),
     prisma.outboxEvent.count({ where: { status: "dead_letter" } }),
     prisma.auditEvent.count(),
+    // ENG-48: recent back-office sign-ins for admins to eyeball.
+    prisma.auditEvent.findMany({ where: { eventType: "staff.session_created" }, orderBy: { occurredAt: "desc" }, take: 20 }),
   ]);
+  const people = await prisma.user.findMany({
+    where: { id: { in: [...new Set(signins.map((s) => s.actorId).filter(Boolean) as string[])] } },
+    select: { id: true, email: true },
+  });
+  const emailOf = new Map(people.map((p) => [p.id, p.email]));
 
   return ok(
     {
       health: { outboxPending, outboxDead, totalAudit },
+      recent_staff_signins: signins.map((s) => {
+        let after: { role?: string; device?: string } = {};
+        try {
+          after = s.safeAfter ? JSON.parse(s.safeAfter) : {};
+        } catch {
+          after = {};
+        }
+        return { email: (s.actorId && emailOf.get(s.actorId)) || "(account removed)", role: after.role ?? null, device: after.device ?? null, at: s.occurredAt };
+      }),
       events: events.map((e) => ({
         id: e.id,
         eventType: e.eventType,

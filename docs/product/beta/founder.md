@@ -20,6 +20,7 @@
 |---|---|---|
 | 1 | F-03 real mailbox (`hello@`, `privacy@`) and F-04 legal placeholders + reviewer name (F-22) | **By Thu 12 Nov** (checkpoint) |
 | 2 | F-17 name check, so D13 can be decided | By Tue 17 Nov 12:00 |
+| 1a | **F-25 (HM-44): secure your Gmail.** Every staff mailbox needs this:<br>• turn on **2-step verification**, using the Google prompt or a passkey, not SMS;<br>• use a **unique password**;<br>• check the recovery phone and email are current and yours.<br>Then tell the PM it's done; this is a go/no-go item | **By Mon 16 Nov** |
 | 2a | **F-23: confirm you have the rights or licence to use both city photos** (London: Big Ben and Westminster; Lagos: Civic Centre and the lagoon skyline). If you took them yourself, say so. If not, name the licence. If anyone is identifiable in them, confirm you have their consent or pick another shot. Tell the designer (no personal data in the repo) | **By Thu 12 Nov** (checkpoint; the photos don't ship without it) |
 | 3 | Build the Lagos outreach list (at least 8, one cluster: Yaba, Surulere, Gbagada), privately | By Mon 16 Nov |
 | 4 | Rehearse on staging: apply → book and run a mock video call → approve → activate → see each other; and one decline and one suspension | Sat 14 – Sun 15 Nov |

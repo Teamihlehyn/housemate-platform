@@ -962,6 +962,25 @@
   - **Keep that account's search paused** whenever the founder isn't genuinely looking. Otherwise real Lagos users may send intros to it.
 - **Size** S.
 
+## ENG-48: Staff security alerts (HM-44, Option A; launch, being built)
+
+- **What:** every admin gets an alert email on every back-office password set or reset, and on every staff sign-in. The email includes who, when, an approximate location or IP hash if available, and "If this wasn't you, contact the founder now". It never includes codes or links that sign anyone in. Audited.
+- **Acceptance criteria:**
+  - Given a staff sign-in, then each admin gets exactly one alert within a minute.
+  - Given a password set or reset, then each admin gets an alert.
+  - Given a user (`role` = `member`) sign-in, then no alert is sent.
+  - The alert contains no code or session link.
+- **Go/no-go:** must ship for launch.
+
+## ENG-49: Authenticator app (TOTP) for staff (HM-44, Option B; after launch)
+
+- **What:** staff sign-in requires a TOTP from an authenticator app, instead of the emailed code. Includes 10 single-use backup codes (stored hashed), set-up and reset only by another admin, audit on enrol, use and reset, and rate limits on attempts.
+- **Acceptance criteria:**
+  - Given a staff account with TOTP, then an emailed code alone doesn't sign them in.
+  - Given a backup code used once, then it fails the second time.
+  - Given 5 bad TOTPs, then a lock-out and an admin alert (ENG-48).
+- **Target:** within 2–3 weeks of launch (by about Tue 8 Dec). Passkeys (Option C) later.
+
 ## Note: DES-24 photo city cards: config impact
 
 *Fact:* `next.config.ts` has no `images` block today. Local images in `public/` work with `next/image` without config, and Vercel caches the optimised images. **No change is needed by default.**

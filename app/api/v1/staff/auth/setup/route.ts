@@ -1,4 +1,5 @@
-import { NextRequest } from "next/server";
+import { NextRequest, after } from "next/server";
+import { sendStaffAlert } from "@/lib/staffAlerts";
 import { handler, ok, fail, ApiError } from "@/lib/api";
 import { prisma } from "@/lib/db";
 import { writeAudit } from "@/lib/audit";
@@ -23,6 +24,7 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
   if (problem) return fail("VALIDATION", problem, 422, rid, { field_errors: { password: problem } });
   const passwordHash = await hashPassword(body.password);
 
+  let staffUser: { id: string; email: string } | null = null;
   await prisma.$transaction(async (tx) => {
     const used = await tx.staffSetupToken.updateMany({ where: { id: row.id, usedAt: null, expiresAt: { gt: new Date() } }, data: { usedAt: new Date() } });
     if (used.count !== 1) throw new ApiError("INVITE_INVALID", INVALID, 422);
@@ -54,6 +56,10 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
       action: "set_password",
       safeAfter: { role },
     }, rid);
+    staffUser = { id: user.id, email: user.email };
   });
+  // ENG-48: every admin, and this address, hear about it (after the response, never blocking).
+  const alerted = staffUser as { id: string; email: string } | null;
+  if (alerted) after(() => sendStaffAlert("password_set", alerted, { rid }));
   return ok({ status: "set", redirect: "/staff/signin" }, rid);
 });
