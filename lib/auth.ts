@@ -1,4 +1,4 @@
-import { createHash, randomInt, timingSafeEqual } from "crypto";
+import { createHash, createHmac, randomInt, timingSafeEqual } from "crypto";
 
 // Brute-force limits for login codes (HM-03).
 export const MAX_ATTEMPTS_PER_CODE = 5;
@@ -48,11 +48,21 @@ export function decideCodeRequest(c: {
 // address (a code row, the queued send) can't be told apart by timing (R2.4).
 export const CODE_RESPONSE_FLOOR_MS = 450;
 
-// Salted hash of an address, for counting requests per address without storing it in the
-// audit log. Same salt rules as IPs.
-export function hashEmailKey(email: string, salt: string | null = ipHashSalt()): string {
-  return createHash("sha256").update((salt ?? "peabudy-email-unsalted") + ":email:" + email.trim().toLowerCase()).digest("hex").slice(0, 32);
+// Keyed hash of an address (HM-40), for counting code requests per address and for the
+// declined-application tombstones (R7) without storing the address. HMAC-SHA256 with
+// EMAIL_HASH_SECRET (32+ characters), a stable secret separate from IP_HASH_SALT so rotating
+// one never resets the other. In any Vercel deployment there is no fallback: without the
+// secret, emailHashSecret() is null and callers refuse to run (fail closed).
+const LOCAL_EMAIL_SECRET = "peabudy-email-hash-local-only-not-a-secret";
+export function emailHashSecret(env: Record<string, string | undefined> = process.env): string | null {
+  const s = (env.EMAIL_HASH_SECRET || "").trim();
+  if (s.length >= 32) return s;
+  return env.VERCEL_ENV ? null : LOCAL_EMAIL_SECRET;
 }
+export function hashEmailKey(email: string, secret: string): string {
+  return createHmac("sha256", secret).update("email:" + email.trim().toLowerCase()).digest("hex").slice(0, 32);
+}
+
 
 // The caller's IP. On Vercel, x-forwarded-for is set by the platform (first entry).
 export function clientIp(req: { headers: { get(name: string): string | null } }): string {

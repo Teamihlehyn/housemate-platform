@@ -6,13 +6,13 @@ import { createSession } from "@/lib/session";
 import { writeAudit, writeOutbox } from "@/lib/audit";
 import { effectiveRole, listedRole } from "@/lib/staff";
 import { syncRoleAtSignIn } from "@/lib/staffSync";
-import { SIGNUPS_PAUSED } from "@/lib/env";
+import { CONSENT_REQUIRED, SIGNUPS_PAUSED } from "@/lib/env";
+import { isReconsent, needsConsent } from "@/lib/auth";
 import { PRIVACY_VERSION, RUBRIC } from "@/lib/constants";
-import { claimCode } from "@/lib/codes";
+import { claimCode, emailKey } from "@/lib/codes";
 import { verifyOutcome } from "@/lib/applications";
 import { applicationStatusFor } from "@/lib/applicationService";
 import { tombstoneReapplyAfter } from "@/lib/applicationPurge";
-import { hashEmailKey } from "@/lib/auth";
 
 // POST /api/v1/applications/verify {email, code}   — /join step 2 (ENG-40)
 // The code proves the person owns the inbox. Then, by who the address belongs to:
@@ -44,8 +44,35 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
   }
 
   if (outcome === "member") {
+    // The same re-consent rule as /auth/verify-code: ticking the notice at /join step 1 (recorded
+    // on the code) or accept_privacy counts; otherwise CONSENT_REQUIRED and the code is kept.
+    const agreed = record.consentVersion === PRIVACY_VERSION || body.accept_privacy === true;
+    if (!agreed && needsConsent(user!, PRIVACY_VERSION, CONSENT_REQUIRED)) {
+      return fail(
+        "CONSENT_REQUIRED",
+        isReconsent(user!, PRIVACY_VERSION)
+          ? "We've updated our privacy notice. Please read it and accept it to continue."
+          : "Please accept the privacy notice to continue.",
+        422,
+        rid,
+        { field_errors: { accept_privacy: "Required." } }
+      );
+    }
     await prisma.$transaction(async (tx) => {
       await tx.authCode.deleteMany({ where: { email } });
+      if (agreed && user!.privacyConsentVersion !== PRIVACY_VERSION) {
+        await tx.user.update({ where: { id: user!.id }, data: { privacyConsentAt: new Date(), privacyConsentVersion: PRIVACY_VERSION } });
+        await writeAudit(tx, {
+          eventType: "auth.consent_recorded",
+          actorId: user!.id,
+          subjectId: user!.id,
+          resourceType: "user",
+          resourceId: user!.id,
+          action: "accept_privacy",
+          safeBefore: user!.privacyConsentVersion ? { version: user!.privacyConsentVersion } : undefined,
+          safeAfter: { version: PRIVACY_VERSION },
+        }, rid);
+      }
       await writeAudit(tx, {
         eventType: "auth.session_created",
         actorId: user!.id,
@@ -97,7 +124,7 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
           ? { userId: created.id, status: "declined", reapplyAfter: heldUntil, reviewedAt: new Date() }
           : { userId: created.id },
       });
-      if (heldUntil) await tx.applicantTombstone.deleteMany({ where: { emailHash: hashEmailKey(email) } });
+      if (heldUntil) await tx.applicantTombstone.deleteMany({ where: { emailHash: emailKey(email) } });
       await writeAudit(tx, {
         eventType: "application.started",
         actorId: created.id,
@@ -140,6 +167,10 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
               reviewedAt: null,
               declineReason: null,
               reapplyAfter: null,
+              idCheckMethod: null, // HM-38: a reopened application carries no earlier ID check
+              idCheckAt: null,
+              ownAccount: false,
+              relationshipNote: null,
               statusTokenHash: null,
               activationInviteId: null,
               version: { increment: 1 },

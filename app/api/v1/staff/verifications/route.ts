@@ -1,11 +1,15 @@
 import { NextRequest } from "next/server";
 import { handler, ok } from "@/lib/api";
 import { requireStaff } from "@/lib/guard";
+import { APPROVAL_FIRST } from "@/lib/env";
+import { ApiError } from "@/lib/api";
 import { prisma } from "@/lib/db";
 
 // GET /api/v1/staff/verifications — identity cases awaiting manual (out-of-band) review.
 export const GET = handler(async (_req: NextRequest, { rid }) => {
   await requireStaff();
+  // HM-39: with approval-first sign-up, identity is granted only by approving an application.
+  if (APPROVAL_FIRST) throw new ApiError("NOT_FOUND", "Not found.", 404);
   const checks = await prisma.verificationCheck.findMany({
     where: { category: "identity", status: "manual_review" },
     orderBy: { checkedAt: "asc" },

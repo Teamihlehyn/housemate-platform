@@ -1,6 +1,8 @@
 import { NextRequest } from "next/server";
 import { handler, ok, fail } from "@/lib/api";
 import { requireStaff } from "@/lib/guard";
+import { APPROVAL_FIRST } from "@/lib/env";
+import { ApiError } from "@/lib/api";
 import { prisma } from "@/lib/db";
 import { writeAudit, writeOutbox, notify } from "@/lib/audit";
 import { snapshotScore } from "@/lib/credibility";
@@ -13,6 +15,8 @@ import { IS_BETA } from "@/lib/env";
 // the Applications queue (POST /staff/applications/[id] {action: "approve"}).
 export const POST = handler(async (req: NextRequest, { rid, params }) => {
   const staff = await requireStaff();
+  // HM-39: with approval-first sign-up, identity is granted only by approving an application.
+  if (APPROVAL_FIRST) throw new ApiError("NOT_FOUND", "Not found.", 404);
   const { action, reason } = await req.json().catch(() => ({}));
   const userId = params.userId;
 

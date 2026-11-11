@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { destroySession } from "@/lib/session";
 import { writeAudit, writeOutbox, notify } from "@/lib/audit";
 import { OPEN_INTRO_STATES } from "@/lib/blocks";
+import { clearApprovalClaims } from "@/lib/applicationService";
 
 // POST /api/v1/me/delete — account deletion request.
 // Immediately hides the profile, stops interactions and revokes sessions; a purge
@@ -37,6 +38,7 @@ export const POST = handler(async (_req: NextRequest, { rid }) => {
     const app = await tx.application.findUnique({ where: { userId: user.id } });
     if (app && !["withdrawn", "declined"].includes(app.status) && user.accountStatus === "applicant") {
       await tx.application.update({ where: { id: app.id }, data: { status: "withdrawn", version: { increment: 1 } } });
+      if (app.status === "approved") await clearApprovalClaims(tx, user.id);
       await writeAudit(tx, {
         eventType: "application.withdrawn",
         actorId: user.id,

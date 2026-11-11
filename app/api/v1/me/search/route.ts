@@ -213,6 +213,11 @@ export const PATCH = handler(async (req: NextRequest, { rid }) => {
       }, rid);
       await writeOutbox(tx, "search_updated", { userId: user.id, searchVersion: fresh!.version });
     }
+    // HM-36: an applicant's edit changes what staff would approve, so it moves the
+    // application's version too (a stale approval then gets 409).
+    if (user.accountStatus === "applicant") {
+      await tx.application.updateMany({ where: { userId: user.id }, data: { version: { increment: 1 } } });
+    }
     return { version: (await tx.search.findUnique({ where: { userId: user.id } }))!.version };
   });
 

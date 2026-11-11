@@ -18,9 +18,9 @@ const check = (name: string, pass: boolean) => cases.push([name, pass]);
 // --- Staff transitions (R3.3) ---
 const allowed = (a: keyof typeof STAFF_ACTIONS) => APPLICATION_STATUSES.filter((s) => canStaffAct(a, s));
 check("start review: from submitted or waitlisted", JSON.stringify(allowed("start_review")) === '["submitted","waitlisted"]');
-check("approve: only from submitted, in review or call booked", JSON.stringify(allowed("approve")) === '["submitted","in_review","call_booked"]');
-check("approve is impossible from draft, approved, declined, waitlisted or withdrawn",
-  ["draft", "approved", "declined", "waitlisted", "withdrawn"].every((s) => !canStaffAct("approve", s)));
+check("approve: only once review has locked the answers (HM-36)", JSON.stringify(allowed("approve")) === '["in_review","call_booked"]');
+check("approve is impossible from draft, submitted, approved, declined, waitlisted or withdrawn",
+  ["draft", "submitted", "approved", "declined", "waitlisted", "withdrawn"].every((s) => !canStaffAct("approve", s)));
 check("decline: any reviewed state, including approved-not-activated", allowed("decline").includes("approved") && !allowed("decline").includes("draft") && !allowed("decline").includes("withdrawn"));
 check("waitlist: not from approved or declined", !canStaffAct("waitlist", "approved") && !canStaffAct("waitlist", "declined"));
 check("resend activation: approved only", JSON.stringify(allowed("resend_activation")) === '["approved"]');

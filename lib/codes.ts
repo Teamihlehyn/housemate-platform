@@ -15,6 +15,7 @@ import {
   codesMatch,
   decideCodeRequest,
   generateLoginCode,
+  emailHashSecret,
   hashEmailKey,
   hashIp,
 } from "./auth";
@@ -24,6 +25,17 @@ import {
 
 const HOUR = 60 * 60 * 1000;
 let warnedNoSalt = false;
+
+// The keyed hash of an address, or 503 when EMAIL_HASH_SECRET is missing in a deployment
+// (fail closed, HM-40): without it neither the per-address limits nor the tombstones work.
+export function emailKey(email: string): string {
+  const secret = emailHashSecret();
+  if (!secret) {
+    console.error("EMAIL_HASH_SECRET is not set: email codes and application tombstones are refused.");
+    throw new ApiError("EMAIL_NOT_CONFIGURED", "Sign-in isn't available right now. Please try again later.", 503);
+  }
+  return hashEmailKey(email, secret);
+}
 
 export type IssueResult =
   | { kind: "ok"; sinkCode?: string }
@@ -50,7 +62,7 @@ export async function issueCode(
     warnedNoSalt = true;
     console.warn("IP_HASH_SALT is not set: per-IP sign-in code limits are off.");
   }
-  const emailKey = hashEmailKey(email);
+  const emailHash = emailKey(email);
   const code = generateLoginCode();
 
   const decision = await prisma.$transaction(async (tx) => {
@@ -59,7 +71,7 @@ export async function issueCode(
     if (ipHash) await lockKey(tx, `code:ip:${ipHash}`);
     const since = new Date(Date.now() - HOUR);
     const [fromEmail, fromIp, sitewide] = await Promise.all([
-      recentCount(tx, "auth.code_email", emailKey, HOUR),
+      recentCount(tx, "auth.code_email", emailHash, HOUR),
       emailed && ipHash
         ? tx.auditEvent.count({ where: { eventType: "auth.code_requested", resourceId: ipHash, occurredAt: { gt: since } } })
         : 0,
@@ -75,6 +87,13 @@ export async function issueCode(
       await tx.authCode.create({
         data: { email, code, consentVersion: opts.consentVersion ?? null, expiresAt: new Date(Date.now() + 10 * 60 * 1000) },
       });
+    } else if (d === "silent") {
+      // HM-35: an address that may not sign in still gets a code row, with a fresh random code
+      // that is never sent, so a later guess meets the same attempts, expiry and
+      // TOO_MANY_ATTEMPTS as a user's would. Sign-in is still refused after the code check.
+      await tx.authCode.create({
+        data: { email, code: generateLoginCode(), consentVersion: null, expiresAt: new Date(Date.now() + 10 * 60 * 1000) },
+      });
     }
     if (d !== "sitewide_limited") {
       // Per-address count: every counted request, eligible or not, so the 6th request in an
@@ -83,7 +102,7 @@ export async function issueCode(
         eventType: "auth.code_email",
         actorType: "service",
         resourceType: "email_hash",
-        resourceId: emailKey,
+        resourceId: emailHash,
         action: opts.channel,
       }, rid);
     }

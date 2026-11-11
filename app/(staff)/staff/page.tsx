@@ -26,7 +26,8 @@ export default function Staff() {
       // The audit explorer is admin-only; other staff never call it.
       const [audit, vers, res] = await Promise.all([
         me.role === "admin" ? api<any>("/staff/audit") : Promise.resolve(null),
-        api<{ cases: VCase[] }>("/staff/verifications"),
+        // The older identity queue is gone in beta (404, HM-39): show none.
+        api<{ cases: VCase[] }>("/staff/verifications").catch(() => ({ cases: [] as VCase[] })),
         api<any>("/staff/research"),
       ]);
       setRole(me.role);

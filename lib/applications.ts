@@ -26,7 +26,9 @@ export const DAY_MS = 24 * 60 * 60 * 1000;
 export const STAFF_ACTIONS = {
   start_review: ["submitted", "waitlisted"],
   call_booked: ["submitted", "in_review", "call_booked"],
-  approve: ["submitted", "in_review", "call_booked"],
+  // HM-36: only once review has started, which locks the applicant's answers, so staff
+  // approve exactly the profile they reviewed.
+  approve: ["in_review", "call_booked"],
   decline: ["submitted", "in_review", "call_booked", "waitlisted", "approved"],
   waitlist: ["submitted", "in_review", "call_booked"],
   resend_activation: ["approved"],

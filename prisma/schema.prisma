@@ -530,6 +530,10 @@ model Application {
   reviewedAt         DateTime?
   idCheckMethod      String?   // video | provider:didit
   idCheckAt          DateTime?
+  // Staff-only: the reviewer's own words when approving an account they're connected to (their
+  // own test account, ENG-46). Never in the audit log (only a flag and its length there).
+  ownAccount         Boolean   @default(false)
+  relationshipNote   String?
   declineReason      String?   // not_genuine|agent_or_landlord|id_failed|no_show|duplicate|other
   reapplyAfter       DateTime?
   activationInviteId String?

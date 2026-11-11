@@ -137,6 +137,8 @@ export async function applicationDetail(appId: string, viewer: { id: string; rol
     reviewed_at: app.reviewedAt,
     reviewed_by: app.reviewedBy ? reviewer?.displayName ?? "Staff" : null,
     id_check_method: app.idCheckMethod,
+    own_account: app.ownAccount,
+    relationship_note: app.relationshipNote,
     id_check_at: app.idCheckAt,
     decline_reason: app.declineReason,
     reapply_after: app.reapplyAfter,
