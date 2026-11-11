@@ -9,7 +9,7 @@ import { syncRoleAtSignIn } from "@/lib/staffSync";
 import { CONSENT_REQUIRED, SIGNUPS_PAUSED } from "@/lib/env";
 import { isReconsent, needsConsent } from "@/lib/auth";
 import { PRIVACY_VERSION, RUBRIC } from "@/lib/constants";
-import { claimCode, emailKey } from "@/lib/codes";
+import { claimCode, emailKey, invalidCode } from "@/lib/codes";
 import { verifyOutcome } from "@/lib/applications";
 import { applicationStatusFor } from "@/lib/applicationService";
 import { tombstoneReapplyAfter } from "@/lib/applicationPurge";
@@ -27,13 +27,15 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
   if (!email || !body?.code) return fail("VALIDATION", "Email and code are required.", 422, rid);
 
   const record = await claimCode(email, body.code);
+  // A never-sent decoy (HM-35) proves nothing about the inbox: same answer as a wrong code.
+  if (record.decoy) throw invalidCode();
 
   const user = await prisma.user.findUnique({ where: { email } });
   const app = user ? await prisma.application.findUnique({ where: { userId: user.id } }) : null;
   // Roles from the allowlist, never the stored role alone (HM-10).
   // A purged declined application leaves only a hashed email and its reapply date (R7).
   const heldUntil = user ? null : await tombstoneReapplyAfter(email);
-  const outcome = verifyOutcome(user ? { ...user, role: effectiveRole(user) } : null, app, { bootstrapAdmin: listedRole(email) !== null });
+  const outcome = verifyOutcome(user ? { ...user, role: effectiveRole(user) } : null, app, { staffListed: listedRole(email) !== null });
 
   if (outcome === "unavailable") {
     // The code stays usable for /signin where that's allowed (staff); nothing is created.
@@ -59,7 +61,7 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
       );
     }
     await prisma.$transaction(async (tx) => {
-      await tx.authCode.deleteMany({ where: { email } });
+      await tx.authCode.deleteMany({ where: { email, scope: null } });
       if (agreed && user!.privacyConsentVersion !== PRIVACY_VERSION) {
         await tx.user.update({ where: { id: user!.id }, data: { privacyConsentAt: new Date(), privacyConsentVersion: PRIVACY_VERSION } });
         await writeAudit(tx, {
@@ -84,7 +86,7 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
     });
     const role = await syncRoleAtSignIn(user!, rid);
     await createSession(user!.id, "member");
-    return ok({ outcome: "member", user: { id: user!.id, displayName: user!.displayName, role }, redirect: ["verifier", "moderator", "admin"].includes(role) ? "/staff" : "/discover" }, rid);
+    return ok({ outcome: "member", user: { id: user!.id, displayName: user!.displayName, role }, redirect: "/discover" }, rid);
   }
 
   if (outcome === "create" && SIGNUPS_PAUSED) {
@@ -99,7 +101,7 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
   }
 
   const userId = await prisma.$transaction(async (tx) => {
-    await tx.authCode.deleteMany({ where: { email } });
+    await tx.authCode.deleteMany({ where: { email, scope: null } });
     if (outcome === "create") {
       const created = await tx.user.create({
         data: {

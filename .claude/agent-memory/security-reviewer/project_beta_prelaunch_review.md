@@ -67,6 +67,16 @@ Update 2026-11-11 (SEC-15: approval-first sign-up, WT on top of 192068c + hotfix
 - HM-42 NEW Low: activation_code at verify-code skips the invite-check caps
 - Info: relationship_note free text in audit safeAfter; moderators can reveal gender; /join member sign-in skips re-consent; export omits declineReason (legal); no security headers (frame-ancestors for /staff)
 
+Update 2026-11-11 (ENG-47 back-office password + emailed-code sign-in, WT on top of f4280a4; verdict OK for staging):
+- Reviewed clean: scrypt N=2^15 r=8 salted, timing-safe; set-up links hashed, single-use, atomic, older ones invalidated, set revokes staff sessions; pending-cookie binding; staff scope enforced both ways (getCurrentUser/getStaffUser); allowlist re-checked per request; user sign-in can't yield staff session; link host from siteUrl() not Host; migration additive
+- HM-43 NEW Medium, fix before launch: targeted denial of back-office sign-in (lockout + staff code lookup in lib/codes.ts claimCode / staffLimits.ts)
+- HM-44 NEW Medium, founder decision before launch: mailbox is effectively the only factor (reset + code both by email)
+- HM-45 NEW Low: staff password lockout check-then-record not atomic; correct guesses not counted
+- HM-46 NEW Low: password step has no max length before scrypt
+- HM-47 NEW Low: applications/start still emails a user code to staff addresses
+- HM-48 NEW Low: staff-only account removed from allowlist becomes a member without approval
+- Info: set-up token left in URL; code in email subject; staff session tokens plaintext; lockedUntil/failedCount unused
+
 Clean at re-review: npm audit 0; tsc clean; unit tests pass; no secrets/personal emails in commit candidates; docs/security/ ignored; Vercel overwrites x-forwarded-for (not spoofable on Vercel).
 
 Related: [[recurring-weak-spots]]

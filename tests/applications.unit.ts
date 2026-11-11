@@ -44,10 +44,11 @@ const earlier = new Date("2026-11-01T12:00:00Z");
 const member = { accountStatus: "active", role: "member" };
 const applicant = { accountStatus: "applicant", role: "member" };
 check("new address → create", verifyOutcome(null, null, { now }) === "create");
-check("new ADMIN_EMAILS address → unavailable (staff don't apply)", verifyOutcome(null, null, { now, bootstrapAdmin: true }) === "unavailable");
+check("an allowlisted staff address → unavailable, with or without an account (ENG-47)",
+  verifyOutcome(null, null, { now, staffListed: true }) === "unavailable" && verifyOutcome(member, null, { now, staffListed: true }) === "unavailable");
 check("active member → member session", verifyOutcome(member, null, { now }) === "member");
 check("restricted member → member session", verifyOutcome({ ...member, accountStatus: "restricted" }, null, { now }) === "member");
-check("staff (active) → member session; staff never become applicants", verifyOutcome({ accountStatus: "active", role: "verifier" }, null, { now }) === "member");
+check("a staff role never gets a user session at /join", verifyOutcome({ accountStatus: "active", role: "verifier" }, null, { now }) === "unavailable");
 check("suspended → unavailable", verifyOutcome({ ...member, accountStatus: "suspended" }, null, { now }) === "unavailable");
 check("being deleted → unavailable", verifyOutcome({ ...member, accountStatus: "deletion_pending" }, null, { now }) === "unavailable");
 for (const s of ["draft", "submitted", "in_review", "call_booked", "approved", "waitlisted"]) {

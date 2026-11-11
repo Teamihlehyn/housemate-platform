@@ -6,8 +6,8 @@ import { api } from "@/lib/client";
 export default function StaffSignOut() {
   const router = useRouter();
   async function signOut() {
-    await api("/auth/logout", { body: {} }).catch(() => undefined);
-    router.push("/signin");
+    await api("/staff/auth/logout", { body: {} }).catch(() => undefined);
+    router.push("/staff/signin");
     router.refresh();
   }
   return (

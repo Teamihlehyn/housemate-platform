@@ -39,10 +39,27 @@ with one user session.
 ### Staff (ENG-46, HM-10)
 Staff access comes only from the environment: `ADMIN_EMAILS` (admin) and
 `STAFF_EMAILS="a@x.com:verifier,b@x.com:moderator"`. A stored role counts only while the address
-is listed (beta and every Vercel deployment); sign-in sets the stored role to the listed one, or
-back to `member`, audited (`staff.role_granted` / `staff.role_revoked`). Staff are back-office
-only: never in matching, profiles or introductions. The founder tries the product with a
-separate user account (applied through `/join` like anyone).
+is listed (beta and every Vercel deployment). Staff are back-office only: never in matching,
+profiles or introductions. The founder tries the product with a separate user account (applied
+through `/join` like anyone).
+
+### Back-office sign-in (ENG-47): the only way into `/staff`
+Pages: `/staff/signin` (email + password, then the code; "Set up your password" and "Forgot
+password?" both ask for a link) and `/staff/setup?token=…`. Both are public and never reveal
+whether an address is staff.
+
+| Route | Body | Answer |
+|---|---|---|
+| `POST /api/v1/staff/auth/setup-request` | `{email}` | Always the same 200 `{status:"sent", message}` (same timing). Allowlisted addresses get a one-time link (30 min; a new one invalidates earlier ones). 429 after 3 an hour per address or 10 per connection |
+| `POST /api/v1/staff/auth/setup` | `{token, password}` | 200 `{status:"set", redirect:"/staff/signin"}`. 422 `VALIDATION` (12+ characters, not a common password, not your email name) · 422 `INVITE_INVALID` (used, expired or unknown link). Ends every staff session for the account; creates a staff-only account if the address had none |
+| `POST /api/v1/staff/auth/password` | `{email, password}` | Always the same 200 `{status:"sent", message}` (same timing) and an `hm_staff_pending` cookie (10 min). Only a right password on an allowlisted, active account emails a code. 429 `RATE_LIMITED` after 5 wrong passwords per address in 15 minutes or 20 per connection an hour, identical for every address |
+| `POST /api/v1/staff/auth/verify` | `{email, code}` | 200 `{status:"signed_in", role, redirect:"/staff"}` and the `hm_staff_session` cookie (12 h, HttpOnly, SameSite=Strict). Needs the pending cookie from a successful password step in this browser; every failure is 422 `INVALID_CODE` |
+| `POST /api/v1/staff/auth/logout` | `{}` | 200; ends this staff session |
+| `GET /api/v1/staff/me` | | `{email, displayName, role}` (404 without a staff session) |
+
+The user sign-in (`/auth/request-code`, `/auth/verify-code`) gives staff addresses the usual
+neutral answer and never a session; `/join` answers `"unavailable"`. A user session never opens
+`/staff` (the page redirects to `/staff/signin`, the APIs answer 404).
 
 ## 1. Applying: `/join`
 

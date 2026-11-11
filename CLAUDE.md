@@ -67,10 +67,13 @@ where everyone is real); sample people are labelled.
 8. **Never fake verification outside demo modes.** In `beta`, identity is only ever granted by
    staff approval of the application (`POST /staff/applications/[id] {action:"approve"}`), after a
    video ID call; it grants identity only (never phone), and no ID documents are stored, ever.
-9. **Staff come only from the allowlist and are back-office only.** `ADMIN_EMAILS` /
-   `STAFF_EMAILS` decide staff roles; a stored role alone counts for nothing (`lib/staff.ts`
-   `effectiveRole`, HM-10). Staff never get on-screen codes, land on `/staff`, get 404 from every
-   product API and never appear in the product. To try the product, use a separate user account.
+9. **Staff come only from the allowlist, sign in only at `/staff/signin`, and are back-office
+   only.** `ADMIN_EMAILS` / `STAFF_EMAILS` decide staff roles; a stored role alone counts for
+   nothing (`lib/staff.ts`, HM-10). The back office needs a **staff session** (cookie
+   `hm_staff_session`, scope `staff`, 12 h) from email + password + an emailed 6-digit code
+   (ENG-47, `lib/staffAuth.ts`); first password via an emailed one-time link, never a default
+   password, never an on-screen code. The user sign-in and `/join` refuse staff addresses.
+   Staff never appear in the product. To try the product, use a separate user account.
 10. **Schema changes go through Prisma Migrate** (`npm run db:migrate:dev -- --name x`). Never
     `prisma db push` against Neon. Prefer additive migrations with safe defaults.
 11. **Never `TRUNCATE` or bulk-delete the live `research` database.** Real testers use it. Clean
@@ -198,8 +201,9 @@ app/
                            staff → /staff
     onboarding/ discover/ members/[id]/ messages/ messages/[id]/ household/
     profile/ settings/ notifications/
-  (staff)/staff/           Back office, own shell (no product UI): Applications queue, identity
-                           checks, reports, feedback, survey (admin), audit (admin). 404 for non-staff
+  (staff)/staff/(console)/ Back office, own shell (no product UI): Applications queue, reports,
+                           feedback, survey (admin), audit (admin). Needs a staff session
+  (staff)/staff/(auth)/    /staff/signin and /staff/setup: password + emailed code (ENG-47)
   api/v1/                  REST API (route handlers only)
 components/                AppNav, ResearchTools (feedback + Clarity tags), ReportDialog,
                            GenderPreferenceFields
@@ -208,6 +212,7 @@ lib/
   guard.ts      requireAccount (applicants too), requireUser (members only: 404 for applicants
                 and staff), requireStaff / requireAdmin (404 for everyone else), withIdempotency
   staff.ts      the staff allowlist: effectiveRole, listedRole, roleAtSignIn (HM-10)
+  staffAuth.ts / staffLimits.ts  back-office sign-in: scrypt passwords, staff sessions, lockout
   applications.ts  application state machine, completeness, status object (pure)
   applicationService.ts / staffApplications.ts  application DB helpers, emails, staff DTOs
   codes.ts      shared email-code issue (uniform answers, sent after the response) and checking

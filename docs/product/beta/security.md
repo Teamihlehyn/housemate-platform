@@ -32,6 +32,7 @@
 | SEC-10 | DPIA inputs (UK GDPR + NDPA 2023) | S1–S2 | 7 Dec |
 | SEC-12 | Back office MVP (roles, staff audit, PII exposure) | S1–S2 | 27 Nov |
 | **SEC-14** | **Live-launch sign-off** (replaces SEC-11): beta in production, Lagos first, open sign-up | Wed 11 – Thu 12 Nov, by 17:00 | **Fri 13 Nov launch** |
+| **SEC-15 (closed question)** | Who may reveal an applicant's gender and housemate preference: **decided by the founder, 11 Nov: all staff roles** (admin, verifier, moderator), as built. Every reveal stays audited | — | — |
 | **SEC-13** | **Didit integration review** (ENG-35): webhook, data minimisation, biometric consent, provider settings | Mon 23 – Wed 25 Nov | Didit go-live, about 27 Nov |
 
 > **Live launch re-plan (10 Nov):** research mode is retired, and production goes to beta once. Open sign-up, with the link shared with a few people; **Lagos first**; launch **Fri 13 Nov** (README "Live launch plan").

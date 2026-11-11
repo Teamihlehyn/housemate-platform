@@ -18,6 +18,8 @@ Patterns seen in the 2026-11-09 review (see [[beta-prelaunch-review-2026-11]]):
 10. **Silent-refusal designs leak at the next step**: making step 1 identical is not enough; check that step 2 (code verify, link check) answers identically when step 1 silently did nothing.
 11. **Review-then-act without binding**: staff approvals must be tied to the exact data reviewed (lock edits or version-check the subject's data, not only the workflow row).
 12. **State checks outside the transaction** in staff actions (subject accountStatus read before the tx) race with user-side transitions.
+13. **"Latest row by email" lookups** let anyone who can create a row for an address shadow or burn the real one; bind lookups to the requester (cookie hash), not only the address.
+14. **Per-address lockouts are lockout levers** against named staff; pair with IP and make recovery (reset) clear them.
 7. **Free-text into audit** via unvalidated `reason`/`reason_code` fields despite the allow-list rule.
 
 **Why:** these produced most findings in the first pre-launch review.

@@ -5,7 +5,6 @@ import { createSession, getCurrentUser, replaceSessions } from "@/lib/session";
 import { writeAudit, writeOutbox, notify } from "@/lib/audit";
 import { APPROVAL_FIRST, CONSENT_REQUIRED, SANDBOX_ON_SIGNUP, SIGNUPS_PAUSED } from "@/lib/env";
 import { listedRole } from "@/lib/staff";
-import { isStaffRole } from "@/lib/guard";
 import { syncRoleAtSignIn } from "@/lib/staffSync";
 import { PRIVACY_VERSION } from "@/lib/constants";
 import { contactHint, isReconsent, needsConsent } from "@/lib/auth";
@@ -69,14 +68,15 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
   const clean = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
   if (!clean || !code) return fail("VALIDATION", "Email and code are required.", 422, rid);
 
-  await claimCode(clean, code);
+  const rec = await claimCode(clean, code);
+  if (rec.decoy) throw invalidCode();
 
   const prior = await prisma.user.findUnique({
     where: { email: clean },
     select: { id: true, accountStatus: true, privacyConsentAt: true, privacyConsentVersion: true },
   });
-  // Listed staff (ADMIN_EMAILS / STAFF_EMAILS) may sign in before their account exists.
-  const bootstrapAdmin = listedRole(clean) !== null;
+  // Staff addresses never get a user session (ENG-47): the back office has its own sign-in.
+  if (listedRole(clean) !== null) throw invalidCode();
 
   // Accounts being deleted (or deleted) can't quietly sign back in. The code is kept,
   // so nothing about the request changes until a person on the team acts.
@@ -101,7 +101,7 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
   }
   // Only members sign in here. Applicants use /join; everyone else looks like a wrong code.
   if (prior?.accountStatus === "applicant") throw invalidCode();
-  if (APPROVAL_FIRST && !bootstrapAdmin && (!prior || prior.accountStatus === "suspended")) throw invalidCode();
+  if (APPROVAL_FIRST && (!prior || prior.accountStatus === "suspended")) throw invalidCode();
 
   // Privacy consent (current version) is required before anything is created; the
   // code stays valid until then.
@@ -109,13 +109,13 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
 
   let isNew = false;
   const user = await prisma.$transaction(async (tx) => {
-    await tx.authCode.deleteMany({ where: { email: clean } });
+    await tx.authCode.deleteMany({ where: { email: clean, scope: null } });
     const found = await tx.user.findUnique({ where: { email: clean } });
     if (found) {
       if (!found.emailVerified) return tx.user.update({ where: { id: found.id }, data: { emailVerified: true } });
       return found;
     }
-    if (SIGNUPS_PAUSED && !bootstrapAdmin) {
+    if (SIGNUPS_PAUSED) {
       throw new ApiError("FORBIDDEN", "We're not taking new sign-ups for a few days. Please try again later.", 403);
     }
     isNew = true;
@@ -160,7 +160,7 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
       user: { id: user.id, email: user.email, displayName: user.displayName, role: user.role },
       is_new: isNew,
       // Staff are back-office only: they land on /staff, members on /discover.
-      redirect: isStaffRole(user.role) ? "/staff" : "/discover",
+      redirect: "/discover",
     },
     rid
   );
@@ -176,7 +176,7 @@ async function activate(activationCode: string, code: unknown, acceptPrivacy: bo
   const current = await getCurrentUser();
   if (current && current.id !== person.id) throw activationInvalid();
 
-  await claimCode(person.email, code);
+  if ((await claimCode(person.email, code)).decoy) throw invalidCode();
   if (!acceptPrivacy && needsConsent(person, PRIVACY_VERSION, CONSENT_REQUIRED)) throw consentError(person);
   const { missing } = await missingFor(prisma, person.id);
   if (missing.length) {
@@ -196,7 +196,7 @@ async function activate(activationCode: string, code: unknown, acceptPrivacy: bo
     });
     const moved = await tx.user.updateMany({ where: { id: person.id, accountStatus: "applicant" }, data: { accountStatus: "active" } });
     if (used.count !== 1 || moved.count !== 1) throw activationInvalid();
-    await tx.authCode.deleteMany({ where: { email: person.email } });
+    await tx.authCode.deleteMany({ where: { email: person.email, scope: null } });
     await tx.profile.update({ where: { userId: person.id }, data: { publicationStatus: "published", publishedAt: new Date() } });
     await tx.search.update({ where: { userId: person.id }, data: { status: "active", version: { increment: 1 } } });
     const score = await snapshotScore(tx, person.id);

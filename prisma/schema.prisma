@@ -72,6 +72,12 @@ model AuthCode {
   inviteId  String?  // retired (D15 invite-gated sign-up); kept for old rows
   // Privacy notice version agreed at /join step 1 (applications/start), so verify can record it.
   consentVersion String?
+  // null: user sign-in, /join and activation. "staff": the back-office second step (ENG-47),
+  // bound to the password step by pendingHash (SHA-256 of the hm_staff_pending cookie).
+  scope          String?
+  pendingHash    String?
+  // A never-sent code for an address that may not sign in (HM-35, ENG-47): never accepted.
+  decoy          Boolean  @default(false)
   attempts  Int      @default(0)
   expiresAt DateTime
   createdAt DateTime @default(now())
@@ -514,6 +520,32 @@ model Invite {
 
   @@index([accessRequestId])
   @@index([applicationId])
+  @@index([email])
+}
+
+// Back-office sign-in (ENG-47): password + emailed code. Only allowlisted staff addresses
+// (lib/staff.ts) ever get a credential. scrypt hash, never the password.
+model StaffCredential {
+  id            String    @id @default(cuid())
+  userId        String    @unique
+  passwordHash  String    // scrypt$N$r$p$salt$hash (base64)
+  passwordSetAt DateTime
+  failedCount   Int       @default(0)
+  lockedUntil   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// One-time link to set (or reset) a back-office password. Only the SHA-256 is stored; 30 min;
+// a new link invalidates earlier ones. Bound to the email (the account may not exist yet).
+model StaffSetupToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  email     String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
   @@index([email])
 }
 
