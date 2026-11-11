@@ -129,8 +129,11 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 def first_hop(c, path):
     """(status, Location) of a page request without following redirects."""
     op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(c.jar), _NoRedirect())
+    req = urllib.request.Request(BASE + path)
+    if c.cookie:  # a raw session cookie set on the client (see C.cookie)
+        req.add_header("Cookie", c.cookie)
     try:
-        with op.open(urllib.request.Request(BASE + path), timeout=60) as r:
+        with op.open(req, timeout=60) as r:
             return r.status, r.headers.get("Location")
     except urllib.error.HTTPError as e:
         return e.code, e.headers.get("Location")
@@ -327,6 +330,8 @@ rc.cookie = f"hm_session={token}"
 codes_ = [rc.call(p)[0] for p in ("/staff/applications", "/staff/audit", "/staff/research", "/staff/verifications")]
 check("a stored admin NOT on the allowlist gets 404 on /staff routes (an existing session)", codes_ == [404] * 4, codes_)
 check("…and 404 on the /staff page", first_hop(rc, "/staff")[0] == 404)
+_st, _loc = first_hop(C(), "/staff")
+check("a signed-out visitor to /staff is sent to /signin", _st in (303, 307, 308) and (_loc or "").endswith("/signin"), f"{_st} {_loc}")
 check("…and is a member as far as /me says", d(rc.call("/me")).get("role") == "member")
 check("…including admin-only tools (404)", rc.call("/staff/survey/send", {"campaign": "x", "dry_run": True})[0] == 404)
 sign_in(rogue)

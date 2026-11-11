@@ -1,17 +1,19 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
 import { isApplicantSession, isStaffRole } from "@/lib/guard";
 import { PodMark, Wordmark } from "@/components/brand/Logo";
 import StaffSignOut from "./StaffSignOut";
 
 // The back office (founder, 10 Nov): its own shell, nothing from the product. No member
-// navigation, no notifications, no bottom nav, no Feedback pill. Visitors, members and
-// applicants get the same 404 as any missing page. Effective role only (lib/staff.ts, HM-10).
+// navigation, no notifications, no bottom nav, no Feedback pill. Signed-out visitors are sent
+// to /signin (staff land back here after the code); signed-in users and applicants get the
+// same 404 as any missing page. Effective role only (lib/staff.ts, HM-10).
 export const metadata = { title: "Back office — Peabudy", robots: { index: false, follow: false } };
 
 export default async function StaffLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
-  if (!user || user.accountStatus === "suspended" || isApplicantSession(user) || !isStaffRole(user.role)) notFound();
+  if (!user) redirect("/signin");
+  if (user.accountStatus === "suspended" || isApplicantSession(user) || !isStaffRole(user.role)) notFound();
 
   return (
     <div className="min-h-screen bg-paper" data-back-office="true">
