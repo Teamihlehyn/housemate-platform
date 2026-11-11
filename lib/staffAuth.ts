@@ -16,10 +16,11 @@ export const PENDING_MINUTES = 10;
 export const SETUP_LINK_MINUTES = 30;
 export const PASSWORD_MIN = 12;
 export const PASSWORD_MAX = 200;
-// Lockout: 5 wrong passwords per address in 15 minutes; 20 per connection an hour.
-export const MAX_FAILS_PER_ADDRESS = 5;
-export const FAIL_WINDOW_MS = 15 * 60 * 1000;
-export const MAX_FAILS_PER_IP_HOUR = 20;
+// Password-attempt limits (HM-43, HM-45; lib/staffLimits.ts).
+export const MAX_ATTEMPTS_PER_PAIR = 5; // per address + connection, 15 minutes
+export const PAIR_WINDOW_MS = 15 * 60 * 1000;
+export const MAX_ATTEMPTS_PER_ADDRESS_HOUR = 50;
+export const MAX_ATTEMPTS_PER_IP_HOUR = 20;
 
 // ---- Passwords: Node's scrypt, salted, no dependency ----------------------------------------
 const N = 1 << 15, R = 8, P = 1, KEYLEN = 64;

@@ -237,15 +237,15 @@ def staff_setup_link(email, after=0):
 
 
 def staff_code(email, after=0):
-    m = wait_mail(email, lambda m: "back-office code" in m.get("subject", ""), after=after)
-    return re.search(r"(\d{6})", m["subject"]).group(1) if m else None
+    m = wait_mail(email, lambda m: "back-office sign-in code" in m.get("subject", ""), after=after)
+    return re.search(r"code is (\d{6})", m["text"]).group(1) if m else None
 
 
 def staff_client(email, password=STAFF_PASSWORD):
     """The only way into the back office (ENG-47): set-up link → password → emailed code."""
     # Test set-up only: forget earlier runs' set-up requests and wrong passwords for this address
     # (3 links an hour, 5 wrong passwords in 15 minutes), so the suite can be re-run at once.
-    sql(f'''delete from "AuditEvent" where "eventType" in ('staff.setup_requested', 'staff.password_failed') and "resourceId" = {lit(email_key(email))}''')
+    sql(f'''delete from "AuditEvent" where "eventType" in ('staff.setup_requested', 'staff.pw_attempt_addr') and "resourceId" = {lit(email_key(email))}''')
     before = len(mails_to(email))
     C().call("/staff/auth/setup-request", {"email": email})
     token = staff_setup_link(email, after=before)
@@ -1133,7 +1133,7 @@ check("…and the tombstone has done its job", sql(f'''select count(*) from "App
 print("== ENG-47: the back-office sign-in ==")
 LOCK_EMAIL = "e2e-lock@example.com"
 nobody = f"beta-notstaff-{RUN}@example.com"
-sql(f'''delete from "AuditEvent" where "eventType" in ('staff.setup_requested', 'staff.password_failed') and "resourceId" = {lit(email_key(ADMIN_EMAIL))}''')
+sql(f'''delete from "AuditEvent" where "eventType" in ('staff.setup_requested', 'staff.pw_attempt_addr') and "resourceId" = {lit(email_key(ADMIN_EMAIL))}''')
 before_a, before_n = len(mails_to(ADMIN_EMAIL)), len(mails_to(nobody))
 t0 = time.time(); ra = C().call("/staff/auth/setup-request", {"email": ADMIN_EMAIL}); ta = time.time() - t0
 t0 = time.time(); rn = C().call("/staff/auth/setup-request", {"email": nobody}); tn = time.time() - t0
@@ -1167,7 +1167,9 @@ check("password step: identical answer for a wrong password, a right one and a n
       strip(rw) == strip(rr) == strip(rn) and rr[0] == 200, (rw[1], rr[1], rn[1]))
 check("…in about the same time (within 200 ms)", max(tw, tr, tn) - min(tw, tr, tn) < 0.2, f"{tw:.3f}/{tr:.3f}/{tn:.3f}")
 good_code = staff_code(ADMIN_EMAIL, after=before_a)
-check("…and only the right password produces an email (one code)", good_code and len([m for m in mails_to(ADMIN_EMAIL)[before_a:] if "back-office code" in m["subject"]]) == 1)
+check("…and only the right password produces an email (one code), with no code in the subject",
+      good_code and len([m for m in mails_to(ADMIN_EMAIL)[before_a:] if "back-office sign-in code" in m["subject"]]) == 1
+      and not re.search(r"\d{6}", [m for m in mails_to(ADMIN_EMAIL)[before_a:] if "back-office" in m["subject"]][-1]["subject"]))
 r = C().call("/staff/auth/verify", {"email": ADMIN_EMAIL, "code": good_code})
 check("the code without the password step on this browser: wrong-code answer", r[0] == 422 and err(r) == "INVALID_CODE", r)
 r = cw.call("/staff/auth/verify", {"email": ADMIN_EMAIL, "code": good_code})
@@ -1183,20 +1185,74 @@ check("a user session gets 404 on the staff APIs and a redirect on the page",
       b.call("/staff/me")[0] == 404 and b.call("/staff/applications")[0] == 404 and (first_hop(b, "/staff")[1] or "").endswith("/staff/signin"))
 check("visitors see the sign-in and set-up pages (neutral, no staff list)",
       C().raw("/staff/signin")[0] == 200 and "Back office" in C().raw("/staff/signin")[2] and C().raw("/staff/setup?token=x")[0] == 200)
-# Lockout: identical for a staff address and an unknown one.
-sql(f'''delete from "AuditEvent" where "eventType" = 'staff.password_failed' and "resourceId" in ({lit(email_key(LOCK_EMAIL))}, {lit(email_key(nobody))})''')
+# Lockout (HM-43, HM-45): keyed on address + connection, identical for staff and unknown addresses.
 lk = staff_client(LOCK_EMAIL)
 lasts = []
 for addr in (LOCK_EMAIL, nobody):
-    seq = [C().call("/staff/auth/password", {"email": addr, "password": "wrong password " + str(i)})[0] for i in range(5)]
-    last = C().call("/staff/auth/password", {"email": addr, "password": STAFF_PASSWORD})
+    ipx, ipy = next_ip(), next_ip()
+    seq = [C().call("/staff/auth/password", {"email": addr, "password": "wrong password " + str(i)}, ip=ipx)[0] for i in range(5)]
+    last = C().call("/staff/auth/password", {"email": addr, "password": STAFF_PASSWORD}, ip=ipx)
     lasts.append(strip(last))
-    check(f"lockout after 5 wrong passwords ({'staff' if addr == LOCK_EMAIL else 'unknown'} address): even the right one gets 429",
+    other = C().call("/staff/auth/password", {"email": addr, "password": STAFF_PASSWORD}, ip=ipy)
+    who = "staff" if addr == LOCK_EMAIL else "unknown"
+    check(f"5 wrong passwords from one connection lock that connection for the address ({who}): 429 there",
           seq == [200] * 5 and last[0] == 429 and err(last) == "RATE_LIMITED", (seq, last[0]))
+    check(f"…but not another connection ({who})", other[0] == 200, other[0])
 check("…an identical 429 for both", lasts[0] == lasts[1], lasts)
+before_l = len(mails_to(LOCK_EMAIL))
+cy = C()
+ipy = next_ip()
+r = cy.call("/staff/auth/password", {"email": LOCK_EMAIL, "password": STAFF_PASSWORD}, ip=ipy)
+r = cy.call("/staff/auth/verify", {"email": LOCK_EMAIL, "code": staff_code(LOCK_EMAIL, after=before_l)}, ip=ipy)
+check("HM-43: a correct sign-in from another connection still works after someone else's wrong passwords", r[0] == 200, r)
+# HM-43: someone else's wrong passwords and wrong codes can't burn a pending sign-in.
+ca, cb = C(), C()
+before_l = len(mails_to(LOCK_EMAIL))
+ca.call("/staff/auth/password", {"email": LOCK_EMAIL, "password": STAFF_PASSWORD})
+a_code = staff_code(LOCK_EMAIL, after=before_l)
+ipb = next_ip()
+for i in range(3):
+    cb.call("/staff/auth/password", {"email": LOCK_EMAIL, "password": "nope nope nope " + str(i)}, ip=ipb)
+b_codes = [cb.call("/staff/auth/verify", {"email": LOCK_EMAIL, "code": f"{100000 + i}"}, ip=ipb)[0] for i in range(5)]
+nc = [C().call("/staff/auth/verify", {"email": LOCK_EMAIL, "code": f"{200000 + i}"})[0] for i in range(5)]
+check("…browser B's wrong codes only touch B's own attempt (422s), a cookieless caller touches nothing", set(b_codes) <= {422, 429} and set(nc) == {422}, (b_codes, nc))
+r = ca.call("/staff/auth/verify", {"email": LOCK_EMAIL, "code": a_code})
+check("HM-43: browser A's code still works after 3 wrong passwords and 5 wrong codes from browser B", r[0] == 200, r)
+# HM-45: concurrent guesses can't slip past the count.
+sql(f'''insert into "AuditEvent"(id, "eventType", "actorType", "resourceType", "resourceId", action, outcome, "occurredAt")
+       values ({lit("clr" + RUN)}, 'staff.lockout_cleared', 'service', 'email_hash', {lit(email_key(nobody))}, 'clear', 'allowed', now())''')
+ipc = next_ip()
+with ThreadPoolExecutor(max_workers=10) as pool:
+    conc = list(pool.map(lambda i: C().call("/staff/auth/password", {"email": nobody, "password": "concurrent guess " + str(i)}, ip=ipc)[0], range(10)))
+check("HM-45: 10 concurrent wrong passwords from one connection: at most 5 are evaluated", sum(1 for x in conc if x != 429) <= 5 and conc.count(429) >= 5, sorted(conc))
+# HM-43: the per-address ceiling (50 an hour) catches guessing spread over many connections.
+ceil = f"e2e-ceil-{RUN}"
+sql(f'''insert into "AuditEvent"(id, "eventType", "actorType", "resourceType", "resourceId", action, outcome, "occurredAt")
+       select {lit(ceil)} || g, 'staff.pw_attempt_addr', 'service', 'email_hash', {lit(email_key(nobody))}, 'password', 'allowed', now() from generate_series(1, 50) g''')
+r = C().call("/staff/auth/password", {"email": nobody, "password": STAFF_PASSWORD})
+check("…50 attempts an hour on one address: the next is 429 from any connection", r[0] == 429 and strip(r) == lasts[0], r[0])
+# HM-46: an over-long password is refused before any hashing.
+before_rows = sql(f'''select count(*) from "AuthCode" where email = {lit(LOCK_EMAIL)} and scope = 'staff' ''')
+t0 = time.time()
+r = C().call("/staff/auth/password", {"email": LOCK_EMAIL, "password": "x" * 10240})
+took = time.time() - t0
+empty = C().call("/staff/auth/password", {"email": LOCK_EMAIL, "password": ""})
+check("HM-46: a 10 kB password gets the same fast 422 as an empty one, and no code row",
+      r[0] == 422 and strip(r) == strip(empty) and took < 0.4
+      and sql(f'''select count(*) from "AuthCode" where email = {lit(LOCK_EMAIL)} and scope = 'staff' ''') == before_rows, f"{r[0]} {took:.3f}s")
+# HM-47: staff addresses can't apply, and /join sends them nothing.
+before_v = len(mails_to(VERIFIER_EMAIL))
+rs = C().call("/applications/start", {"email": VERIFIER_EMAIL, "consent_privacy": True})
+ru = C().call("/applications/start", {"email": f"beta-hm47-{RUN}@example.com", "consent_privacy": True})
+time.sleep(1.5)
+check("HM-47: /join step 1 for a staff address: the same 200, no email, a decoy code row",
+      strip(rs) == strip(ru) and rs[0] == 200 and len(mails_to(VERIFIER_EMAIL)) == before_v
+      and sql(f'''select count(*) from "AuthCode" where email = {lit(VERIFIER_EMAIL)} and scope is null and decoy = true''') != "0")
+n_sessions = lambda: int(sql(f'''select count(*) from "Session" s join "User" u on u.id = s."userId" where u.email = {lit(LOCK_EMAIL)} and scope = 'staff' '''))
+before_s = n_sessions()
 r = lk.call("/staff/auth/logout", {})
-check("sign-out ends the staff session", r[0] == 200 and lk.call("/staff/me")[0] == 404
-      and sql(f'''select count(*) from "Session" s join "User" u on u.id = s."userId" where u.email = {lit(LOCK_EMAIL)} and scope = 'staff' ''') == "0")
+check("sign-out ends this staff session (and only this one)", r[0] == 200 and lk.call("/staff/me")[0] == 404 and n_sessions() == before_s - 1
+      and ca.call("/staff/me")[0] == 200, (before_s, n_sessions()))
 check("staff-only accounts never appear in the product", sql(f'''select count(*) from "Profile" p join "User" u on u.id = p."userId" where u.email = {lit(LOCK_EMAIL)}''') == "0")
 
 print("== ENG-25: draft legal pages ==")

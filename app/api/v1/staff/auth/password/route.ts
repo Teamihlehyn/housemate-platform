@@ -8,8 +8,8 @@ import { generateLoginCode } from "@/lib/auth";
 import { padResponse } from "@/lib/codes";
 import { sendEmail } from "@/lib/email";
 import { staffCodeEmail } from "@/lib/emails";
-import { FAIL_WINDOW_MS, burnPasswordCheck, newToken, setPendingCookie, verifyPassword } from "@/lib/staffAuth";
-import { keysFor, passwordLocked, recordPasswordFailure } from "@/lib/staffLimits";
+import { PASSWORD_MAX, burnPasswordCheck, newToken, setPendingCookie, verifyPassword } from "@/lib/staffAuth";
+import { claimPasswordAttempt, keysFor, recordPasswordOk } from "@/lib/staffLimits";
 
 const MESSAGE = "If your email and password are right, we've emailed you a 6-digit code.";
 const FLOOR_MS = 700;
@@ -18,20 +18,22 @@ const FLOOR_MS = 700;
 // Every address gets the identical 200 and timing, and a pending cookie that binds step 2 to
 // this request. Only an allowlisted, active account whose password verifies gets a real code
 // by email; anyone else gets a never-sent decoy code row (as HM-35), so step 2 answers the same.
-// Lockout: 5 wrong tries per address in 15 minutes, 20 per connection an hour → the same 429.
+// Limits (lib/staffLimits.ts): every attempt is counted before the password is checked; over a
+// limit → the same 429 for every address.
 export const POST = handler(async (req: NextRequest, { rid }) => {
   const start = Date.now();
   const body = await req.json().catch(() => ({}));
   const raw = typeof body?.email === "string" ? body.email.trim() : "";
   const password = typeof body?.password === "string" ? body.password : "";
-  if (!validEmail(raw) || !password) {
+  // HM-46: an over-long password gets the same 422 as an empty one, before any hashing.
+  if (!validEmail(raw) || !password || password.length > PASSWORD_MAX) {
     return fail("VALIDATION", "Enter your email and password.", 422, rid, {
-      field_errors: { ...(validEmail(raw) ? {} : { email: "Enter your work email address." }), ...(password ? {} : { password: "Enter your password." }) },
+      field_errors: { ...(validEmail(raw) ? {} : { email: "Enter your work email address." }), ...(password && password.length <= PASSWORD_MAX ? {} : { password: "Enter your password." }) },
     });
   }
   const email = raw.toLowerCase();
   const keys = keysFor(req, email);
-  if (await passwordLocked(keys)) {
+  if (!(await claimPasswordAttempt(keys, rid))) {
     await padResponse(start, FLOOR_MS);
     return fail("RATE_LIMITED", "Too many attempts. Try again in 15 minutes.", 429, rid, { retry_after: 900 });
   }
@@ -48,7 +50,6 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
   await setPendingCookie(pending.token);
   if (good) {
     await prisma.$transaction(async (tx) => {
-      await tx.staffCredential.update({ where: { id: cred!.id }, data: { failedCount: 0, lockedUntil: null } });
       await writeAudit(tx, { eventType: "staff.password_ok", actorType: "staff", actorId: user!.id, subjectId: user!.id, resourceType: "user", resourceId: user!.id, action: "password" }, rid);
     });
     after(async () => {
@@ -61,14 +62,7 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
         console.error("Staff code email failed", (e as { code?: string })?.code ?? "unknown");
       }
     });
-  } else {
-    await recordPasswordFailure(keys, rid);
-    if (cred) {
-      await prisma.staffCredential.update({
-        where: { id: cred.id },
-        data: { failedCount: { increment: 1 }, lockedUntil: new Date(Date.now() + FAIL_WINDOW_MS) },
-      });
-    }
+    await recordPasswordOk(keys, rid);
   }
   await padResponse(start, FLOOR_MS);
   return ok({ status: "sent", message: MESSAGE }, rid);

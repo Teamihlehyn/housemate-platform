@@ -16,8 +16,8 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
   if (!email || !body?.code) return fail("VALIDATION", "Enter the 6-digit code from your email.", 422, rid, { field_errors: { code: "Required." } });
   const pending = await pendingHashFromCookie();
   if (!pending) throw invalidCode();
-  const record = await claimCode(email, body.code, "staff");
-  if (record.decoy || record.pendingHash !== pending) throw invalidCode();
+  const record = await claimCode(email, body.code, "staff", pending);
+  if (record.decoy) throw invalidCode();
   const role = listedRole(email);
   const user = role ? await prisma.user.findUnique({ where: { email } }) : null;
   const cred = user ? await prisma.staffCredential.findUnique({ where: { userId: user.id } }) : null;
