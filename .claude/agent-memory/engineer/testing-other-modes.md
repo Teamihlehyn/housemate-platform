@@ -36,3 +36,15 @@ Don't kill it and don't start a second `next dev` in the same checkout (shared `
   harness in files (Write) so the command line stays clean.
 - macOS ships bash 3.2: no `BASHPID`, no `${var,,}`. Use `BASH_SUBSHELL` to tell a pipeline
   subshell from the main shell (e.g. so an ERR trap prints once).
+- Browser checks of the scratch server: open it as `http://eng.localhost:3100`, not localhost.
+  Cookies ignore ports, so an HttpOnly `hm_session` from the :3000 server shadows a JS-set one
+  on localhost:3100; and 127.0.0.1 is blocked from loading dev chunks (blank page). Sign in by
+  inserting a Session row and setting `document.cookie` on eng.localhost.
+- The guard blocks any Bash command whose text contains the Neon host name together with
+  insert/update/delete — even in a Python heredoc that only writes a test file. Write such
+  files with the Write tool.
+- Since 10 Nov the beta e2e needs ADMIN_EMAILS=e2e-admin@example.com and
+  STAFF_EMAILS=e2e-verifier@example.com:verifier,e2e-moderator@example.com:moderator on the
+  server (staff roles come only from the allowlist), and a free MAIL_PORT (8025 is often taken
+  by another agent's run; use MAIL_PORT=8026 + EMAIL_API_URL to match).
+

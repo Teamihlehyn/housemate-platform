@@ -79,19 +79,22 @@ export const CLARITY_ID: string | null =
     ? (process.env.NEXT_PUBLIC_CLARITY_ID as string)
     : null;
 
-// Invite-only sign-up (D15): in beta a new account needs a staff invite. Existing accounts
-// and ADMIN_EMAILS sign in without one. Demo modes stay open so research testing works.
-export const INVITE_ONLY = IS_BETA;
+// Approval-first sign-up (ENG-39–43): joining is an application that staff approve; only
+// active members get sign-in codes. Beta only: demo modes keep open sign-in so research and
+// local testing still work (the /applications API works everywhere).
+export const APPROVAL_FIRST = IS_BETA;
 
 // Emergency stop (ENG-32): SIGNUPS_PAUSED=true refuses every new account, invite or not,
 // while existing members carry on. Needs a redeploy to change.
 export const SIGNUPS_PAUSED = process.env.SIGNUPS_PAUSED === "true";
 
-// Cities taking new members (ENG-32). OPEN_CITIES=lagos (comma list); unset = every city.
-// Access requests from other cities are still accepted and shown to staff as waitlisted.
+// Cities taking new members (ENG-32, F4). OPEN_CITIES=lagos (comma list); unset = lagos;
+// "*" = every city. Applications from other cities are accepted and held as waitlisted.
+export const DEFAULT_OPEN_CITIES = ["lagos"];
 export function openCities(raw: string | undefined = process.env.OPEN_CITIES): string[] | null {
   const list = (raw || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
-  return list.length ? list : null;
+  if (list.includes("*")) return null;
+  return list.length ? list : DEFAULT_OPEN_CITIES;
 }
 export function isCityOpen(cityId: string, open: string[] | null = openCities()): boolean {
   return open === null || open.includes(cityId);

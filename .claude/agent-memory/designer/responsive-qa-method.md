@@ -20,5 +20,10 @@ Traps found 2026-11-10:
   reloads (other agents' edits) kill long scripts. The JS tool times out at 45 s.
 - Hidden-pane screenshots freeze CSS animations at frame 0 (see [[peabudy-brand-mascots]]).
 
+- **Beta mode only emails codes.** Run the `housemate-beta-e2e` preview with a tiny fake Resend
+  on 127.0.0.1:8025 (scratchpad script writing POST bodies to a log) and read the code from the
+  subject. Drive start/verify with `fetch` from the page: HMR reloads from other agents' edits
+  wipe multi-step UI state mid-flow.
+
 **Why:** a whole sweep was silently invalid once (unhydrated + signed out) before these checks.
 **How to apply:** any future layout pass or "does X cover Y" check.

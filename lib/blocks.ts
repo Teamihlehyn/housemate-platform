@@ -16,7 +16,7 @@ export async function isBlocked(a: string, b: string, db: Db = prisma): Promise<
 // Every cross-user action re-checks blocks (security review HM-02). 404, not 403, so a
 // block stays silent: the other person can't tell it from a member who left.
 export async function assertNotBlocked(a: string, b: string, db: Db = prisma): Promise<void> {
-  if (await isBlocked(a, b, db)) throw new ApiError("NOT_FOUND", "This member is not available.", 404);
+  if (await isBlocked(a, b, db)) throw new ApiError("NOT_FOUND", "This user is not available.", 404);
 }
 
 // Intro states that can still lead somewhere. Accepted intros stay accepted (their

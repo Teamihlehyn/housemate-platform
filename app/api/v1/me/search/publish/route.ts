@@ -50,13 +50,17 @@ export const POST = handler(async (_req: NextRequest, { rid }) => {
     });
 
     if (IS_BETA) {
-      // Pilot: identity (and phone) are confirmed by a human out-of-band, never auto-granted.
-      // Create a manual-review request; the user is not discoverable until a verifier approves.
-      await tx.verificationCheck.upsert({
-        where: { userId_category: { userId: user.id, category: "identity" } },
-        create: { userId: user.id, category: "identity", status: "manual_review", points: 0 },
-        update: { status: "manual_review", points: 0 },
-      });
+      // Identity is confirmed by a person, never auto-granted. Members approved through an
+      // application already have it: re-publishing (e.g. after a pause) must never undo it.
+      // Anyone else waits in the older manual-review queue.
+      const id = await tx.verificationCheck.findUnique({ where: { userId_category: { userId: user.id, category: "identity" } } });
+      if (id?.status !== "verified") {
+        await tx.verificationCheck.upsert({
+          where: { userId_category: { userId: user.id, category: "identity" } },
+          create: { userId: user.id, category: "identity", status: "manual_review", points: 0 },
+          update: { status: "manual_review", points: 0 },
+        });
+      }
     } else {
       // Dev/staging demo: simulate core identity so the flow is exercisable.
       await tx.user.update({

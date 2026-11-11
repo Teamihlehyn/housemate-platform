@@ -1,0 +1,21 @@
+We've got your Peabudy application
+
+Thanks, {{first_name}}. A person on our team will read it. We'll email you within a day to book a short video call, so we can see your photo ID.
+
+Check my application:
+{{status_url}}
+
+What happens next
+1. We email you to book a 10-minute video ID call.
+2. On the call, show a photo ID: a passport, driver's licence or national ID card. We don't record the call or keep a copy of your ID.
+3. If you're approved, we email you a link to activate your account. Until then nobody sees your profile, and you don't see anyone.
+
+You can change your answers until the review starts: open the link above, choose "Sign in to change your answers" and enter the code we email you.
+
+We'll never ask you for money, and nobody from our team will ask for a fee to speed things up.
+
+Peabudy never asks for money. Never pay an 'agent fee', 'inspection fee' or deposit before you've seen a home in person and confirmed who the landlord is.
+
+--
+Peabudy · [POSTAL ADDRESS]
+You're getting this because you applied to join Peabudy with this email address.

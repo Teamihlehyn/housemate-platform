@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiClientError } from "@/lib/client";
-import AccessRequests from "./AccessRequests";
+import Applications from "./Applications";
 import SurveyPanel from "./SurveyPanel";
 
-type Tab = "verification" | "access" | "feedback" | "survey" | "audit";
+type Tab = "applications" | "verification" | "reports" | "feedback" | "survey" | "audit";
 
 interface VCase { userId: string; displayName: string; email: string | null; phone: string | null; city: string | null; submittedAt: string; }
 
@@ -16,24 +16,25 @@ export default function Staff() {
   const [denied, setDenied] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>("verification");
+  const [tab, setTab] = useState<Tab>("applications");
   const [role, setRole] = useState<string | null>(null);
   const [moreBusy, setMoreBusy] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const [audit, vers, res, me] = await Promise.all([
-        api<any>("/staff/audit"),
+      const me = await api<{ role: string }>("/me");
+      // The audit explorer is admin-only; other staff never call it.
+      const [audit, vers, res] = await Promise.all([
+        me.role === "admin" ? api<any>("/staff/audit") : Promise.resolve(null),
         api<{ cases: VCase[] }>("/staff/verifications"),
         api<any>("/staff/research"),
-        api<{ role: string }>("/me"),
       ]);
       setRole(me.role);
-      setData(audit);
+      setData(audit ?? { none: true });
       setCases(vers.cases);
       setResearch(res);
     } catch (e) {
-      if (e instanceof ApiClientError && e.status === 403) setDenied(true);
+      if (e instanceof ApiClientError && (e.status === 403 || e.status === 404)) setDenied(true);
     }
   }, []);
   useEffect(() => { load(); }, [load]);
@@ -43,7 +44,7 @@ export default function Staff() {
     setBusy(userId); setMsg(null);
     try {
       await api(`/staff/verifications/${userId}`, { body: { action, reason } });
-      setMsg(action === "approve" ? "Member verified." : "Case rejected.");
+      setMsg(action === "approve" ? "Identity confirmed." : "Case rejected.");
       await load();
     } catch (e) {
       setMsg(e instanceof ApiClientError ? e.message : "Failed.");
@@ -61,11 +62,13 @@ export default function Staff() {
   }
 
   const tabs: [Tab, string][] = [
-    ["verification", `ID checks${cases.length ? ` (${cases.length})` : ""}`],
-    ["access", "Access requests"],
-    ["feedback", research?.mode === "beta" ? "Feedback and reports" : "User research"],
+    ["applications", "Applications"],
+    // Members who published before approval-first sign-up (shown only while any wait).
+    ...(cases.length ? ([["verification", `Identity checks (${cases.length})`]] as [Tab, string][]) : []),
+    ["reports", `Reports${research?.reports?.length ? ` (${research.reports.length})` : ""}`],
+    ["feedback", "Feedback"],
     ...(role === "admin" && research?.mode === "beta" ? ([["survey", "Survey"]] as [Tab, string][]) : []),
-    ["audit", "Audit"],
+    ...(role === "admin" ? ([["audit", "Audit"]] as [Tab, string][]) : []),
   ];
 
   if (denied) return <div className="card p-8 text-center text-ink-600">Staff access required.</div>;
@@ -73,8 +76,8 @@ export default function Staff() {
 
   return (
     <div>
-      <h1 className="mb-4 text-2xl font-bold text-ink">Operations console</h1>
-      <div className="mb-5 flex gap-1 overflow-x-auto border-b border-ink-100" role="tablist" aria-label="Console sections">
+      <h1 className="sr-only">Back office</h1>
+      <nav className="mb-5 flex flex-wrap gap-1 border-b border-ink-100" role="tablist" aria-label="Back office sections">
         {tabs.map(([id, text]) => (
           <button
             key={id}
@@ -86,7 +89,7 @@ export default function Staff() {
             {text}
           </button>
         ))}
-      </div>
+      </nav>
       {msg && <div className="mb-4 rounded-lg border border-brand-200 bg-brand-50 px-4 py-2.5 text-sm text-brand-800">{msg}</div>}
 
       {/* Identity verification queue */}
@@ -114,7 +117,7 @@ export default function Staff() {
         <p className="mt-2 text-xs text-ink-500">Approve only after confirming identity out-of-band (live check). No ID documents are stored.</p>
       </section>}
 
-      {tab === "access" && <AccessRequests isAdmin={role === "admin"} />}
+      {tab === "applications" && <Applications isAdmin={role === "admin"} />}
       {tab === "survey" && role === "admin" && <SurveyPanel />}
 
       {/* Feedback and reports (beta) / user research */}
@@ -122,7 +125,7 @@ export default function Staff() {
         <section className="mb-8">
           {research.mode === "beta" ? (
             <div className="mb-4 grid grid-cols-3 gap-3">
-              <Stat label="Members" value={research.counts.members} />
+              <Stat label="Users" value={research.counts.members} />
               <Stat label="Verified" value={research.counts.verified} />
               <Stat label="Feedback (7 days)" value={research.counts.feedback7d} />
             </div>
@@ -163,7 +166,12 @@ export default function Staff() {
             <button className="btn-secondary mt-3 min-h-[44px]" disabled={moreBusy} onClick={loadMoreFeedback}>Load more feedback</button>
           )}
 
-          <h3 className="mb-2 mt-5 font-semibold text-ink">Safety reports ({research.reports.length})</h3>
+        </section>
+      )}
+
+      {tab === "reports" && research && (
+        <section className="mb-8">
+          <h2 className="mb-2 font-semibold text-ink">Safety reports ({research.reports.length})</h2>
           {research.reports.length === 0 ? (
             <div className="card p-5 text-center text-sm text-ink-600">No reports.</div>
           ) : (
@@ -172,7 +180,7 @@ export default function Staff() {
                 <div key={r.id} className="card p-4 text-sm">
                   <div className="flex flex-wrap items-center gap-2 text-xs text-ink-500">
                     <span className="font-mono font-semibold text-ink-600">{r.caseId}</span>
-                    <span className="chip bg-red-50 text-red-700">{r.category.replaceAll("_", " ")}</span>
+                    <span className="chip bg-danger-50 text-danger-700">{r.category.replaceAll("_", " ")}</span>
                     <span>{r.reporter} → {r.target}</span>
                     <span className="ml-auto">{new Date(r.createdAt).toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" })}</span>
                   </div>
@@ -185,7 +193,7 @@ export default function Staff() {
       )}
 
       {/* Audit explorer */}
-      {tab === "audit" && <section>
+      {tab === "audit" && role === "admin" && data?.health && <section>
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-ink-600">Audit explorer</h2>
         <div className="mb-4 grid grid-cols-3 gap-3">
           <Stat label="Audit events" value={data.health.totalAudit} />

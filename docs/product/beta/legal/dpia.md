@@ -13,7 +13,7 @@
 
 > **Update, 10 Nov 2026 (live launch re-plan; README "Live launch plan"):**
 > - **Scope:** a live beta opening in **Lagos first** on 13 Nov, with London later. Research mode is retired.
-> - **New processing 1, survey emails:** consent-based (unticked opt-in, versioned, with an unsubscribe link). An admin-only, audited CSV export of opted-in members is used only to send the survey from the founder's mailbox (a new processor: [MAILBOX PROVIDER]).
+> - **New processing 1, survey emails:** consent-based (unticked opt-in, versioned, with an unsubscribe link). An admin-only, audited CSV export of opted-in users is used only to send the survey from the founder's mailbox (a new processor: [MAILBOX PROVIDER]).
 > - **New processing 2, automated identity check by Didit** (from about 27 Nov): document + liveness + face match. That is **biometric / special-category data** (UK GDPR Art. 9; NDPA 2023 sensitive personal data). It needs explicit consent, a DPA with Didit, the shortest retention at Didit, and a transfer basis for Nigerian data to [DIDIT REGION]. Peabudy stores only the result.
 > - **No NIN or BVN database lookups** (D22). This avoids the reported NIMC consent regime for NIN sharing.
 > - **Biometric processing pushes this DPIA from "appropriate" to "required in substance".** Counsel (F-19) and the security reviewer (SEC-13) must complete the Didit section before go-live. Add risks:
@@ -37,7 +37,7 @@ Systematic matching of individuals, combined with a safety risk from offline mee
 | Data | See privacy notice §3. Notable: gender and gender preference (private, optional); identity check outcome only (no documents, `CLAUDE.md` rule 8); message text (HTML-escaped, stored in `Message.body`); report text; IP and technical logs |
 | Volumes | Cohort 1 up to 40 people; [EXPECTED AT 7 DEC] |
 | Systems | Next.js on Vercel ([VERCEL REGION]); Postgres on Neon (`beta` branch, [NEON REGION]); Resend (email, sending domain `peabudy.com`, region [RESEND SENDING REGION]); Tally (waitlist and survey); Microsoft Clarity (off in beta until consent ships) |
-| Access | Members see checked members' public profiles only (ENG-02). Staff roles: verifier, moderator, admin (ENG-24). Staff can't read chats |
+| Access | Users see checked users' public profiles only (ENG-02). Staff roles: verifier, moderator, admin (ENG-24). Staff can't read chats |
 | Retention | Privacy notice §7. Deletion is soft in the app, and purged by hand weekly (founder.md F-10) |
 
 ## 3. Necessity and proportionality
@@ -54,7 +54,7 @@ Systematic matching of individuals, combined with a safety risk from offline mee
 
 | # | Risk to individuals | Likelihood | Severity | Mitigations | Residual |
 |---|---|---|---|---|---|
-| R1 | Unverified person browses real members (stalking, scraping) | High today (Fact: `recommendations` and `users/[id]` don't check the viewer in beta) | High | **ENG-02** (verified-only browsing), the ID check, rate limits (ENG-18) | Low after ENG-02 |
+| R1 | Unverified person browses real users (stalking, scraping) | High today (Fact: `recommendations` and `users/[id]` don't check the viewer in beta) | High | **ENG-02** (verified-only browsing), the ID check, rate limits (ENG-18) | Low after ENG-02 |
 | R2 | Harm when strangers meet (assault, harassment) | Low–medium | Severe | ID check; safety card (DES-03); no home or viewing features in beta (ENG-01); block and report; suspension (ENG-11); emergency signposting | Medium (inherent to the service) |
 | R3 | Rent, deposit or romance scams | Medium | High (financial) | Terms ban money requests; chat caution; safety card; scam reporting category; suspension | Medium |
 | R4 | Fake or underage profiles | Medium | High | Staff video ID and age check; 18+ declaration (ENG-05) | Low |

@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { isStaffAccount } from "@/lib/staff";
 import { handler, ok, fail } from "@/lib/api";
 import { requireUser } from "@/lib/guard";
 import { prisma } from "@/lib/db";
@@ -37,6 +38,7 @@ export const GET = handler(async (_req: NextRequest, { rid, params }) => {
     block ||
     !target ||
     target.accountStatus !== "active" ||
+    isStaffAccount(target) ||
     target.profile?.publicationStatus !== "published" ||
     (target.sandboxWorldId ?? null) !== (viewer.sandboxWorldId ?? null)
   ) {

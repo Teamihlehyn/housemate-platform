@@ -40,7 +40,7 @@ export function useCountdown(until: number | null) {
   return until ? Math.max(0, Math.ceil((until - now) / 1000)) : 0;
 }
 
-export default function WaitingRoom({ until, message }: { until: number; message: string }) {
+export default function WaitingRoom({ until, message, applyLink = true }: { until: number; message: string; /** Hide "Apply to join" where the person is already applying. */ applyLink?: boolean }) {
   const left = useCountdown(until);
   const done = left <= 0;
   const at = new Date(until).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
@@ -72,10 +72,12 @@ export default function WaitingRoom({ until, message }: { until: number; message
 
       {!done && (
         <>
-          <p className="mt-3 text-center text-sm text-ink-700">
-            New to Peabudy?{" "}
-            <Link href="/request-access" className="inline-flex min-h-[44px] items-center font-semibold text-brand-700 underline underline-offset-4">Request an invite</Link>
-          </p>
+          {applyLink && (
+            <p className="mt-3 text-center text-sm text-ink-700">
+              New to Peabudy?{" "}
+              <Link href="/join" className="inline-flex min-h-[44px] items-center font-semibold text-brand-700 underline underline-offset-4">Apply to join</Link>
+            </p>
+          )}
           <WakeGame />
           <HowCards />
         </>

@@ -402,7 +402,7 @@ export async function buildHouseholdView(householdId: string, userId: string) {
       return {
         userId: m.userId,
         state: m.state,
-        name: u?.displayName ?? "Member",
+        name: u?.displayName ?? "User",
         initials: u?.profile?.avatarInitials ?? "?",
         isSample: !!u?.isDemoBot,
         // Each member's saved rent band as a monthly equivalent, to flag splits outside it.

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { api, ApiClientError } from "@/lib/client";
 import { REPORT_CATEGORIES } from "@/lib/constants";
 
-// Report a member. Creates a private case; it never changes their public score.
+// Report a user. Creates a private case; it never changes their public score.
 export default function ReportDialog({
   targetUserId,
   targetName,

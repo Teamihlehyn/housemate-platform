@@ -1,12 +1,12 @@
 import { NextRequest } from "next/server";
 import { handler, ok } from "@/lib/api";
-import { requireUser } from "@/lib/guard";
+import { requireAccount } from "@/lib/guard";
 import { prisma } from "@/lib/db";
 import { computeScore } from "@/lib/credibility";
 
 // GET /api/v1/me/export — the user's own data (data-portability). Own records only.
 export const GET = handler(async (_req: NextRequest, { rid }) => {
-  const user = await requireUser();
+  const user = await requireAccount();
   const full = await prisma.user.findUnique({
     where: { id: user.id },
     include: { profile: true, search: { include: { areas: true, preferences: true } }, checks: true },
@@ -18,7 +18,11 @@ export const GET = handler(async (_req: NextRequest, { rid }) => {
     select: { createdAt: true, page: true, rating: true, message: true },
   });
   // HM-30: what we hold from before the account existed, and the survey emails sent.
-  const [accessRequests, invites, surveySends] = await Promise.all([
+  const [application, accessRequests, invites, surveySends] = await Promise.all([
+    prisma.application.findUnique({
+      where: { userId: user.id },
+      select: { status: true, submittedAt: true, callAt: true, reviewedAt: true, idCheckMethod: true, idCheckAt: true, reapplyAfter: true, createdAt: true, updatedAt: true },
+    }),
     prisma.accessRequest.findMany({
       where: { email: user.email },
       select: { name: true, email: true, city: true, area: true, moveInMonth: true, howHeard: true, note: true, status: true, consentVersion: true, createdAt: true, reviewedAt: true },
@@ -65,6 +69,8 @@ export const GET = handler(async (_req: NextRequest, { rid }) => {
     verification: full!.checks.map((c) => ({ category: c.category, status: c.status, points: c.points })),
     credibility: score,
     feedback,
+    // Approval-first: the application's review state (the answers are profile and search).
+    application,
     accessRequests,
     invites,
     surveyEmails: surveySends.map((s) => ({ campaign: s.resourceId, outcome: s.outcome, sentAt: s.occurredAt })),

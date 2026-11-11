@@ -1,5 +1,6 @@
 - [Calm ledger direction](design-direction-calm-ledger.md) — applied 2026-11-09 with Peabudy rename; open: D2, D4, dark mode
 - [Peabudy mascots](peabudy-brand-mascots.md) — Pea and Bud rules: celebrate own progress only, true copy, no fake counts
 - [Font glyph coverage](font-glyph-coverage.md) — Schibsted/Hanken lacked ₦/Ṣ; which fonts pass; next/font subsets needed
-- [Responsive QA method](responsive-qa-method.md) — iframe sweep; localhost only (127.0.0.1 won't hydrate); shared cookie jar; no helpers in public/
-- [Invite-only entry](invite-only-entry.md) — Lagos beta request-access/invite/busy/survey decisions and honesty limits
+- [Responsive QA method](responsive-qa-method.md) — iframe sweep; localhost only; shared cookie jar; fake mail sink for beta codes
+- [Approval-first entry](invite-only-entry.md) — /join application, status, activation, members-only sign-in; honesty limits
+- [City photo cards](city-photo-cards.md) — founder photos, rights unconfirmed, JPEG-only assets, Lagos first

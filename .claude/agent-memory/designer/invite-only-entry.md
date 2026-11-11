@@ -1,18 +1,20 @@
 ---
 name: invite-only-entry
-description: Lagos beta entry design (D15/HM-26/D16): request access, invite landing, busy screen, survey opt-in — decisions and honesty limits
+description: Lagos beta entry is approval-first (10 Nov 2026): /join application, status page, activation, members-only sign-in; honesty limits
 metadata:
   type: project
 ---
 
-Founder approved on 2026-11-10: invite-only beta in Lagos (launch Fri 13 Nov 2026). Landing CTA
-is "Request an invite" in beta only (research/dev keep "Get started"). Survey emails are
-consent-only: the opt-in is unticked, in onboarding's last step and Settings, and the copy
-promises "About 4 minutes, sent once with at most one reminder", so the survey email says
-4 minutes too (the coordinator once asked for "3-minute"; consistency with what people agreed to
-won). The busy screen (HM-26) only shows a countdown from Retry-After, never a queue position.
+Superseded D15's request-access/invite flow on 2026-11-10: founder approved approval-first
+sign-up (F1–F4). Joining is an application at `/join` (email code first, then the shared
+conversational questions, autosaved per screen), staff approve after a ~10-minute video ID call,
+the applicant activates at `/invite/[code]`, and `/signin` is members-only with one identical
+neutral message for every address. London is accepted but held (waitlisted). Launch moved to
+Wed 18 Nov 2026. Survey opt-in stays unticked, "About 4 minutes, sent once with at most one reminder".
 
-**Why:** strangers + money + Lagos scams: nothing on these screens may imply a place in a queue,
-a guarantee of an invite, or safety.
-**How to apply:** reuse `components/PublicShell.tsx` for new public pages; keep the invite email
-neutral (invites can be ad hoc and unbound to an email). See [[peabudy-brand-mascots]].
+**Why:** strangers + money + Lagos scams; "everyone you see was reviewed by a person" is the
+trust promise, and the old split sign-in leaked which emails had accounts (HM-28).
+**How to apply:** never imply a queue position, a guaranteed approval, a match or safety on these
+screens; declines never show a reason; keep the sign-in message identical for all addresses.
+Shared question components live in `components/apply/` (see [[peabudy-brand-mascots]],
+[[city-photo-cards]]).

@@ -5,12 +5,34 @@ import { HOMES_ENABLED, IS_BETA } from "./env";
 
 export { adminEmails } from "./staff";
 
-// Server-side authorization — a hidden button is not authorization.
-export async function requireUser() {
+// Any signed-in account, applicants included (ENG-39). Only for the applicant allow-list:
+// /me, /me/profile, /me/search, /me/preferences, /me/export, /me/delete, /applications/*.
+export async function requireAccount() {
   const user = await getCurrentUser();
   if (!user) throw new ApiError("UNAUTHENTICATED", "Sign in to continue.", 401);
   if (user.accountStatus === "suspended")
     throw new ApiError("SUSPENDED", "This account is suspended.", 403);
+  return user;
+}
+
+// Is this an applicant (or an application-scoped session)? Pure, for tests.
+export function isApplicantSession(u: { accountStatus: string; sessionScope: string }): boolean {
+  return u.accountStatus === "applicant" || u.sessionScope !== "member";
+}
+
+export const STAFF_ROLE_IDS = ["verifier", "moderator", "admin"];
+export function isStaffRole(role: string): boolean {
+  return STAFF_ROLE_IDS.includes(role);
+}
+
+// Server-side authorization — a hidden button is not authorization.
+// Members only. An applicant gets 404 on every member route, the same as a missing resource,
+// so the application session can't reach member data (ENG-39). Staff get 404 too: staff
+// accounts are back-office only and never use the product (founder, 10 Nov). `role` here is
+// already the effective role (lib/staff.ts), never the stored one alone.
+export async function requireUser() {
+  const user = await requireAccount();
+  if (isApplicantSession(user) || isStaffRole(user.role)) throw new ApiError("NOT_FOUND", "Not found.", 404);
   return user;
 }
 
@@ -20,19 +42,20 @@ export function requireHomesEnabled() {
   if (!HOMES_ENABLED) throw new ApiError("NOT_FOUND", "This isn't available in early access.", 404);
 }
 
-export async function requireStaff(role?: string) {
-  const user = await requireUser();
-  const staffRoles = ["verifier", "moderator", "admin"];
-  if (!staffRoles.includes(user.role)) throw new ApiError("FORBIDDEN", "Staff access required.", 403);
-  if (role && user.role !== role && user.role !== "admin")
-    throw new ApiError("FORBIDDEN", "Insufficient role.", 403);
+// Back office. Visitors, members, applicants and suspended accounts all get the same 404:
+// the staff routes don't exist for them. Effective role only (HM-10).
+export async function requireStaff() {
+  const user = await getCurrentUser();
+  if (!user || user.accountStatus === "suspended" || isApplicantSession(user) || !isStaffRole(user.role)) {
+    throw new ApiError("NOT_FOUND", "Not found.", 404);
+  }
   return user;
 }
 
-// Admin-only staff tools (survey send and export, D17/ENG-30). Everyone else, other staff
+// Admin-only staff tools (survey send and export, audit). Everyone else, other staff
 // roles included, gets 404: these routes don't exist for them.
 export async function requireAdmin() {
-  const user = await requireUser();
+  const user = await requireStaff();
   if (user.role !== "admin") throw new ApiError("NOT_FOUND", "Not found.", 404);
   return user;
 }

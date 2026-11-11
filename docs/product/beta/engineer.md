@@ -42,8 +42,8 @@
 | ENG-27 | Contrast fixes: placeholder text and faint landing text | XS | S1 | DES-12 | — |
 | ENG-28 | Peabudy rename: user-facing brand strings only (code identifiers unchanged) | S | FT (email, sign-in, metadata, legal pages) / S1 (rest) | Designer's rebrand (name, wordmark) | — |
 | **ENG-29** | Survey email opt-in, Settings toggle, unsubscribe link | S | **Live launch** (by Wed 11 Nov 13:00) | DES-13 | D16 |
-| **ENG-30** | Staff CSV export of opted-in members (admin only, audited) | S | After launch, by Wed 18 Nov | ENG-29 | D16, D17 |
-| **ENG-31** | Feedback in beta: honest copy, member shown to staff, rate limit, export and purge | S | **Live launch** | DES-14 | — |
+| **ENG-30** | Staff CSV export of opted-in users (admin only, audited) | S | After launch, by Wed 18 Nov | ENG-29 | D16, D17 |
+| **ENG-31** | Feedback in beta: honest copy, user shown to staff, rate limit, export and purge | S | **Live launch** | DES-14 | — |
 | **ENG-32** | Sign-up pause switch + `OPEN_CITIES` waiting copy | XS | **Live launch** | DES-04 | D15, D21 |
 | **ENG-33** | Staging = permanent beta rehearsal; retire `switch-to-research.sh` | XS | **Live launch** (Tue 10 Nov) | Founder sets dashboard vars | D19 |
 | **ENG-34** | Nigerian money-request patterns; caution shown to the recipient too | XS–S | Live launch (should) | DES-03 | D21 |
@@ -72,7 +72,7 @@
 ## ENG-01: Beta: switch off homes, viewings, application and move-in
 
 - **Problem.** These steps run on sample homes and demo applications (`household/page.tsx` "Sample availability", "demo application"). With two real strangers, "book a viewing" of a sample home could lead to a real meeting about a home that doesn't exist. That's a safety risk and it breaks the honesty rule.
-- **User story.** As a beta member in a household, I see only the written agreement, so I'm never led to a viewing or application that isn't real.
+- **User story.** As a beta user in a household, I see only the written agreement, so I'm never led to a viewing or application that isn't real.
 - **In scope:**
   - In beta, the server returns `404 NOT_FOUND` ("This isn't available in early access.") for every method on:
     - `app/api/v1/properties/route.ts`
@@ -88,9 +88,9 @@
   - In beta, a household that has agreed the latest plan shows a final state, "Agreement in place", instead of progressing to `viewing` (UI only; `derivedStage` logic is unchanged).
 - **Out of scope:** deleting the code or data; changing research mode; "leave household" (it stays).
 - **Acceptance criteria:**
-  - Given `APP_ENV=beta` and a signed-in household member, when they `POST /api/v1/households/{id}/viewings`, then the response is 404 `NOT_FOUND` and no row is written.
+  - Given `APP_ENV=beta` and a signed-in household user, when they `POST /api/v1/households/{id}/viewings`, then the response is 404 `NOT_FOUND` and no row is written.
   - Given `APP_ENV=beta`, when any route listed above is called by any user, then it returns 404, and the existing auth order is preserved (an unauthenticated call still returns 401 first).
-  - Given `APP_ENV=beta`, when a member opens `/household`, then only the agreement and the leave action are visible. No "Shortlist", "Viewings", "Application" or "Move-in" tab or text appears, at 375 px or on desktop.
+  - Given `APP_ENV=beta`, when a user opens `/household`, then only the agreement and the leave action are visible. No "Shortlist", "Viewings", "Application" or "Move-in" tab or text appears, at 375 px or on desktop.
   - Given `APP_ENV=research`, when `tests/e2e_research.py` runs, then all 34 checks pass (no regression).
 - **Files:** the routes listed above; `app/(app)/household/page.tsx` (tabs at lines 109–158); `app/page.tsx` (STAGES, lines 155–161). Suggest a helper in `lib/env.ts`, e.g. `export const HOMES_ENABLED = !IS_BETA;`.
 - **Data / migration:** none.
@@ -104,7 +104,7 @@
   - *Fact:* `GET /api/v1/recommendations` doesn't check whether the **viewer** is identity-verified. In beta, the pool only filters **candidates** by verification (`lib/matching.ts:147–150`).
   - *Fact:* `GET /api/v1/users/[id]` checks neither the viewer nor the target for verification (`users/[id]/route.ts:27–35`).
   - So anyone who signs up with an email address and publishes a profile can browse real, verified people's bios, areas, budgets and dates without an ID check. They can also view published-but-unverified people by ID.
-- **User story.** As a verified member, I'm only visible to other people whose identity the team has checked.
+- **User story.** As a verified user, I'm only visible to other people whose identity the team has checked.
 - **In scope (beta only):**
   - `recommendations`: if the viewer's identity check isn't `verified`, return 200 with `{ candidates: [], exclusions: { narrowFilters: [], excludedCount: 0 }, gate: "identity_pending" }`. Don't run matching.
   - `users/[id]`: return generic 404 ("This profile is no longer available.") if the viewer **or** the target isn't identity-verified.
@@ -114,12 +114,12 @@
   - Given beta and a published viewer whose identity is `manual_review`, when they call `GET /recommendations`, then `candidates` is empty and `gate` is `"identity_pending"`.
   - Given beta and an unverified viewer, when they call `GET /users/{verifiedId}`, then the response is 404 with the same body as for a missing user.
   - Given beta and a verified viewer, when they call `GET /users/{unverifiedPublishedId}`, then the response is 404.
-  - Given beta, two verified, compatible members, when either calls `GET /recommendations`, then the other appears (no regression).
+  - Given beta, two verified, compatible users, when either calls `GET /recommendations`, then the other appears (no regression).
   - Given research mode, all `e2e_research.py` checks pass.
 - **Files:** `app/api/v1/recommendations/route.ts`, `app/api/v1/users/[id]/route.ts`, `app/(app)/discover/page.tsx` (lines 39–55, 82–90). Move `identityVerified()` from `introductions/route.ts` into `lib/` (e.g. `lib/verification.ts`) and reuse it in all three routes.
 - **Data / migration:** none.
 - **Audit/outbox:** none.
-- **Tests:** e2e_beta: "pending viewer sees no candidates", "pending viewer gets 404 on a verified profile", "verified viewer can't see an unverified profile", "two verified members see each other".
+- **Tests:** e2e_beta: "pending viewer sees no candidates", "pending viewer gets 404 on a verified profile", "verified viewer can't see an unverified profile", "two verified users see each other".
 - **Size** S · **Assumes** D4 (identity check stays mandatory).
 
 ## ENG-03: Beta copy wiring + in-conversation safety note
@@ -135,7 +135,7 @@
 - **Out of scope:** visual redesign (`docs/design/`); legal text (ENG-25).
 - **Acceptance criteria:**
   - Given beta, when the built HTML of `/`, `/safety`, `/terms`, `/signin` and the signed-in pages is grepped for `Demo`, `demo`, `sample`, `Sample`, `simulated`, `Seeded`, `prototype` and `Prototype`, then there are no matches except the allow-list in DES-01 (e.g. "not a demo").
-  - Given beta, when a member opens any conversation, then the safety note shows, has a working dismiss button with a 44 px or larger target, and stays dismissed for that conversation after a reload.
+  - Given beta, when a user opens any conversation, then the safety note shows, has a working dismiss button with a 44 px or larger target, and stays dismissed for that conversation after a reload.
   - Given research mode, all `e2e_research.py` checks pass, and the research banner and labels are unchanged.
 - **Files:**
   - `app/page.tsx`, `app/safety/page.tsx`, `app/terms/page.tsx`, `app/signin/page.tsx`
@@ -153,7 +153,7 @@
 ## ENG-04: Beta: list of completed checks replaces the 0–100 score
 
 - **Problem.** A 0–100 score built from two or three inputs can't be justified, and today it's labelled "Demo" everywhere: `discover/page.tsx:119`, `members/[id]/page.tsx:72,107`, `profile/page.tsx:75`, `onboarding/page.tsx:376`.
-- **User story.** As a member, I see plainly which checks someone has completed, and that this isn't a guarantee of safety.
+- **User story.** As a user, I see plainly which checks someone has completed, and that this isn't a guarantee of safety.
 - **In scope (beta):**
   - Replace the score chip and the breakdown card with the checks list from DES-02, built from `credibility.components` (`category`, `status`). Show only `verified` checks as done.
   - Identity shows "Identity checked by the Peabudy team · {Month YYYY}", using `VerificationCheck.checkedAt`. Expose `checkedAt` (month precision only) in the credibility DTO.
@@ -161,7 +161,7 @@
   - Don't render a number anywhere in beta.
 - **Out of scope:** changing `lib/credibility.ts` scoring or snapshots (they keep running server-side); research-mode display.
 - **Acceptance criteria:**
-  - Given beta and a verified member, when another verified member views their card or profile, then they see "Email confirmed" and "Identity checked by the Peabudy team · November 2026" and no digits followed by "/100".
+  - Given beta and a verified user, when another verified user views their card or profile, then they see "Email confirmed" and "Identity checked by the Peabudy team · November 2026" and no digits followed by "/100".
   - Given beta, when `GET /users/{id}` is called, then the response contains each check's month (`"2026-11"`) and not its full timestamp.
   - Given research mode, the score display is unchanged.
 - **Files:** the four pages above; `app/api/v1/users/[id]/route.ts`; `app/api/v1/me/route.ts` (check that it returns `credibility`); `lib/credibility.ts` (DTO only).
@@ -194,7 +194,7 @@
   - `request-code/route.ts:28` uses `Math.random()` for login codes.
   - `verify-code` lets a `deletion_pending` account sign straight back in. The account then works normally, because `requireUser` only blocks `suspended` and `getCurrentUser` only blocks `deleted`.
   - `verify-code` only asks for consent when `privacyConsentAt` is null. It never compares `privacyConsentVersion` with `PRIVACY_VERSION`, so the new notice (ENG-25) wouldn't trigger re-consent.
-- **User story.** As a member, my sign-in code can't be guessed, a deletion I asked for isn't quietly undone, and I'm asked to agree when the privacy notice changes.
+- **User story.** As a user, my sign-in code can't be guessed, a deletion I asked for isn't quietly undone, and I'm asked to agree when the privacy notice changes.
 - **In scope:**
   1. Generate codes with `crypto.randomInt(100000, 1000000)`.
   2. In `verify-code`, after the code check and before creating a session: if `accountStatus === "deletion_pending"`, return 403 `FORBIDDEN` with "Your account is being deleted. If you want to keep it, email [CONTACT EMAIL]." The contact address comes from `NEXT_PUBLIC_CONTACT_EMAIL` (new env var, set in ENG-08). Don't consume the code.
@@ -224,11 +224,11 @@
 - **Acceptance criteria:**
   - Given 3 pending cases published 2 h, 30 h and 80 h ago, when the queue loads, then they're listed oldest first, show "Waiting 80 h" (red, labelled "Over 72 h") and "Waiting 30 h" (amber, "Over 24 h"), and the per-city overdue count is 1.
   - Given a verifier marks a case as contacted, then `contactedAt` is set and audit `verification.contacted` is written with `actorType` staff.
-  - Given a member (non-staff), when they call `GET /staff/verifications`, then the response is 403 `FORBIDDEN`.
+  - Given a user (non-staff), when they call `GET /staff/verifications`, then the response is 403 `FORBIDDEN`.
 - **Files:** `app/api/v1/staff/verifications/route.ts`, `app/api/v1/staff/verifications/[userId]/route.ts` (new `action: "contacted"`), `app/(app)/staff/page.tsx` (moves into the ENG-24 shell).
 - **Data / migration (S1):** `VerificationCheck.contactedAt DateTime?` (additive).
 - **Audit:** `verification.contacted`.
-- **Tests:** e2e_beta "queue sorted oldest first, includes areas", "member forbidden".
+- **Tests:** e2e_beta "queue sorted oldest first, includes areas", "user forbidden".
 - **Size** S (FT part XS) · **Assumes** D9.
 
 ## ENG-08: `scripts/switch-to-beta.sh` + production env checklist
@@ -273,7 +273,7 @@
   - Find and record the **Neon project region** and the **Vercel function region**, which the DPIA needs.
 - **Out of scope:** deleting or contacting anyone (founder decision D5).
 - **Acceptance criteria:**
-  - Given the checks, the ticket records: migration status ("up to date" or the pending list), member counts, any pre-existing real accounts (count), and the regions.
+  - Given the checks, the ticket records: migration status ("up to date" or the pending list), user counts, any pre-existing real accounts (count), and the regions.
   - Given pending migrations, they're applied by the next production build (`npm run build` runs `prisma migrate deploy`). Don't apply them by hand.
 - **Size** XS · **Assumes** D5.
 
@@ -285,7 +285,7 @@
     - A staging deployment with `APP_ENV=beta` and `NEXT_PUBLIC_APP_ENV=beta`, pointed at a **new Neon branch `beta-rehearsal`** created from `beta`. Never rehearse on the production beta branch.
     - The Preview variables go on the `staging` branch. Use the Vercel dashboard (the CLI is flaky for branch-scoped Preview vars, `CLAUDE.md` §10).
     - Run with three real inboxes: Gmail, Outlook and Yahoo. Ideally one is used from Nigeria, to check delivery there.
-    - Path: sign-up → onboarding → publish → pending (sees nobody) → staff approval → two members see each other → intro → accept → chat → agreement → report → block → delete account.
+    - Path: sign-up → onboarding → publish → pending (sees nobody) → staff approval → two users see each other → intro → accept → chat → agreement → report → block → delete account.
     - Record the results in a checklist (no personal data).
   - **S1 suite:** `tests/e2e_beta.py BASE_URL DATABASE_URL`, run **locally only**. It reads the latest `AuthCode` for test addresses directly from the local database, because beta never shows codes.
     - Local beta needs an email sink. Add `EMAIL_SINK=log`, honoured **only** when `process.env.VERCEL` is unset **and** `NODE_ENV !== "production"`. Get SEC-01 to review this guard.
@@ -313,8 +313,8 @@
     - pending intros to or from them become `expired`
     - open conversations become `closed`
     - proposed or active households become `closed`, with `reasonCode` `member_unavailable`
-    - notify the other members: "This household was closed because the other member's account is no longer active." No reason is shared.
-  - **Restore:** `accountStatus = "active"`. Nothing is reopened, and the member must republish.
+    - notify the other users: "This household was closed because the other user's account is no longer active." No reason is shared.
+  - **Restore:** `accountStatus = "active"`. Nothing is reopened, and the user must republish.
   - Staff can't suspend themselves or another admin.
   - UI: buttons on the user detail page (ENG-22) and on a report (ENG-21), with a reason picker.
   - **FT stopgap (runbook only, no code):**
@@ -324,12 +324,12 @@
     - Run with `psql "$(neon connection-string beta)"`. Write the exact SQL into founder.md F-09.
 - **Out of scope:** appeals UI; timed suspensions; telling the suspended user anything except the existing `SUSPENDED` 403 ("This account is suspended."). Copy: DES-11.
 - **Acceptance criteria:**
-  - Given a moderator and an active member with a pending intro, an open conversation and an active household, when the moderator suspends with `reason_code = "harassment"`, then:
-    - the member's next request returns 403 `SUSPENDED`
-    - they disappear from every other member's recommendations
+  - Given a moderator and an active user with a pending intro, an open conversation and an active household, when the moderator suspends with `reason_code = "harassment"`, then:
+    - the user's next request returns 403 `SUSPENDED`
+    - they disappear from every other user's recommendations
     - the intro is `expired`, the conversation `closed` and the household `closed`
-    - the other household member gets the in-app notification
-    - one audit row `staff.account_suspended` has `actorType = "staff"`, `subjectId` = member and `reasonCode = "harassment"`
+    - the other household user gets the in-app notification
+    - one audit row `staff.account_suspended` has `actorType = "staff"`, `subjectId` = user and `reasonCode = "harassment"`
   - Given a verifier (not a moderator), when they call the route, then 403 `FORBIDDEN`.
   - Given an admin target, when a moderator tries to suspend, then 403 `FORBIDDEN`.
   - Given a stale `expected_version` (`User` has no version, so use `updatedAt` as the concurrency token), then 409 `VERSION_CONFLICT`.
@@ -341,7 +341,7 @@
 ## ENG-12: Transactional email via Resend + preferences + unsubscribe
 
 - **Problem.** Notifications are in-app only (`CLAUDE.md` §13). Real people won't know about an intro or a reply, so reply rates will collapse.
-- **User story.** As a member, I get an email when something needs me, and I can turn activity emails off.
+- **User story.** As a user, I get an email when something needs me, and I can turn activity emails off.
 - **In scope:**
   - **Events and triggers**, all using the existing `notify()` call sites:
 
@@ -384,7 +384,7 @@
 ## ENG-13: Area-by-area opening per city + configurable launch cities
 
 - **Problem.** Two cities and 12 areas spread early users thin. Opening areas by holding back verification calls slows verification, which is also our interview channel. The city list is hard-coded (`lib/constants.ts`).
-- **User story.** As the founder, I open an area when it has enough people, without a deploy. As a member, I'm told plainly when my area isn't open yet.
+- **User story.** As the founder, I open an area when it has enough people, without a deploy. As a user, I'm told plainly when my area isn't open yet.
 - **In scope:**
   - **Configurable cities:** `NEXT_PUBLIC_BETA_CITIES` (comma list of `CityId`, default `london,lagos`) limits onboarding's city options in beta. `PATCH /me/search` rejects other cities with 422 `VALIDATION` "We're not open in that city yet."
   - **`AreaOpening` model**, toggled in the back office by admin: `POST /api/v1/staff/areas` with `{ city_id, area_id, action: "open" | "close" }`. Audited.
@@ -397,7 +397,7 @@
   - **Back office:**
     - table per city: area · published · verified · pending · move-in months histogram (counts per YYYY-MM) · status · Open/Close button
     - the density threshold is shown as a guide only, not enforced: "≥ 10 published with overlapping months" (*Assumption*)
-  - **On open:** an `area_opened` email (ENG-12) to verified members whose search includes that area.
+  - **On open:** an `area_opened` email (ENG-12) to verified users whose search includes that area.
   - Non-beta modes: every area counts as open, with no database lookup.
 - **Out of scope:** new areas or postcodes; automatic opening.
 - **Acceptance criteria:**
@@ -455,8 +455,8 @@
   - Track which prompts have been shown in `localStorage`, plus the server-side `User.promptsShown` JSON so it works across devices.
   - Leave `NEXT_PUBLIC_FEEDBACK_URL` unset, so the pill keeps the built-in form.
 - **Acceptance criteria:**
-  - Given a verified member 7 days after approval, when they open Discover, then the T4 card links to the survey URL with `ref` (12 hex characters), `city`, `stage` and `source`, and no email or cuid appears in the URL.
-  - Given T4 was dismissed, it never shows again for that member, on any device.
+  - Given a verified user 7 days after approval, when they open Discover, then the T4 card links to the survey URL with `ref` (12 hex characters), `city`, `stage` and `source`, and no email or cuid appears in the URL.
+  - Given T4 was dismissed, it never shows again for that user, on any device.
   - Given `NEXT_PUBLIC_SURVEY_URL` is unset, no survey prompts render.
 - **Files:** `components/ResearchTools.tsx` (or new `components/Prompts.tsx`), `app/api/v1/me/route.ts`, the pages that host prompts, `prisma/schema.prisma`.
 - **Data / migration:** `User.promptsShown String @default("[]")`.
@@ -494,8 +494,8 @@
   - **Back office "Overview" tab** (ENG-24): cards per city, plus a CSV download of the same numbers. Counts only, no personal data.
 - **Out of scope:** charts; cohorts by signup week (later); a third-party analytics product.
 - **Acceptance criteria:**
-  - Given a seeded fixture (2 London and 2 Lagos verified members, 1 London intro accepted with 3 messages each), when `GET /staff/metrics?city=all` is called, then London shows `intro_accept_rate = 1.0` and `meaningful_conversations = 1`, and Lagos shows 0, with no PII fields.
-  - Given a member (non-staff), then 403.
+  - Given a seeded fixture (2 London and 2 Lagos verified users, 1 London intro accepted with 3 messages each), when `GET /staff/metrics?city=all` is called, then London shows `intro_accept_rate = 1.0` and `meaningful_conversations = 1`, and Lagos shows 0, with no PII fields.
+  - Given a user (non-staff), then 403.
   - Given a `discover.viewed` row, then it has no other user's ID anywhere in `safeAfter`.
 - **Files:** `app/api/v1/recommendations/route.ts`, new `app/api/v1/staff/metrics/route.ts`, new `lib/metrics.ts` (SQL via `prisma.$queryRaw`, parameterised), back office UI.
 - **Tests:** e2e_beta fixture check; unit test of the date-window helper.
@@ -517,8 +517,8 @@
   
   Also update the Settings copy (DES-01 #27) to say exactly what's included.
 - **Acceptance criteria:**
-  - Given a member with one intro, one conversation (4 messages), one household plan, one block and one filed report, when they export, then each of these appears. No other user's email, phone or verification data appears, and audit `privacy.exported` is written.
-  - Given a member who was reported, the report about them **isn't** in their export (*pending legal*, see the DPIA).
+  - Given a user with one intro, one conversation (4 messages), one household plan, one block and one filed report, when they export, then each of these appears. No other user's email, phone or verification data appears, and audit `privacy.exported` is written.
+  - Given a user who was reported, the report about them **isn't** in their export (*pending legal*, see the DPIA).
 - **Files:** `app/api/v1/me/export/route.ts`, `app/(app)/settings/page.tsx`.
 - **Audit:** `privacy.exported` (none today).
 - **Size** S.
@@ -594,7 +594,7 @@
 
 ## ENG-22: Back office: user search and user detail
 
-- **Problem.** Staff can't find a member except through the verification queue.
+- **Problem.** Staff can't find a user except through the verification queue.
 - **In scope:**
   - **`GET /api/v1/staff/users?q=`** (`requireStaff()`). Exact email match, display-name prefix, or user ID. At most 20 results: `id`, `displayName`, city, `accountStatus`, role, identity status, `createdAt`. **Show the email only for an exact email match.** That way search can't be used to browse emails.
   - **`GET /api/v1/staff/users/[id]`** returns:
@@ -609,8 +609,8 @@
   - Actions on this page: suspend/restore (ENG-11), and open the verification case.
 - **Acceptance criteria:**
   - Given `q` = a partial email, then no emails are returned. Given `q` = an exact email, then that one user is returned, with email.
-  - Given a staff member opens a detail page, then exactly one `staff.user_viewed` audit row (actor = staff, subject = member) is written.
-  - Given a member (non-staff), both routes return 403.
+  - Given a staff user opens a detail page, then exactly one `staff.user_viewed` audit row (actor = staff, subject = user) is written.
+  - Given a user (non-staff), both routes return 403.
 - **Files:** new `app/api/v1/staff/users/route.ts` and `[id]/route.ts`; back office UI.
 - **Tests:** e2e_beta "search doesn't leak emails", "view is audited".
 - **Size** M · **Depends on** ENG-24.
@@ -626,7 +626,7 @@
   - Viewing the audit trail is itself audited (`staff.audit_viewed`, with the filter keys only).
 - **Acceptance criteria:**
   - Given 120 events for subject S, when filtering by `subject_id = S`, then page 1 has 50 events, newest first, and the cursor returns the next 50 with no duplicates.
-  - Given a member, then 403.
+  - Given a user, then 403.
 - **Files:** `app/api/v1/staff/audit/route.ts`; back office UI.
 - **Size** M · **Depends on** ENG-24.
 
@@ -652,7 +652,7 @@
   - Show the Staff link in the mobile nav too, for staff only.
 - **Acceptance criteria:**
   - Given a verifier, when they call `POST /staff/users/{id}/status`, then 403. Given a moderator, when they call `POST /staff/verifications/{id}`, then 403.
-  - Given a member, when they open `/staff`, then they get a 404 page, not a "Staff access required" card.
+  - Given a user, when they open `/staff`, then they get a 404 page, not a "Staff access required" card.
   - Given any staff mutation in ENG-07/11/13/21, then an audit row with `actorType = "staff"` and the staff `actorId` exists. Check with an e2e assertion per route.
 - **Files:** `app/(app)/staff/page.tsx` (split into `app/(app)/staff/*` components), `lib/guard.ts`, every `app/api/v1/staff/*` route, `components/AppNav.tsx`.
 - **Size** M · **Depends on** DES-11.
@@ -668,7 +668,7 @@
 - **Acceptance criteria:**
   - Given a beta build, when `/privacy` and `/terms` are fetched, then no `[` + capital-letter placeholder appears. Add a build-time test that fails the build if one does.
   - Given beta, `/privacy` names the controller, a contact email, every processor in the legal draft, retention periods, and both the ICO and the NDPC.
-  - Given `PRIVACY_VERSION = "privacy-v2"` and an existing member, then they're asked to re-consent (ENG-06).
+  - Given `PRIVACY_VERSION = "privacy-v2"` and an existing user, then they're asked to re-consent (ENG-06).
 - **Files:** `app/privacy/page.tsx`, `app/terms/page.tsx`, new `lib/legal/`, `lib/constants.ts`, and a test script.
 - **Size** S · **Depends on** F-04 (founder fills the placeholders) · **Assumes** D11 (the founder accepts publishing an unreviewed interim notice).
 
@@ -685,7 +685,7 @@
   - This is the only part of `docs/design/` adopted now.
   - *Fallback if the founder rejects the font change:* adding `latin-ext` + `vietnamese` to the current fonts **doesn't** fix ₦ or Ṣ, because those glyphs aren't in the fonts, so it isn't recommended.
 - **Acceptance criteria:**
-  - Given a Lagos member's budget `₦1,200,000/yr` and the display name "Ṣadé Ọlá", when they're rendered on Discover and the profile at 375 px, then DevTools → Rendered Fonts shows only the web fonts.
+  - Given a Lagos user's budget `₦1,200,000/yr` and the display name "Ṣadé Ọlá", when they're rendered on Discover and the profile at 375 px, then DevTools → Rendered Fonts shows only the web fonts.
   - Given a list of rents, then the digits align (tabular).
   - Given Lighthouse, then CLS doesn't regress (`display: "swap"` kept).
 - **Files:** `app/layout.tsx`, `tailwind.config.ts`, `app/globals.css`.
@@ -707,7 +707,7 @@
 ## ENG-28: Peabudy rename (user-facing brand strings only)
 
 - **Problem.** The product is now called **Peabudy** (founder, 9 Nov 2026), and `peabudy.com` is the sending domain. *Fact:* the login email still says "Housemate" in its subject, text and HTML header (`lib/email.ts`), and 15 files under `app/`, `lib/` and `components/` contain the string. A code email from `hello@peabudy.com` that says "Housemate" looks like phishing, and real people would be right to distrust it.
-- **User story.** As a new member, every email, page and link preview I see names the same product, so I can trust the code I've been sent.
+- **User story.** As a new user, every email, page and link preview I see names the same product, so I can trust the code I've been sent.
 - **In scope (FT, before the ENG-10 rehearsal on 10 Nov):**
   - `lib/email.ts`: subject "Your Peabudy sign-in code: {code}", text and HTML header say Peabudy; add "Peabudy will never ask you for this code." (DES-05).
   - Sign-in page, `app/layout.tsx` metadata (title, description, Open Graph/Twitter), `app/opengraph-image.tsx` / `twitter-image.tsx` / `lib/ogImage.tsx`, the beta `BANNER` text, `/privacy`, `/terms`, `/safety`.
@@ -724,7 +724,7 @@
 ## ENG-29: Survey email opt-in, Settings toggle and unsubscribe link (founder-approved, D16)
 
 - **Problem.** The founder wants to email every user a follow-up survey. Under PECR, UK GDPR and the NDPA 2023, the safe and honest basis is **opt-in consent** (README L5). Nothing records that consent today.
-- **User story.** As a new member, I can choose whether Peabudy emails me a short survey, see my choice in Settings, and stop it from any survey email without signing in.
+- **User story.** As a new user, I can choose whether Peabudy emails me a short survey, see my choice in Settings, and stop it from any survey email without signing in.
 - **In scope:**
   1. **Schema** (additive): `User.surveyConsentAt DateTime?`, `User.surveyConsentVersion String?`, `User.surveyConsentWithdrawnAt DateTime?`. Migration `survey_consent`. Add `SURVEY_CONSENT_VERSION = "survey-v1"` in `lib/constants.ts`.
   2. **Sign-in** (`app/signin/page.tsx`): an optional, **unticked** checkbox below the required privacy box, with DES-13 copy. `verify-code` accepts `survey_opt_in: boolean`.
@@ -743,13 +743,13 @@
 - **Acceptance criteria:**
   - Given a new sign-in with `survey_opt_in` absent, then `surveyConsentAt` is null.
   - Given `survey_opt_in: true`, then `surveyConsentAt` is set, `surveyConsentVersion = "survey-v1"`, and one `consent.survey_granted` audit row exists.
-  - Given an opted-in member who posts a valid unsubscribe token while signed out, then `surveyConsentWithdrawnAt` is set and an audit row with `via: "unsubscribe_link"` exists. Posting the same token again returns 200 with no new audit row.
+  - Given an opted-in user who posts a valid unsubscribe token while signed out, then `surveyConsentWithdrawnAt` is set and an audit row with `via: "unsubscribe_link"` exists. Posting the same token again returns 200 with no new audit row.
   - Given a tampered token, then the response is 404 `NOT_FOUND` and nothing changes.
   - Given the sign-in page at 375 px, the checkbox is unticked by default, has a real label, and has a target of at least 44 px.
   - Given research or development mode, the behaviour is the same (it's harmless there).
 - **Size** S.
 
-## ENG-30: Staff CSV export of opted-in members (D16, D17)
+## ENG-30: Staff CSV export of opted-in users (D16, D17)
 
 - **Problem.** The founder needs the list of people who agreed to survey emails, and nothing else.
 - **In scope:**
@@ -773,20 +773,20 @@
 
 - **Problem (Facts, checked 10 Nov):**
   - The dialog says "your anonymous tester ID" even when the feedback is linked to the account (`components/ResearchTools.tsx:138`, `feedback/route.ts` stores `userId`).
-  - Staff can't see the member (`staff/page.tsx:93–103`).
+  - Staff can't see the user (`staff/page.tsx:93–103`).
   - Signed-out posts without `tester_id` are unlimited (HM-13).
   - Feedback isn't in `/me/export` and isn't purged.
   - The staff counts are research-only.
 - **In scope:**
   1. Dialog copy from DES-14. Signed in: "Sent with your account and the page you're on." Signed out: "Sent with the page you're on. Don't include personal details."
-  2. Staff list: show the member's display name and a link to their staff detail (the user ID's last 6 characters until ENG-22 exists). Show "Signed out" when there's no `userId`. Never show the email in the list.
+  2. Staff list: show the user's display name and a link to their staff detail (the user ID's last 6 characters until ENG-22 exists). Show "Signed out" when there's no `userId`. Never show the email in the list.
   3. Rate limit by IP hash (`hashIp`, HM-23): 5 per 10 minutes signed out, 20 per hour signed in. Returns 429 `RATE_LIMITED`.
-  4. `/me/export` includes the member's feedback. The F-10 purge SQL deletes it, or sets `userId` to null and keeps the text only if the privacy notice says so (README L5; the notice says deleted).
-  5. Beta staff section: title "Feedback and reports"; counts "Members", "Verified", "Feedback (7 days)"; hide the persona and demo counts when `IS_BETA`. Add "Load more" paging.
+  4. `/me/export` includes the user's feedback. The F-10 purge SQL deletes it, or sets `userId` to null and keeps the text only if the privacy notice says so (README L5; the notice says deleted).
+  5. Beta staff section: title "Feedback and reports"; counts "Users", "Verified", "Feedback (7 days)"; hide the persona and demo counts when `IS_BETA`. Add "Load more" paging.
 - **Acceptance criteria:**
-  - Given a signed-in beta member who sends feedback, then staff see their display name on it.
+  - Given a signed-in beta user who sends feedback, then staff see their display name on it.
   - Given 6 signed-out posts from one IP within 10 minutes, then the 6th returns 429.
-  - Given `/me/export`, then it contains that member's feedback.
+  - Given `/me/export`, then it contains that user's feedback.
   - Given the beta staff page, then no "persona" or "demo" label appears.
 - **Size** S.
 
@@ -794,10 +794,10 @@
 
 - **In scope:**
   - `SIGNUPS_PAUSED=true` (server env): `request-code` for an email with **no account** returns 403 `FORBIDDEN` with "We're not taking new sign-ups for a few days. Please try again later." Existing accounts are unaffected. Audit `auth.signup_paused`, with no email.
-  - `OPEN_CITIES=lagos` (server env, comma list; default: all cities): a published member whose city isn't open gets the DES-04 "City not open yet" pending state, and the staff queue labels them "City not open" and sorts them last. Matching is unchanged; such people stay unverified, so they see nobody anyway.
+  - `OPEN_CITIES=lagos` (server env, comma list; default: all cities): a published user whose city isn't open gets the DES-04 "City not open yet" pending state, and the staff queue labels them "City not open" and sorts them last. Matching is unchanged; such people stay unverified, so they see nobody anyway.
 - **Acceptance criteria:**
-  - Given `SIGNUPS_PAUSED=true`, then a new email is refused, an existing member signs in normally, and a staff sign-in works.
-  - Given `OPEN_CITIES=lagos`, then a London member sees the London waiting copy and the queue labels them.
+  - Given `SIGNUPS_PAUSED=true`, then a new email is refused, an existing user signs in normally, and a staff sign-in works.
+  - Given `OPEN_CITIES=lagos`, then a London user sees the London waiting copy and the queue labels them.
 - **Size** XS.
 
 ## ENG-33: Staging becomes the permanent beta rehearsal; research mode retired (D19)
@@ -828,15 +828,15 @@
 ## ENG-35: Didit identity verification (D22; after launch)
 
 - **Problem.** Staff video checks don't scale beyond a few people a day. The founder approved Didit, with result-only storage (README L9).
-- **User story.** As a new Lagos member, I can verify my identity in a few minutes with my ID and a selfie, after agreeing to a clear explanation, or choose a video call instead.
+- **User story.** As a new Lagos user, I can verify my identity in a few minutes with my ID and a selfie, after agreeing to a clear explanation, or choose a video call instead.
 - **In scope:**
   1. `IDV_PROVIDER = manual | didit` (server env; default `manual`) and `DIDIT_API_KEY`, `DIDIT_WEBHOOK_SECRET`, `DIDIT_WORKFLOW_ID` (env only, never in the repo).
   2. `POST /api/v1/me/identity/session`:
-     - requires a published, unverified member who has accepted the biometric consent (`User.biometricConsentAt`, `biometricConsentVersion`, set by the DES-15 screen);
+     - requires a published, unverified user who has accepted the biometric consent (`User.biometricConsentAt`, `biometricConsentVersion`, set by the DES-15 screen);
      - creates a Didit session with `vendor_data = HMAC(userId)`, never the email;
      - stores `VerificationCheck` (`category=identity`, `status=pending`, `method="provider:didit"`, `providerSessionId`);
      - returns the hosted URL.
-     - Limits: 3 sessions per member per 7 days, and the monthly budget cap (25; env `DIDIT_MONTHLY_CAP`). Over the cap, return 409 `STATE_CONFLICT` with "Book a short video call instead".
+     - Limits: 3 sessions per user per 7 days, and the monthly budget cap (25; env `DIDIT_MONTHLY_CAP`). Over the cap, return 409 `STATE_CONFLICT` with "Book a short video call instead".
   3. `POST /api/v1/webhooks/didit`:
      - verify the signature (HMAC with `DIDIT_WEBHOOK_SECRET`; check against Didit's docs) and reject stale timestamps;
      - idempotent on the session ID;
@@ -854,12 +854,12 @@
 - **Out of scope:** NIN or BVN lookups (**forbidden**, D22); phone verification; UK roll-out (until London opens).
 - **Acceptance criteria:**
   - Given no biometric consent, when a session is requested, then 422 `CONSENT_REQUIRED`.
-  - Given an Approved webhook with a valid signature, then exactly one `VerificationCheck` becomes `verified`, the member becomes visible to verified members, and the stored row holds only the status, session ID, `checkedAt` and reason code. Assert in a test that no other webhook field is persisted.
+  - Given an Approved webhook with a valid signature, then exactly one `VerificationCheck` becomes `verified`, the user becomes visible to verified users, and the stored row holds only the status, session ID, `checkedAt` and reason code. Assert in a test that no other webhook field is persisted.
   - Given the same webhook twice, then there's no duplicate change and no second audit row.
   - Given a bad signature, then 401 and no change.
   - Given a session ID that isn't ours, then 404.
   - Given the monthly cap is reached, then new requests get the video-call fallback.
-  - Given staff override a Declined result, then the member is verified, and the audit shows the override with the staff actor.
+  - Given staff override a Declined result, then the user is verified, and the audit shows the override with the staff actor.
   - Mocked-webhook tests are in `tests/beta.unit.ts` and e2e_beta. Sandbox tested end to end once by the founder with real Nigerian ID types.
 - **Size** M–L (2–3 days) · **Depends on** F-18, DES-15 · **Gate** SEC-13 · **Target** live about Fri 27 Nov.
 
@@ -884,7 +884,7 @@
 - **Acceptance criteria:**
   - Given an email that already has an account, when it requests access, then the response is identical to that for a new email, and no second account is created.
   - Given 4 requests from one IP within an hour, then the 4th returns 429.
-  - Given a staff member without `admin`, when they try to approve, then 404.
+  - Given a staff user without `admin`, when they try to approve, then 404.
   - Given an approval, then the request's status is `approved` and one audit row exists.
   - Given the form at 320 px, then there's no horizontal scroll and inputs are ≥ 16 px.
 - **Retention:** declined and unanswered requests are deleted after [30] days (the privacy notice row; F-10 SQL until a job exists).
@@ -910,7 +910,7 @@
   - Given an invite for A used by email B, then 422 `INVITE_INVALID`.
   - Given a valid invite, when the account is created, then `usedAt` is set, and a second use returns 422.
   - Given an expired or revoked invite, then 422.
-  - Given an existing member, then a code is sent without an invite.
+  - Given an existing user, then a code is sent without an invite.
   - Given the database, then no plaintext invite code is stored.
   - Given `ADMIN_EMAILS`, then staff sign in without an invite.
 - **Note for security (SEC-14):** `INVITE_REQUIRED` versus "code sent" reveals whether an email has an account. With per-IP and site-wide caps and invite-only access, I judge that acceptable for launch. Security to confirm.
@@ -940,6 +940,34 @@
   - Given a sent email, then it carries both unsubscribe headers and a working link (ENG-29).
   - Given `RESEND_UPDATES_API_KEY` unset, then the panel says the stream isn't set up, and nothing is sent.
 - **Size** M · **By** Thu 19 Nov · **Depends on** F-21, DES-13 (template), Tally survey (F).
+
+## ENG-46: Back office is back office only (founder requirement, 10 Nov)
+
+- **Requirement (founder):** "The back office page for staff should not have the product itself; it should strictly be only back office activity."
+- **In scope:**
+  - `/staff` gets its own shell with tabs: Applications, Identity checks, Reports, Feedback, Survey, Audit. No user navigation and no Feedback pill.
+  - Staff accounts (`role` ≠ `member`, where `member` is the stored value for the user role) land on `/staff` after sign-in.
+  - **User-facing pages redirect staff to `/staff`. User APIs return 404 to staff:** recommendations, users, introductions, conversations, households, `/me/search` and `/me/profile` edits.
+  - Staff are excluded from matching and Discover in both directions: they never appear, and they never see users as users.
+  - Staff can't apply through `/join` with a staff email.
+  - The founder uses a **separate user account** to try the product.
+- **Acceptance criteria:**
+  - Given a staff sign-in, then they land on `/staff`, and no user nav or Feedback pill renders.
+  - Given a staff session calling `GET /recommendations`, `GET /users/{id}`, `POST /introductions` or `GET /conversations`, then each returns 404.
+  - Given a staff session visiting `/discover`, then they're redirected to `/staff`.
+  - Given any user's recommendations, then no staff account appears.
+  - Given the founder's separate user account, then it behaves like any user and has no access to `/staff` (404).
+- **PM notes:**
+  - **The founder's user account still goes through `/join`.** Because it's a different user, the self-approval ban (ENG-42) won't catch the founder approving it. Require a typed note ("own test account") on that approval, and audit it.
+  - **Keep that account's search paused** whenever the founder isn't genuinely looking. Otherwise real Lagos users may send intros to it.
+- **Size** S.
+
+## Note: DES-24 photo city cards: config impact
+
+*Fact:* `next.config.ts` has no `images` block today. Local images in `public/` work with `next/image` without config, and Vercel caches the optimised images. **No change is needed by default.**
+- Touch `next.config.ts` only if the designer wants AVIF output (`images.formats`) or custom `deviceSizes`.
+- If a change is made, check the e2e suites and the build still pass.
+- Don't add long-lived immutable caching headers for `public/cities/*` unless the filenames are content-hashed (otherwise a replaced photo stays stale).
 
 ## Note: the Discover score chip (PM vs designer)
 

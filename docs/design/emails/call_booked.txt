@@ -1,0 +1,21 @@
+Your Peabudy ID call: {{call_time}}
+
+Hi {{first_name}}, your video ID call with our team is on:
+
+{{call_time}}
+
+How to join: {{call_link}}
+
+- About 10 minutes, on video, with one person from our team.
+- Have a photo ID ready: a passport, driver's licence or national ID card. You must be 18 or over.
+- We look at your ID and check it matches you. We don't record the call or keep a copy of your ID.
+
+Need a different time? Reply to this email.
+
+The call is free. We'll never ask you for money, card details or passwords on the call or anywhere else.
+
+Peabudy never asks for money. Never pay an 'agent fee', 'inspection fee' or deposit before you've seen a home in person and confirmed who the landlord is.
+
+--
+Peabudy · [POSTAL ADDRESS]
+You're getting this because you applied to join Peabudy with this email address.

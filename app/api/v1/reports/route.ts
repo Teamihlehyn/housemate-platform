@@ -18,7 +18,7 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
 
   const target = await prisma.user.findUnique({ where: { id: String(body.target_user_id ?? "") } });
   if (!target || target.id === user.id || (target.sandboxWorldId ?? null) !== (user.sandboxWorldId ?? null))
-    return fail("NOT_FOUND", "We couldn't find that member.", 404, rid);
+    return fail("NOT_FOUND", "We couldn't find that user.", 404, rid);
 
   const report = await prisma.$transaction(async (tx) => {
     const r = await tx.report.create({

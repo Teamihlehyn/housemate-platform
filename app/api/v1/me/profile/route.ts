@@ -1,13 +1,15 @@
 import { NextRequest } from "next/server";
 import { handler, ok, fail } from "@/lib/api";
-import { requireUser } from "@/lib/guard";
+import { requireAccount } from "@/lib/guard";
 import { prisma } from "@/lib/db";
 import { writeAudit } from "@/lib/audit";
 import { JOURNEYS } from "@/lib/constants";
+import { assertAnswersEditable, isNameLocked } from "@/lib/applicationService";
 
 // PATCH /api/v1/me/profile — journey, bio, display name, avatar initials.
 export const PATCH = handler(async (req: NextRequest, { rid }) => {
-  const user = await requireUser();
+  const user = await requireAccount();
+  await assertAnswersEditable(user);
   const body = await req.json().catch(() => ({}));
   const fe: Record<string, string> = {};
   const profileData: Record<string, unknown> = {};
@@ -25,7 +27,15 @@ export const PATCH = handler(async (req: NextRequest, { rid }) => {
   if (body.displayName !== undefined) {
     const dn = String(body.displayName).trim();
     if (dn.length < 2 || dn.length > 40) fe.displayName = "Display name must be 2–40 characters.";
-    else {
+    else if (dn !== user.displayName && (await isNameLocked(user.id))) {
+      return fail(
+        "STATE_CONFLICT",
+        "Your name was checked with your ID, so it can't be changed here. Email hello@peabudy.com if it's wrong.",
+        409,
+        rid,
+        { field_errors: { displayName: "Locked after your ID check." } }
+      );
+    } else {
       userData.displayName = dn;
       profileData.avatarInitials = dn.split(" ").map((p: string) => p[0]).join("").slice(0, 2).toUpperCase();
     }

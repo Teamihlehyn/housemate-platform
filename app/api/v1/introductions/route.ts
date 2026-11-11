@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { isStaffAccount } from "@/lib/staff";
 import { handler, ok, fail } from "@/lib/api";
 import { requireUser, withIdempotency } from "@/lib/guard";
 import { prisma } from "@/lib/db";
@@ -41,7 +42,7 @@ export const GET = handler(async (req: NextRequest, { rid }) => {
           state: i.state,
           text: i.state === "pending" || i.conversation ? i.text : undefined,
           otherUserId: otherId,
-          otherName: o?.displayName ?? "Member",
+          otherName: o?.displayName ?? "User",
           otherInitials: o?.profile?.avatarInitials ?? "?",
           isSender: i.senderId === user.id,
           conversationId: i.conversation?.id ?? null,
@@ -81,14 +82,16 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
   if (
     !target ||
     target.accountStatus !== "active" ||
+    // Staff are back-office only and can't be introduced.
+    isStaffAccount(target) ||
     target.profile?.publicationStatus !== "published" ||
     // User-testing worlds are private: no introductions across them.
     (target.sandboxWorldId ?? null) !== (user.sandboxWorldId ?? null)
   )
-    return fail("NOT_FOUND", "This member is not available.", 404, rid);
+    return fail("NOT_FOUND", "This user is not available.", 404, rid);
   // Pilot: the target must be team-verified too.
   if (IS_BETA && !(await identityVerified(targetId)))
-    return fail("NOT_FOUND", "This member is not available.", 404, rid);
+    return fail("NOT_FOUND", "This user is not available.", 404, rid);
 
   await assertNotBlocked(user.id, targetId);
 
@@ -101,7 +104,7 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
       { gender: target.search.gender, accepts: parseGenderPreference(target.search.genderPreference) }
     )
   )
-    return fail("NOT_FOUND", "This member is not available.", 404, rid);
+    return fail("NOT_FOUND", "This user is not available.", 404, rid);
 
   // Rate limits: 10 new / 24h; 20 pending.
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -170,7 +173,7 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
     return ok(result, rid);
   } catch (e) {
     if ((e as { _cooldown?: boolean })._cooldown)
-      return fail("COOLDOWN", "You can't resend to this member yet.", 409, rid);
+      return fail("COOLDOWN", "You can't resend to this user yet.", 409, rid);
     throw e;
   }
 });

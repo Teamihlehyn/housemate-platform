@@ -43,6 +43,13 @@ Background:
 - Fri 13 Nov launch is at risk; Mon 16 Nov is likely.
 - Open: D13 and D20.
 
+**Approval-first sign-up (2026-11-10, late; spec docs/product/beta/approval-first-signup.md, APPROVED by the founder on 2026-11-10, F1–F4 as recommended: Lagos launch Wed 18 Nov with go/no-go Tue 17 Nov 18:00; the ID call is part of approval; declined applicants can reapply after 30 days; London applications waitlisted):**
+- The founder wants sign-up to be an application that staff approve before anyone can sign in.
+- Design: create the User as `applicant` after an email OTP, plus an Application table. Answers reuse the real profile and search tables. The profile goes live at activation via the invite code, not at approval.
+- Sign-in emails a code only to active members, with an identical response for every address.
+- Proposed launch moves to Wed 18 Nov (F1).
+- Code finding: the staff approve route sets `phoneVerified` without any phone check.
+
 **Lesson:** don't record a general "I go with your recommendations" as approval of specific decisions. The founder changed D15 and D17 afterwards. List each decision explicitly and get per-item approval.
 
 **Why:** the founder wants real users quickly, a fully tested live site, and feedback through the Feedback button plus a follow-up survey.

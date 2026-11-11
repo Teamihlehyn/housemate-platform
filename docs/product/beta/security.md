@@ -69,7 +69,7 @@
 
 **Check:**
 - **Webhook:** signature verification against Didit's documented scheme, timestamp/replay window, idempotency, lookup only by our stored session ID, and no trust in payload user identifiers.
-- **Session binding:** a member can't attach another member's session or result. Budget and attempt caps can't be bypassed.
+- **Session binding:** a user can't attach another user's session or result. Budget and attempt caps can't be bypassed.
 - **Minimisation:** a test proves that nothing beyond status, session ID, `checkedAt`, the reason code and the adult flag is persisted or logged (including error logs and audit). No NIN or BVN calls in code or configuration.
 - **Consent:** explicit biometric consent is recorded with a version before any session is created; the video fallback is always available.
 - **Staff override:** audited; staff can't approve their own identity (HM-10).
@@ -115,7 +115,7 @@
     - Is there any way to escalate a role through an API?
   - The `EMAIL_SINK=log` guard can't activate on Vercel.
   - Consent and 18+ are checked before the code is consumed (ENG-05, ENG-06).
-- **Exit criteria:** no Blocker or High open; the decision on token hashing is recorded; a staff account can't be created through any member API.
+- **Exit criteria:** no Blocker or High open; the decision on token hashing is recorded; a staff account can't be created through any user API.
 
 ## SEC-02: Isolation of research data from beta; environment configuration
 
@@ -148,7 +148,7 @@
   - Staff suspending themselves or an admin.
   - The two-way enforcement of the area gate (`CLAUDE.md` rule 7): it must apply at matching **and** at intro time, and return 404, not 403.
   - Whether the existence of blocked or filtered people leaks through counts. `exclusions.excludedCount` already reveals a nearby count; is that acceptable in beta, where the people are real?
-- **Exit criteria:** every route in scope has a negative e2e test (member 403/404, wrong role 403); no route trusts a client-supplied role or user ID.
+- **Exit criteria:** every route in scope has a negative e2e test (user 403/404, wrong role 403); no route trusts a client-supplied role or user ID.
 
 ## SEC-04: Email: SPF/DKIM/DMARC, link tokens, enumeration
 
@@ -182,7 +182,7 @@
   - Money-request caution: a regular expression at `messages/route.ts:82`.
   - Reports, feedback, account creation (no IP limit).
 - **Threats to check:**
-  - A verified member spamming intros or messages.
+  - A verified user spamming intros or messages.
   - Rent, deposit and holding-fee scams, and romance scams. The caution pattern misses many phrasings (e.g. "send it to my Opay", "transfer the caution fee"). Should it be extended, or remain non-blocking guidance plus a report path?
   - Account farming. Every account needs a staff ID check before it can see anyone, which limits impact, but it adds verification-queue load. Consider a per-IP signup limit.
   - Report flooding against one target.
@@ -194,7 +194,7 @@
 - **Threats to check:**
   - Block must be immediate and two-way across recommendations, profile, intros, messages and households, with a generic 404 afterwards.
   - Reports never change scores, and never tell the target who reported them.
-  - The reporter's identity isn't visible to the target through any staff-to-member notification.
+  - The reporter's identity isn't visible to the target through any staff-to-user notification.
   - Suspension cascades fully (sessions, intros, conversations, households).
   - Restore doesn't reopen anything.
   - Evidence: staff can't read chats, so check that the "paste an excerpt" approach doesn't push people to share third parties' data unnecessarily.
@@ -235,11 +235,11 @@
   - **Every staff mutation audited** with `actorType = "staff"` in the same transaction.
   - **Staff reads of individuals audited** (`staff.user_viewed`, `staff.contact_revealed`, `staff.audit_viewed`).
   - User search can't be used to enumerate emails (exact match only).
-  - The report "staff note" never reaches audit, outbox, export or member-facing surfaces.
+  - The report "staff note" never reaches audit, outbox, export or user-facing surfaces.
   - The CSV export (ENG-16) contains counts only.
   - CSRF on staff POST routes. Cookies are `SameSite=Lax`; confirm there are no state-changing GETs.
   - Concurrent moderator actions (409s).
   - Back office pages masked from Clarity.
-  - `/staff` returns 404 to members.
+  - `/staff` returns 404 to users.
   - An admin can't be suspended by a moderator.
 - **Exit criteria:** a negative test per route and role; an audit row asserted for every staff action in e2e_beta; no Blocker or High open at 27 Nov.

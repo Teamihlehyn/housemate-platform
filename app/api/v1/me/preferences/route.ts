@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { handler, ok, fail } from "@/lib/api";
-import { requireUser } from "@/lib/guard";
+import { requireAccount } from "@/lib/guard";
 import { prisma } from "@/lib/db";
 import { preferencesDto, setSurveyOptIn } from "@/lib/surveyConsent";
 
@@ -8,7 +8,7 @@ const SELECT = { surveyOptIn: true, surveyOptInAt: true, surveyOptInVersion: tru
 
 // GET /api/v1/me/preferences → {survey_opt_in, survey_opt_in_at, survey_opt_in_version, unsubscribed_at}
 export const GET = handler(async (_req: NextRequest, { rid }) => {
-  const user = await requireUser();
+  const user = await requireAccount();
   const u = await prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: SELECT });
   return ok(preferencesDto(u), rid);
 });
@@ -16,7 +16,7 @@ export const GET = handler(async (_req: NextRequest, { rid }) => {
 // PATCH /api/v1/me/preferences {survey_opt_in: boolean, source?: "settings" | "onboarding"}
 // Opt-in is never assumed: only an explicit true opts in. Same response shape as GET.
 export const PATCH = handler(async (req: NextRequest, { rid }) => {
-  const user = await requireUser();
+  const user = await requireAccount();
   const body = await req.json().catch(() => ({}));
   if (typeof body.survey_opt_in !== "boolean") {
     return fail("VALIDATION", "Choose whether you want survey emails.", 422, rid, {

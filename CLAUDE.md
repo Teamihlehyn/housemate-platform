@@ -16,8 +16,12 @@ moves in**. It is built for London (GBP, monthly rent) and Lagos (NGN, annual re
 
 The core journey, end to end:
 
-1. **Onboard** — journey, city + areas, budget, move-in window, stay length, six living-habit
-   dealbreakers, housemate gender preference, bio.
+1. **Apply (beta: approval-first)** — at `/join`: email + code, then the questions (journey,
+   city + areas, budget, move-in window, stay length, six living-habit dealbreakers, housemate
+   gender preference, first name, bio), then submit. Staff review the application and run a
+   video ID call in the back office, approve, and the person activates at `/invite/[code]`
+   (email code → account active, profile live → Discover). Only active users can sign in.
+   Demo modes keep open sign-up with in-app onboarding.
 2. **Discover** — deterministic, explainable matches (dates, areas, budget, habits). No swiping,
    no "compatibility %".
 3. **Introduce → chat** — a short intro; chat opens when accepted.
@@ -29,7 +33,7 @@ The core journey, end to end:
 Trust layer: a transparent **credibility score** (evidence breakdown, "not a guarantee of
 safety"), block, report, privacy controls, an ops console, and an audit trail on every mutation.
 
-**Current phase (Nov 2026): invite-only Lagos beta (launch Fri 13 Nov).** Production goes to
+**Current phase (Nov 2026): approval-first Lagos beta (launch Wed 18 Nov, go/no-go Tue 17 Nov).** Production goes to
 `beta` mode (real people, real email, staff ID checks) and stays there; staging is the beta
 rehearsal. **Research mode is retired** for deployments (`scripts/switch-to-research.sh` refuses
 to run); its code (personas, sample worlds, demo bots) stays and runs locally for the research and
@@ -47,7 +51,7 @@ where everyone is real); sample people are labelled.
 1. **Authorize on the server, in every route.** `requireUser()` / `requireStaff()`; check
    membership/ownership before reading or writing. A hidden button is not authorization.
 2. **Inaccessible = 404, not 403.** Don't reveal that a blocked user, another tester's world or
-   a filtered-out match exists ("This member is not available.").
+   a filtered-out match exists ("This user is not available.").
 3. **Every state change writes its audit row (and outbox event) in the same transaction.**
    Use `writeAudit` / `writeOutbox` / `notify` from `lib/audit.ts` inside `prisma.$transaction`.
    Audit payloads are allow-listed: never message bodies, contacts, addresses, evidence or tokens.
@@ -60,10 +64,13 @@ where everyone is real); sample people are labelled.
    gender preference, email, phone, location detail and verification evidence stay out of it.
 7. **Matching rules are two-way and deterministic.** Any new compatibility rule must exclude in
    both directions, be enforced again at introduction time, and leave the score/sort stable.
-8. **Never fake verification outside demo modes.** In `beta`, identity is only ever granted by a
-   staff approval after an out-of-band live check; no ID documents are stored, ever.
-9. **Staff accounts never get on-screen login codes** (they unlock the ops console). The
-   `request-code` route enforces this — keep it that way.
+8. **Never fake verification outside demo modes.** In `beta`, identity is only ever granted by
+   staff approval of the application (`POST /staff/applications/[id] {action:"approve"}`), after a
+   video ID call; it grants identity only (never phone), and no ID documents are stored, ever.
+9. **Staff come only from the allowlist and are back-office only.** `ADMIN_EMAILS` /
+   `STAFF_EMAILS` decide staff roles; a stored role alone counts for nothing (`lib/staff.ts`
+   `effectiveRole`, HM-10). Staff never get on-screen codes, land on `/staff`, get 404 from every
+   product API and never appear in the product. To try the product, use a separate user account.
 10. **Schema changes go through Prisma Migrate** (`npm run db:migrate:dev -- --name x`). Never
     `prisma db push` against Neon. Prefer additive migrations with safe defaults.
 11. **Never `TRUNCATE` or bulk-delete the live `research` database.** Real testers use it. Clean
@@ -143,13 +150,14 @@ Connection strings: `neon connection-string <branch>` (direct, for migrations) a
 | `APP_ENV`, `NEXT_PUBLIC_APP_ENV` | Mode, see table above. `NEXT_PUBLIC_*` is **baked in at build time** |
 | `DEMO_MODE` | `"false"` turns on-screen codes off outside beta |
 | `RESEND_API_KEY`, `EMAIL_FROM` | Real login email. `onboarding@resend.dev` only reaches the Resend account owner |
-| `ADMIN_EMAILS` | Comma-separated; these accounts become `admin` on sign-in and always get emailed codes |
+| `ADMIN_EMAILS` | Comma-separated; these accounts are `admin` (and the only admins) and always get emailed codes |
+| `STAFF_EMAILS` | `email:verifier,email:moderator` (comma list); the only verifiers/moderators. ADMIN_EMAILS wins on overlap |
 | `NEXT_PUBLIC_SITE_URL` | Absolute base for OG/link previews (falls back to `VERCEL_PROJECT_PRODUCTION_URL`) |
 | `NEXT_PUBLIC_CLARITY_ID` | Loads Microsoft Clarity (validated alphanumeric) |
 | `NEXT_PUBLIC_FEEDBACK_URL` | Tally form; Feedback button opens it with `page`, `tester`, `source` params. Unset → built-in form saved to the ops console |
 | `EMAIL_LINK_SECRET` | 32+ chars; signs survey unsubscribe links and `survey_ref`. Unset in a deployment → survey send refuses, every unsubscribe token is invalid |
-| `SIGNUPS_PAUSED` | `"true"` refuses every new account (invite or not); members carry on. Emergency stop |
-| `OPEN_CITIES` | e.g. `lagos`; access requests from other cities are kept but shown to staff as waitlisted. Unset = all |
+| `SIGNUPS_PAUSED` | `"true"`: `/join` step 1 refuses new applications; users carry on. Emergency stop |
+| `OPEN_CITIES` | Cities taking users (default `lagos`; `*` = all). Applications from other cities are `waitlisted` |
 | `NEXT_PUBLIC_SURVEY_URL` | Default https survey link for the staff survey send |
 | `EMAIL_API_URL` | Local only (ignored when `VERCEL_ENV` is set): sends Resend calls to a fake, for e2e |
 | `TEST_TODAY` | Pins "today" (`YYYY-MM-DD`) for deterministic dates |
@@ -179,19 +187,29 @@ Changing a production env var does nothing until the next build.
 ```
 app/
   page.tsx                 Landing (server component; reads lib/env directly)
-  signin/                  Email code + "Try a demo persona" + consent
+  signin/                  Members-only sign-in (email code) + "Have an activation code?"
+  join/                    /join application (email + code, questions, submit) and /join/status
+  invite/[code]/           Activation: approved applicant → email code → active member
   privacy/ terms/ safety/  Public pages (env-aware copy)
   layout.tsx               Fonts, banner, metadata/OG, <ResearchTools/>, Clarity
   icon.svg apple-icon.tsx opengraph-image.tsx twitter-image.tsx
-  (app)/                   Signed-in app; layout.tsx redirects to /signin if no session
+  (app)/                   The product; layout.tsx: no session → /signin, applicant → /join(/status),
+                           staff → /staff
     onboarding/ discover/ members/[id]/ messages/ messages/[id]/ household/
-    profile/ settings/ notifications/ staff/
+    profile/ settings/ notifications/
+  (staff)/staff/           Back office, own shell (no product UI): Applications queue, identity
+                           checks, reports, feedback, survey (admin), audit (admin). 404 for non-staff
   api/v1/                  REST API (route handlers only)
 components/                AppNav, ResearchTools (feedback + Clarity tags), ReportDialog,
                            GenderPreferenceFields
 lib/
   api.ts        handler(), ok(), fail(), ApiError — response envelope + error translation
-  guard.ts      requireUser, requireStaff, withIdempotency, adminEmails
+  guard.ts      requireAccount (applicants too), requireUser (members only: 404 for applicants
+                and staff), requireStaff / requireAdmin (404 for everyone else), withIdempotency
+  staff.ts      the staff allowlist: effectiveRole, listedRole, roleAtSignIn (HM-10)
+  applications.ts  application state machine, completeness, status object (pure)
+  applicationService.ts / staffApplications.ts  application DB helpers, emails, staff DTOs
+  codes.ts      shared email-code issue (uniform answers, sent after the response) and checking
   session.ts    hm_session cookie (HttpOnly, 7 days, Secure in production)
   audit.ts      writeAudit, writeOutbox, notify
   env.ts        APP_ENV and every mode flag
@@ -313,13 +331,13 @@ Never displayed publicly; edited on Profile and in onboarding's Living habits st
   application · move_in_pending · **needs_reagreement**.
 - `proposePlanChange` creates version N+1, the proposer auto-accepts, an active household
   goes to `needs_reagreement`. `acceptPlan` forms the household (from proposed) or restores the
-  progress stage once every active member accepts the latest version.
+  progress stage once every active housemate accepts the latest version.
 - Viewings and the application call `requirePlanAgreed()` → `409 NEEDS_REAGREEMENT`.
 - Notice options: 2/4/6/8/12 weeks. Bills: `equal` | `same_as_rent`. Notes ≤ 500 chars.
 - One active household per person; forming one pauses both searches and expires pending intros.
 - Viewing outcome: all `completed` → completed; all identical → that state; else `disputed`.
-- Handoff becomes `accepted` only when every member consents ("Demo application accepted; no
-  home is reserved"). Move-in completes only when every member confirms `moved_in` — never by time.
+- Handoff becomes `accepted` only when every housemate consents ("Demo application accepted; no
+  home is reserved"). Move-in completes only when every housemate confirms `moved_in` — never by time.
 
 ### Introductions & chat
 Intro text 30–300 chars; 10 new per 24 h and 20 pending max; expires after 7 days; one record
@@ -355,12 +373,20 @@ atomically before a constant-time compare), 10 failed guesses/hour/email, 5 requ
 emailed codes are also capped per IP (10/h) and site-wide (300/h). `deletion_pending` accounts
 can't sign in and their sessions stop working; a new `PRIVACY_VERSION` forces re-consent. Consent to the privacy
 notice is checked **before** the code is consumed (so a missing tick doesn't burn the code).
-**Invite-only sign-up (beta, D15):** people ask at `/request-access` (always 202, never reveals
-membership); staff invite from `/staff` (bound to the email, 14 days; admin-only direct codes,
-unbound ones 72 h; revocable). A new address needs a usable invite at `request-code`
-(`403 INVITE_REQUIRED` / `422 INVITE_INVALID`); `verify-code` consumes it atomically with account
-creation. Existing accounts and `ADMIN_EMAILS` never need one. Invite guessing is capped per IP and
-site-wide. Design and the enumeration trade-off: `docs/engineering/invite-only-signup.md`.
+**Approval-first sign-up (beta, ENG-39–46):** contract in `docs/engineering/approval-first-api.md`.
+- Applicants are `User.accountStatus = "applicant"` with an `Application` row; their answers
+  live in their own Profile/Search. Their session is `scope = "application"`: only `/me`,
+  `/me/profile`, `/me/search`, `/me/preferences`, `/me/export`, `/me/delete`, `/feedback`,
+  `/applications/*` work; every other API is 404. Use `requireAccount()` only for that list.
+- `request-code` gives **every** address the identical 200 and timing (floor + send after the
+  response); a code goes only to active users and allowlisted staff. Rate limits count the
+  same for every address. Don't add a branch that answers differently (HM-28).
+- Applications: draft → submitted (or waitlisted outside `OPEN_CITIES`) → in_review →
+  call_booked → approved → activated at `/invite/[code]` (14-day bound code); declined (reapply
+  after 30 days) and withdrawn reopen as a draft. Verifiers/admins act, moderators view, nobody
+  acts on their own (404); gender/preference reveal is audited. Approved accounts have their
+  display name and city locked.
+- `AccessRequest` and the D15 invite flow are retired (read-only rows, purge route kept).
 **Survey emails** are consent-only (`User.surveyOptIn*`, `/me/preferences`, signed `/unsubscribe`
 links); send and export are admin-only and beta-only.
 Settings offers data export (`/me/export`) and deletion (`/me/delete`: soft —
@@ -382,6 +408,9 @@ with `data-clarity-mask="true"` (emails, codes, chat bodies, bios, report text).
 - Mobile first: check at 375 px. Signed-in pages have a bottom nav — fixed elements sit at
   `bottom-20 md:bottom-6`. The floating Feedback pill hides on chat threads.
 - Avoid `backdrop-blur` and heavy blurred shadows (they caused blank areas while scrolling on phones).
+- **Words: "users", never "members"** (founder, 11 Nov): visitor → applicant → user; staff work in
+  the back office. Applies to everything people read (UI, API messages, emails, docs prose).
+  Identifiers and stored values (`role: "member"`, `Session.scope = "member"`, JSON keys) stay.
 - Copy: UK English, sentence case, plain words, no exclamation-mark marketing. Honesty labels are
   fixed phrases — "Demo verified", "Sample availability", "Checks completed — not a guarantee of
   safety", "Demo application accepted; no home is reserved". The banner text comes from `BANNER` (null in beta).
@@ -470,7 +499,12 @@ Run with `psql "$(neon connection-string research)"` and confirm the count match
 Real identity/KYC vendor · real listings feed (sample homes + user links only) · reference
 checks and room-offer authority review (the `existing_room` journey is a label) · video meetings
 · email/SMS notifications (in-app only) · outbox dispatcher (events are written, nothing consumes
-them) · retention/purge jobs (deletion is soft) · websockets · Prisma 7 · ESLint.
+them) · scheduled retention jobs: account deletion is soft, and application retention is a
+**manual admin button** (Back office → Applications → "Application data retention", `POST
+/staff/applications/purge`: drafts untouched 30 days and declined/withdrawn applications 30 days
+after the decision are deleted with the applicant account; a declined person keeps only an
+`ApplicantTombstone` (hashed email + reapply date). Someone must press it at least weekly) ·
+websockets · Prisma 7 · ESLint.
 
 Before anything reaches real users in `beta`: a verified Resend sending domain, finalised privacy
 notice and lawful basis (UK GDPR / Nigeria NDPR) with legal advice, and the PRD's other production

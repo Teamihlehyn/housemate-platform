@@ -73,11 +73,12 @@ export default function ResearchTools() {
 
   // On chat threads and onboarding the pill would cover the composer / Continue button; the
   // top bar has a Feedback button there.
-  const hidePill = /^\/messages\/.+/.test(pathname) || pathname.startsWith("/onboarding");
+  // /join's questions have the same sticky Continue as onboarding.
+  const hidePill = /^\/messages\/.+/.test(pathname) || pathname.startsWith("/staff") || pathname.startsWith("/onboarding") || pathname === "/join";
   // Public pages have no bottom nav, so the pill sits lower there. Both positions clear the
   // home bar (safe-area inset); signed-in pages clear the 60 px bottom nav on phones.
-  const PUBLIC = ["/", "/signin", "/request-access", "/privacy", "/terms", "/safety"];
-  const isPublic = PUBLIC.includes(pathname) || /^\/(invite|unsubscribe)(\/|$)/.test(pathname);
+  const PUBLIC = ["/", "/signin", "/privacy", "/terms", "/safety"];
+  const isPublic = PUBLIC.includes(pathname) || /^\/(invite|unsubscribe|join)(\/|$)/.test(pathname);
 
   return (
     <>

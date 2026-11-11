@@ -62,7 +62,8 @@ check("one address only (HM-32)", validEmail("ada@example.com") && !validEmail("
 check("month window: this month to 24 ahead", monthInRange("2026-11", "2026-11-10") && monthInRange("2028-11", "2026-11-10") && !monthInRange("2028-12", "2026-11-10") && !monthInRange("2026-10", "2026-11-10") && !monthInRange("2026-13", "2026-11-10"));
 
 // Cities and site URL
-check("OPEN_CITIES unset: every city open", openCities("") === null && isCityOpen("london", null));
+check("OPEN_CITIES unset: Lagos only (F4 default)", JSON.stringify(openCities("")) === '["lagos"]' && !isCityOpen("london", openCities("")) && isCityOpen("lagos", openCities("")));
+check("OPEN_CITIES=*: every city open", openCities("*") === null && isCityOpen("london", openCities("*")));
 check("OPEN_CITIES=lagos: London waitlisted", isCityOpen("lagos", openCities("Lagos")) && !isCityOpen("london", openCities("lagos")));
 check("site URL: explicit first, no trailing slash", siteUrl({ NEXT_PUBLIC_SITE_URL: "https://peabudy.com/" }) === "https://peabudy.com");
 check("site URL: Vercel production fallback", siteUrl({ VERCEL_PROJECT_PRODUCTION_URL: "x.vercel.app" }) === "https://x.vercel.app");

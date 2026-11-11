@@ -80,7 +80,7 @@ export async function findInvite(db: Db, rawCode: unknown): Promise<InviteRow | 
 // Create an invite and return its one-time code. Caller writes the audit row.
 export async function createInvite(
   tx: Prisma.TransactionClient,
-  opts: { email: string | null; accessRequestId: string | null; createdBy: string }
+  opts: { email: string | null; accessRequestId?: string | null; applicationId?: string | null; createdBy: string }
 ): Promise<{ id: string; code: string; expiresAt: Date }> {
   const expiresAt = new Date(Date.now() + inviteTtlMs(!!opts.email));
   // A collision is astronomically unlikely, but the unique index would turn one into a 500.
@@ -89,7 +89,14 @@ export async function createInvite(
     const codeHash = hashInviteCode(code);
     if (await tx.invite.findUnique({ where: { codeHash }, select: { id: true } })) continue;
     const row = await tx.invite.create({
-      data: { codeHash, email: opts.email, accessRequestId: opts.accessRequestId, createdBy: opts.createdBy, expiresAt },
+      data: {
+        codeHash,
+        email: opts.email,
+        accessRequestId: opts.accessRequestId ?? null,
+        applicationId: opts.applicationId ?? null,
+        createdBy: opts.createdBy,
+        expiresAt,
+      },
     });
     return { id: row.id, code, expiresAt };
   }

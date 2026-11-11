@@ -1,4 +1,5 @@
 import { prisma } from "./db";
+import { productAccountWhere } from "./staff";
 import { ALGORITHM_VERSION, QUESTIONNAIRE, answerLabel, CITIES, Dimension, gendersCompatible, parseGenderPreference } from "./constants";
 import { monthlyEquivalentMinor } from "./money";
 import { dateOverlap } from "./dates";
@@ -141,7 +142,8 @@ export async function getRecommendations(viewerId: string): Promise<MatchResult>
     where: {
       id: { not: viewerId },
       accountStatus: "active",
-      role: "member",
+      // Staff are back-office only: never candidates (role + allowlist, lib/staff.ts).
+      ...productAccountWhere(),
       sandboxWorldId: viewerUser?.sandboxWorldId ?? null,
       profile: { publicationStatus: "published" },
       search: { status: "active", cityId: viewer.cityId },

@@ -24,7 +24,8 @@ model User {
   phone          String?
   phoneVerified  Boolean  @default(false)
   displayName    String
-  accountStatus  String   @default("active") // active|restricted|suspended|deletion_pending|deleted
+  // applicant: applied through /join, not yet activated (approval-first sign-up, ENG-39).
+  accountStatus  String   @default("active") // applicant|active|restricted|suspended|deletion_pending|deleted
   adultEligible  Boolean  @default(false)
   locale         String   @default("en-GB")
   role           String   @default("member") // member|verifier|moderator|admin
@@ -58,6 +59,9 @@ model Session {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
+  // member: the whole app. application: an applicant's session, limited to the /join
+  // allow-list (ENG-39); every other API route answers 404.
+  scope     String   @default("member")
   createdAt DateTime @default(now())
 }
 
@@ -65,7 +69,9 @@ model AuthCode {
   id        String   @id @default(cuid())
   email     String
   code      String
-  inviteId  String?  // invite-only sign-up (D15): the invite presented when the code was requested
+  inviteId  String?  // retired (D15 invite-gated sign-up); kept for old rows
+  // Privacy notice version agreed at /join step 1 (applications/start), so verify can record it.
+  consentVersion String?
   attempts  Int      @default(0)
   expiresAt DateTime
   createdAt DateTime @default(now())
@@ -460,7 +466,18 @@ model Report {
   @@index([status, createdAt])
 }
 
-// Invite-only sign-up (D15). A person asks for access; staff invite or decline.
+// Application retention (R7): after a declined application's answers are purged, only a hashed
+// email and the reapply date are kept, so the 30-day reapply rule still holds. Deleted once the
+// date passes (or the person applies again).
+model ApplicantTombstone {
+  emailHash    String   @id // lib/auth.ts hashEmailKey (salted, truncated SHA-256)
+  reapplyAfter DateTime
+  createdAt    DateTime @default(now())
+
+  @@index([reapplyAfter])
+}
+
+// Invite-only sign-up (D15). RETIRED by approval-first sign-up: read-only, no new rows.
 model AccessRequest {
   id             String    @id @default(cuid())
   name           String
@@ -486,7 +503,8 @@ model Invite {
   id              String    @id @default(cuid())
   codeHash        String    @unique
   email           String?   // when set, only this address can use it
-  accessRequestId String?
+  accessRequestId String?   // retired (D15)
+  applicationId   String?   // approval-first: the activation code for this application
   createdBy       String    // staff user id
   expiresAt       DateTime
   usedAt          DateTime?
@@ -495,7 +513,32 @@ model Invite {
   createdAt       DateTime  @default(now())
 
   @@index([accessRequestId])
+  @@index([applicationId])
   @@index([email])
+}
+
+// Approval-first sign-up (ENG-39). One per applicant; the answers live in the person's own
+// Profile/Search rows. Staff review here; approval creates an activation Invite.
+model Application {
+  id                 String    @id @default(cuid())
+  userId             String    @unique
+  // draft|submitted|in_review|call_booked|approved|declined|waitlisted|withdrawn
+  status             String    @default("draft")
+  submittedAt        DateTime?
+  callAt             DateTime? // ID call time, when staff booked one
+  reviewedBy         String?   // staff user id
+  reviewedAt         DateTime?
+  idCheckMethod      String?   // video | provider:didit
+  idCheckAt          DateTime?
+  declineReason      String?   // not_genuine|agent_or_landlord|id_failed|no_show|duplicate|other
+  reapplyAfter       DateTime?
+  activationInviteId String?
+  statusTokenHash    String?   @unique // SHA-256 of the E1 magic-link token
+  version            Int       @default(1)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([status, submittedAt])
 }
 
 model TesterFeedback {

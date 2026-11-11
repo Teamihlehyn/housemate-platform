@@ -15,6 +15,9 @@ Patterns seen in the 2026-11-09 review (see [[beta-prelaunch-review-2026-11]]):
 6. **Account-status checks are inconsistent**: `deleted`, `deletion_pending`, `suspended` are checked in different places (session, guard, verify-code, matching).
 8. **Clarity masking is added per field**, so redesigned screens re-introduce unmasked PII (names echoed in copy, gender radios). Check every new screen that shows or collects personal data.
 9. **IP-based limits**: Vercel sets x-forwarded-for (not spoofable there), but IPv6 needs /64 bucketing and site-wide caps become a lockout lever.
+10. **Silent-refusal designs leak at the next step**: making step 1 identical is not enough; check that step 2 (code verify, link check) answers identically when step 1 silently did nothing.
+11. **Review-then-act without binding**: staff approvals must be tied to the exact data reviewed (lock edits or version-check the subject's data, not only the workflow row).
+12. **State checks outside the transaction** in staff actions (subject accountStatus read before the tx) race with user-side transitions.
 7. **Free-text into audit** via unvalidated `reason`/`reason_code` fields despite the allow-list rule.
 
 **Why:** these produced most findings in the first pre-launch review.

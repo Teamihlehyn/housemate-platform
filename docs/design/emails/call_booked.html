@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en-GB" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="x-apple-disable-message-reformatting">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
+<title>Your Peabudy ID call: {{call_time}}</title>
+<!--
+  E4 (DES-22, optional): sent when staff book the call with "send email" ticked.
+  Placeholders: {{first_name}} {{call_time}} {{call_link}}. call_link is the video link staff
+  entered, or a sentence saying it will follow, so it's shown as text (mail clients link URLs).
+  Email-safe like invite.html: tables, inline CSS, 600 px max, web-safe fonts, no JS. The
+  <style> block only adds dark-mode and small-screen tweaks. Footer keeps [POSTAL ADDRESS].
+  Transactional (asked for), so no unsubscribe link. Every line reads without images.
+-->
+<style>
+  :root { color-scheme: light dark; supported-color-schemes: light dark; }
+  body { margin: 0 !important; padding: 0 !important; width: 100% !important; }
+  a { color: #28554a; }
+  @media (max-width: 620px) {
+    .pb-pad { padding-left: 20px !important; padding-right: 20px !important; }
+    .pb-h1 { font-size: 26px !important; line-height: 32px !important; }
+    .pb-btn a { display: block !important; }
+    .pb-code { font-size: 32px !important; letter-spacing: 6px !important; }
+  }
+  @media (prefers-color-scheme: dark) {
+    .pb-bg { background-color: #161512 !important; }
+    .pb-card { background-color: #1f1e1a !important; border-color: #3a3832 !important; }
+    .pb-soft { background-color: #26251f !important; }
+    .pb-text { color: #f3f1ea !important; }
+    .pb-muted { color: #b5b0a4 !important; }
+    .pb-link { color: #8dbfae !important; }
+    .pb-btn a, .pb-btn td { background-color: #8dbfae !important; color: #161512 !important; }
+  }
+  [data-ogsc] .pb-text { color: #f3f1ea !important; }
+  [data-ogsc] .pb-muted { color: #b5b0a4 !important; }
+  [data-ogsb] .pb-bg { background-color: #161512 !important; }
+  [data-ogsb] .pb-card { background-color: #1f1e1a !important; }
+</style>
+</head>
+<body class="pb-bg" style="margin:0;padding:0;background-color:#f6f4ef;">
+  <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:#f6f4ef;opacity:0;">
+    {{call_time}}. About 10 minutes. Bring a photo ID.&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;
+  </div>
+
+  <table role="presentation" class="pb-bg" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f6f4ef;">
+    <tr>
+      <td align="center" style="padding:24px 12px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;">
+          <tr>
+            <td align="left" style="padding:0 4px 16px;">
+              <a href="https://peabudy.com" style="text-decoration:none;">
+                <img src="https://peabudy.com/email/peabudy-logo.png" width="180" height="48" alt="Peabudy" style="display:block;border:0;outline:none;width:180px;height:48px;">
+              </a>
+            </td>
+          </tr>
+
+          <tr>
+            <td class="pb-card" style="background-color:#ffffff;border:1px solid #e4e0d6;border-radius:24px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td align="center" style="padding:32px 32px 0;" class="pb-pad">
+                    <img src="https://peabudy.com/email/pea-and-bud.png" width="200" height="100" alt="Pea and Bud, the Peabudy mascots" style="display:block;border:0;width:200px;height:100px;">
+                  </td>
+                </tr>
+                <tr>
+                  <td class="pb-pad" style="padding:20px 40px 0;font-family:'Plus Jakarta Sans','Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+                    <h1 class="pb-h1 pb-text" style="margin:0;font-size:30px;line-height:36px;font-weight:800;letter-spacing:-0.5px;color:#23221e;text-align:center;">
+                      Your ID call is booked
+                    </h1>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="pb-pad pb-text" style="padding:16px 40px 0;font-family:Inter,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:16px;line-height:26px;color:#4a4740;">
+                    <p class="pb-text" style="margin:0 0 0px;color:#4a4740;font-size:16px;line-height:26px;">Hi {{first_name}}, your video ID call with our team is on:</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="pb-pad" style="padding:28px 32px 0;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td class="pb-soft" style="background-color:#f0f7f4;border-radius:16px;padding:18px 20px;font-family:Inter,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:23px;color:#4a4740;">
+                          <p class="pb-text" style="margin:0 0 6px;font-weight:700;color:#23221e;">{{call_time}}</p><p class="pb-text" style="margin:0 0 6px;color:#4a4740;">About 10 minutes, on video, with one person from our team.</p><p class="pb-text" style="margin:0 0 6px;color:#4a4740;">Have a photo ID ready: a passport, driver&rsquo;s licence or national ID card. You must be 18 or over.</p><p class="pb-text" style="margin:0 0 0px;color:#4a4740;">We look at your ID and check it matches you. We don&rsquo;t record the call or keep a copy of your ID.</p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="pb-pad pb-text" style="padding:20px 40px 32px;font-family:Inter,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:22px;color:#4a4740;">
+                    <p class="pb-text" style="margin:0 0 12px;color:#4a4740;font-size:14px;line-height:22px;"><strong class="pb-text" style="color:#23221e;">How to join:</strong> {{call_link}}</p><p class="pb-text" style="margin:0 0 12px;color:#4a4740;font-size:14px;line-height:22px;">Need a different time? Reply to this email.</p><p class="pb-text" style="margin:0 0 0px;color:#4a4740;font-size:14px;line-height:22px;"><strong class="pb-text" style="color:#23221e;">The call is free.</strong> We&rsquo;ll never ask you for money, card details or passwords on the call or anywhere else.</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td class="pb-muted" style="padding:20px 12px 0;font-family:Inter,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:20px;color:#5f5b52;text-align:center;">
+              Peabudy never asks for money. Never pay an &lsquo;agent fee&rsquo;, &lsquo;inspection fee&rsquo; or deposit before you&rsquo;ve seen a home in person and confirmed who the landlord is.
+            </td>
+          </tr>
+          <tr>
+            <td class="pb-muted" style="padding:16px 12px 8px;font-family:Inter,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:20px;color:#5f5b52;text-align:center;">
+              Peabudy &middot; [POSTAL ADDRESS]<br>
+              You&rsquo;re getting this because you applied to join Peabudy with this email address.
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

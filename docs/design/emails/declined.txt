@@ -1,0 +1,17 @@
+About your Peabudy application
+
+Hi {{first_name}},
+
+Thank you for applying to Peabudy. We can't offer you a place right now.
+
+You're welcome to apply again from {{reapply_on}}, with the same email address. Your earlier answers will be there to update.
+
+We delete the answers in your application 30 days after this decision, as our privacy notice explains. Until {{reapply_on}} we keep only a scrambled copy of your email address, so we know when you can apply again.
+
+If you have a question, reply to this email.
+
+Peabudy never asks for money. Never pay an 'agent fee', 'inspection fee' or deposit before you've seen a home in person and confirmed who the landlord is.
+
+--
+Peabudy · [POSTAL ADDRESS]
+You're getting this because you applied to join Peabudy with this email address.
