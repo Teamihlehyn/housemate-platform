@@ -15,7 +15,7 @@ const check = (name: string, pass: boolean) => cases.push([name, pass]);
   check(`under ${PASSWORD_MIN} characters is refused`, passwordProblem("short pass", "a@x.co") !== null);
   check("very common passwords are refused", passwordProblem("Password1234", "a@x.co") !== null && passwordProblem("qwertyuiop12", "a@x.co") !== null);
   check("one repeated character is refused", passwordProblem("aaaaaaaaaaaaaa", "a@x.co") !== null);
-  check("containing the email name is refused", passwordProblem("timilehin-2026-backoffice", "timilehin@example.com") !== null);
+  check("containing the email name is refused", passwordProblem("opslead-2026-backoffice", "opslead@example.com") !== null);
   check("a long, unusual passphrase is fine", passwordProblem("green kettle on a lagos tuesday", "ops@example.com") === null);
   check("non-strings are refused", passwordProblem(undefined, "a@x.co") !== null && passwordProblem(123456789012, "a@x.co") !== null);
 

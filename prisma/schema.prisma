@@ -50,6 +50,7 @@ model User {
   sessions       Session[]
   checks         VerificationCheck[]
   scoreSnapshots ScoreSnapshot[]
+  staffCredential StaffCredential?
 
   @@index([sandboxWorldId])
 }
@@ -528,10 +529,10 @@ model Invite {
 model StaffCredential {
   id            String    @id @default(cuid())
   userId        String    @unique
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   passwordHash  String    // scrypt$N$r$p$salt$hash (base64)
   passwordSetAt DateTime
-  failedCount   Int       @default(0)
-  lockedUntil   DateTime?
+  // Attempt limits live in the audit log (lib/staffLimits.ts, HM-43/45), not here.
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }

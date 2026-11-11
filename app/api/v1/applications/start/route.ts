@@ -32,9 +32,12 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
   const email = raw.toLowerCase();
   const existing = await prisma.user.findUnique({ where: { email }, select: { role: true, email: true } });
   // Staff codes never appear on screen (they open the ops console).
-  const isStaff = listedRole(email) !== null || (!!existing && effectiveRole(existing) !== "member" && (IS_RESEARCH || IS_BETA));
+  const staffListed = listedRole(email) !== null;
+  const isStaff = staffListed || (!!existing && effectiveRole(existing) !== "member" && (IS_RESEARCH || IS_BETA));
 
-  const issued = await issueCode(req, rid, { email, eligible: true, isStaff, channel: "application", consentVersion: PRIVACY_VERSION });
+  // HM-47: staff addresses can't apply, so they get no email: the same 200 and a never-sent
+  // decoy code row, like the user sign-in.
+  const issued = await issueCode(req, rid, { email, eligible: !staffListed, isStaff, channel: "application", consentVersion: PRIVACY_VERSION });
   await padResponse(start);
   if (issued.kind === "limited") return issued.response;
   return ok(

@@ -155,17 +155,29 @@ export async function issueCode(
 // own transaction, so a failure after this leaves the code usable).
 // scope: null (user sign-in, /join, activation) or "staff" (back office, ENG-47): the two kinds
 // of code never stand in for each other.
-export async function claimCode(email: string, code: unknown, scope: "staff" | null = null) {
-  const record = await prisma.authCode.findFirst({ where: { email, scope }, orderBy: { createdAt: "desc" } });
+//
+// Staff codes (HM-43) are looked up by (email, scope "staff", pendingHash): a caller can only ever
+// touch the code row its own password step made. No match → the wrong-code answer, before any
+// attempt is counted, so nobody can burn another person's code or lock their address. The
+// per-row cap (5) still applies; the per-address hourly cap doesn't, for the same reason.
+export async function claimCode(email: string, code: unknown, scope: "staff" | null = null, pendingHash: string | null = null) {
+  if (scope === "staff" && !pendingHash) throw invalidCode();
+  const record = await prisma.authCode.findFirst({
+    where: scope === "staff" ? { email, scope, pendingHash } : { email, scope },
+    orderBy: { createdAt: "desc" },
+  });
+  if (scope === "staff" && !record) throw invalidCode();
   if (!record || record.expiresAt < new Date()) {
     throw new ApiError("CODE_EXPIRED", "That code has expired. Request a new one.", 422);
   }
-  const failedLastHour = await prisma.authCode.aggregate({
-    where: { email, scope, createdAt: { gt: new Date(Date.now() - HOUR) } },
-    _sum: { attempts: true },
-  });
-  if ((failedLastHour._sum.attempts ?? 0) >= MAX_FAILED_PER_HOUR) {
-    throw new ApiError("TOO_MANY_ATTEMPTS", "Too many attempts. Try again in an hour.", 429, undefined, 3600);
+  if (scope !== "staff") {
+    const failedLastHour = await prisma.authCode.aggregate({
+      where: { email, scope, createdAt: { gt: new Date(Date.now() - HOUR) } },
+      _sum: { attempts: true },
+    });
+    if ((failedLastHour._sum.attempts ?? 0) >= MAX_FAILED_PER_HOUR) {
+      throw new ApiError("TOO_MANY_ATTEMPTS", "Too many attempts. Try again in an hour.", 429, undefined, 3600);
+    }
   }
   // Claim an attempt atomically BEFORE comparing, so parallel guesses can't all slip in.
   const claimed = await prisma.authCode.updateMany({

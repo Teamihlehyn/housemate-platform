@@ -160,7 +160,8 @@ export function staffCodeEmail(v: { code: string }): Built {
     "Someone entered your email and the right password. If that wasn't you, change your password now with “Forgot password?” on the back-office sign-in page.",
   ];
   return {
-    subject: `Peabudy back-office code: ${v.code}`,
+    // No code in the subject (it shows in notifications and on lock screens).
+    subject: "Your Peabudy back-office sign-in code",
     text: `Peabudy · Back office\n\n${lines.join("\n\n")}`,
     html: backOfficeHtml("Your sign-in code", lines, `<div style="font-size:30px;font-weight:700;letter-spacing:6px;text-align:center;padding:14px;border:1px solid #e7e5df;border-radius:8px">${escapeHtml(v.code)}</div>`),
   };

@@ -8,6 +8,8 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       { source: "/cities/:path*", headers: [{ key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" }] },
+      // Back office: never send its URLs (e.g. a set-up token) to another site (ENG-47 review).
+      { source: "/staff/:path*", headers: [{ key: "Referrer-Policy", value: "no-referrer" }] },
       // No page may be framed (clickjacking, SEC-15): the back office above all, but nothing on
       // the site needs to be embedded elsewhere.
       {

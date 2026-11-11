@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, Suspense, useState } from "react";
+import { FormEvent, Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api, ApiClientError } from "@/lib/client";
 
@@ -21,7 +21,12 @@ function strength(pw: string): { label: string; tone: string } {
 
 function Setup() {
   const router = useRouter();
-  const token = useSearchParams().get("token") ?? "";
+  // Read the token once, then take it out of the address bar and history (ENG-47 review).
+  const fromUrl = useSearchParams().get("token") ?? "";
+  const [token] = useState(fromUrl);
+  useEffect(() => {
+    if (fromUrl) window.history.replaceState(null, "", "/staff/setup");
+  }, [fromUrl]);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [show, setShow] = useState(false);

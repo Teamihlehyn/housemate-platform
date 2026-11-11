@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { writeAudit } from "@/lib/audit";
 import { listedRole } from "@/lib/staff";
 import { hashPassword, passwordProblem, plausibleToken, sha256 } from "@/lib/staffAuth";
+import { clearLockout } from "@/lib/staffLimits";
 
 const INVALID = "This link isn't valid any more. Ask for a new one on the back-office sign-in page.";
 
@@ -37,10 +38,12 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
     await tx.staffCredential.upsert({
       where: { userId: user.id },
       create: { userId: user.id, passwordHash, passwordSetAt: new Date() },
-      update: { passwordHash, passwordSetAt: new Date(), failedCount: 0, lockedUntil: null },
+      update: { passwordHash, passwordSetAt: new Date() },
     });
     await tx.session.deleteMany({ where: { userId: user.id, scope: "staff" } });
     await tx.authCode.deleteMany({ where: { email: row.email, scope: "staff" } });
+    // Earlier password attempts on this address no longer count (HM-43).
+    await clearLockout(tx, row.email, rid);
     await writeAudit(tx, {
       eventType: "staff.password_set",
       actorType: "staff",
