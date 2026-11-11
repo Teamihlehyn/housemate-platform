@@ -1,4 +1,5 @@
-import { NextRequest } from "next/server";
+import { NextRequest, after } from "next/server";
+import { deviceHint, sendStaffAlert } from "@/lib/staffAlerts";
 import { handler, ok, fail } from "@/lib/api";
 import { prisma } from "@/lib/db";
 import { writeAudit } from "@/lib/audit";
@@ -34,9 +35,12 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
       resourceType: "session",
       resourceId: user.id,
       action: "login",
-      safeAfter: { role },
+      safeAfter: { role, device: deviceHint(req.headers.get("user-agent")) },
     }, rid);
   });
   await createStaffSession(user.id);
+  // ENG-48: a sign-in alert to every admin and this address (at most one per 10 minutes).
+  const ua = req.headers.get("user-agent");
+  after(() => sendStaffAlert("signin", { id: user.id, email: user.email }, { rid, userAgent: ua }));
   return ok({ status: "signed_in", role, redirect: "/staff" }, rid);
 });

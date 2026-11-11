@@ -166,3 +166,21 @@ export function staffCodeEmail(v: { code: string }): Built {
     html: backOfficeHtml("Your sign-in code", lines, `<div style="font-size:30px;font-weight:700;letter-spacing:6px;text-align:center;padding:14px;border:1px solid #e7e5df;border-radius:8px">${escapeHtml(v.code)}</div>`),
   };
 }
+
+// Security alert (ENG-48): a password set, or a new back-office sign-in. Never a token or code.
+export function staffAlertEmail(v: { kind: "password_set" | "signin"; masked: string; time: string; device: string | null; signin_url: string }): Built {
+  const what =
+    v.kind === "password_set"
+      ? `A back-office password was set for ${v.masked} at ${v.time}.`
+      : `${v.masked} signed in to the back office at ${v.time}${v.device ? `, using ${v.device}` : ""}.`;
+  const lines = [
+    what,
+    "If this wasn't you or someone you expected, tell the team straight away and reset the password from the back-office sign-in page.",
+    "This is an automatic security notice. It's sent to every admin and to the address concerned.",
+  ];
+  return {
+    subject: v.kind === "password_set" ? "Peabudy security alert: password set for the back office" : "Peabudy security alert: new back-office sign-in",
+    text: `Peabudy · Back office\n\n${lines.join("\n\n")}\n\nBack-office sign-in: ${v.signin_url}`,
+    html: backOfficeHtml(v.kind === "password_set" ? "A password was set" : "New sign-in", lines, `<p style="margin:16px 0"><a href="${escapeHtml(v.signin_url)}" style="color:#23221e">Go to back-office sign-in</a></p>`),
+  };
+}

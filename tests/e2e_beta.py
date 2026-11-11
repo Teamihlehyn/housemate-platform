@@ -11,7 +11,7 @@ script runs a fake Resend on 127.0.0.1:$MAIL_PORT (default 8025) and reads the e
 app sends, so start the server with:
   APP_ENV=beta NEXT_PUBLIC_APP_ENV=beta OPEN_CITIES=lagos \
   RESEND_API_KEY=test-key EMAIL_FROM="Peabudy <test@example.com>" EMAIL_API_URL=http://127.0.0.1:8025 \
-  ADMIN_EMAILS=e2e-admin@example.com \
+  ADMIN_EMAILS=e2e-admin@example.com,e2e-bounce@example.com \
   STAFF_EMAILS=e2e-verifier@example.com:verifier,e2e-moderator@example.com:moderator,e2e-lock@example.com:moderator \
   DATABASE_URL=… DIRECT_URL=… next dev -p 3100
 (EMAIL_API_URL is honoured only outside Vercel.) Some setup goes straight to the database:
@@ -38,6 +38,12 @@ MAIL_PORT = int(os.environ.get("MAIL_PORT", "8025"))
 class FakeResend(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
+        # Addresses containing "bounce" are refused, to test that failed sends never block.
+        if any("bounce" in t for t in body.get("to", [])):
+            self.send_response(422)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         MAIL.append(body)
         out = json.dumps({"id": uuid.uuid4().hex}).encode()
         self.send_response(200)
@@ -1140,7 +1146,7 @@ t0 = time.time(); rn = C().call("/staff/auth/setup-request", {"email": nobody});
 time.sleep(1.5)
 check("setup-request: identical 200 for an allowlisted and an unknown address", strip(ra) == strip(rn) and ra[0] == 200, (ra[1], rn[1]))
 check("…in the same time (within 150 ms)", abs(ta - tn) < 0.15, f"{ta:.3f}/{tn:.3f}")
-check("…and only the allowlisted address gets the link", len(mails_to(ADMIN_EMAIL)) == before_a + 1 and len(mails_to(nobody)) == before_n)
+check("…and only the allowlisted address gets the link", len([m for m in mails_to(ADMIN_EMAIL)[before_a:] if "back-office password" in m["subject"]]) == 1 and len(mails_to(nobody)) == before_n)
 tok = staff_setup_link(ADMIN_EMAIL, after=before_a)
 r = C().call("/staff/auth/setup", {"token": tok, "password": "Password1234"})
 check("a very common password is refused (422), the link survives", r[0] == 422 and "password" in (r[1]["error"]["field_errors"] or {}), r)
@@ -1254,6 +1260,44 @@ r = lk.call("/staff/auth/logout", {})
 check("sign-out ends this staff session (and only this one)", r[0] == 200 and lk.call("/staff/me")[0] == 404 and n_sessions() == before_s - 1
       and ca.call("/staff/me")[0] == 200, (before_s, n_sessions()))
 check("staff-only accounts never appear in the product", sql(f'''select count(*) from "Profile" p join "User" u on u.id = p."userId" where u.email = {lit(LOCK_EMAIL)}''') == "0")
+
+print("== ENG-48: back-office security alerts ==")
+lock_id = user_id(LOCK_EMAIL)
+ALERT_SET, ALERT_IN = "password set for the back office", "new back-office sign-in"
+alerts = lambda addr, kind, after=0: [m for m in mails_to(addr)[after:] if kind in m.get("subject", "")]
+# Password set → every admin and the address itself.
+before_a, before_l = len(mails_to(ADMIN_EMAIL)), len(mails_to(LOCK_EMAIL))
+sql(f'''delete from "AuditEvent" where "eventType" = 'staff.setup_requested' and "resourceId" = {lit(email_key(LOCK_EMAIL))}''')
+C().call("/staff/auth/setup-request", {"email": LOCK_EMAIL})
+tok = staff_setup_link(LOCK_EMAIL, after=before_l)
+r = C().call("/staff/auth/setup", {"token": tok, "password": STAFF_PASSWORD})
+time.sleep(2)
+a_set, l_set = alerts(ADMIN_EMAIL, ALERT_SET, before_a), alerts(LOCK_EMAIL, ALERT_SET, before_l)
+check("a password set alerts every admin and the address itself", r[0] == 200 and len(a_set) == 1 and len(l_set) == 1, (len(a_set), len(l_set)))
+check("…with the masked address, both time zones and the sign-in link; never the token",
+      a_set and "e2•••@example.com" in a_set[0]["text"] and "(Lagos)" in a_set[0]["text"] and "/staff/signin" in a_set[0]["text"]
+      and tok not in a_set[0]["text"] + a_set[0]["html"] and "token=" not in a_set[0]["text"] + a_set[0]["html"])
+check("a refused alert (bounce) is audited as failed and didn't block the set-up",
+      audits("staff.alert_failed", f'''and "subjectId" = {lit(lock_id)} and "resourceId" = 'password_set' and "occurredAt" > now() - interval '2 minutes' ''') >= 1)
+# Sign-ins → one alert per address per 10 minutes.
+sql(f'''delete from "AuditEvent" where "eventType" = 'staff.alert_window' and "subjectId" = {lit(lock_id)}''')
+before_a = len(mails_to(ADMIN_EMAIL))
+signed = []
+for _ in range(2):
+    cz = C()
+    b0 = len(mails_to(LOCK_EMAIL))
+    cz.call("/staff/auth/password", {"email": LOCK_EMAIL, "password": STAFF_PASSWORD})
+    rz = cz.call("/staff/auth/verify", {"email": LOCK_EMAIL, "code": staff_code(LOCK_EMAIL, after=b0)})
+    signed.append(rz[0])
+time.sleep(2)
+a_in = alerts(ADMIN_EMAIL, ALERT_IN, before_a)
+check("a back-office sign-in alerts the admins, and a second one within 10 minutes doesn't repeat it",
+      signed == [200, 200] and len(a_in) == 1, (signed, len(a_in)))
+check("…with a coarse device hint, no code and no IP",
+      a_in and " on " in a_in[0]["text"] and not re.search(r"\b\d{6}\b", a_in[0]["text"]) and not re.search(r"\b\d{1,3}(\.\d{1,3}){3}\b", a_in[0]["text"]))
+check("the admin Audit tab lists recent back-office sign-ins",
+      any(x["email"] == LOCK_EMAIL and x.get("device") for x in d(admin_c.call("/staff/audit")).get("recent_staff_signins", [])))
+check("…and only admins see it", staff_c.call("/staff/audit")[0] == 404)
 
 print("== ENG-25: draft legal pages ==")
 for path, needle in (("/privacy", "privacy-v2"), ("/terms", "Terms of use")):

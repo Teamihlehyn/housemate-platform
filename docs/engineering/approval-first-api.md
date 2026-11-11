@@ -57,6 +57,15 @@ whether an address is staff.
 | `POST /api/v1/staff/auth/logout` | `{}` | 200; ends this staff session |
 | `GET /api/v1/staff/me` | | `{email, displayName, role}` (404 without a staff session) |
 
+**Security alerts (ENG-48, HM-44 option A).** After every successful password set-up and every
+new back-office session, every address in `ADMIN_EMAILS` and the staff address itself get an
+email: the masked address, the time in London and Lagos, a coarse device hint for sign-ins
+(browser and OS family only, no IP), and a link to `/staff/signin`; never a token or code.
+Sent after the response; each send is audited `staff.alert_sent` or `staff.alert_failed` and
+never blocks. Sign-in alerts are capped at one per address per 10 minutes. `GET
+/api/v1/staff/audit` (admin) adds `recent_staff_signins: [{email, role, device, at}]` (last 20).
+An authenticator app (TOTP) as a second factor is planned after launch.
+
 The user sign-in (`/auth/request-code`, `/auth/verify-code`) gives staff addresses the usual
 neutral answer and never a session; `/join` answers `"unavailable"`. A user session never opens
 `/staff` (the page redirects to `/staff/signin`, the APIs answer 404).
