@@ -34,7 +34,7 @@ export const POST = handler(async (req: NextRequest, { rid, params }) => {
     (id) => item.votes.find((v) => v.userId === id)?.decision === "interested"
   );
   if (!bothInterested)
-    return fail("STATE_CONFLICT", "Both members must be interested before booking a viewing.", 409, rid);
+    return fail("STATE_CONFLICT", "You both must be interested before booking a viewing.", 409, rid);
 
   if (item.propertyId) {
     const prop = await prisma.property.findUnique({ where: { id: item.propertyId } });

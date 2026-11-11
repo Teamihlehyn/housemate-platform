@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CITIES, CityId } from "@/lib/constants";
 import { formatMoney } from "@/lib/money";
+import { CITY_VISUALS } from "@/components/apply/CityCard";
 
 // London/Lagos switch: shows how each city works (currency, rent period, areas) with an
 // example split. Lagos rent is usually yearly, so we show the monthly equivalent too.
@@ -48,6 +49,20 @@ export default function CitySwitch() {
 
       <div key={city} className="mt-6 grid animate-rise-in gap-6 md:grid-cols-2 md:gap-10">
         <div>
+          <div className="relative mb-5 aspect-[16/9] overflow-hidden rounded-card bg-ink-100">
+            <img
+              src={CITY_VISUALS[city].src}
+              srcSet={CITY_VISUALS[city].srcSet}
+              sizes="(min-width: 768px) 460px, calc(100vw - 72px)"
+              alt={CITY_VISUALS[city].alt}
+              width={480}
+              height={270}
+              loading="lazy"
+              decoding="async"
+              className="h-full w-full object-cover"
+              style={{ objectPosition: CITY_VISUALS[city].position }}
+            />
+          </div>
           <h3 className="font-display text-h1 text-ink md:text-h1-md">{info.name}</h3>
           <p className="mt-2 text-ink-700">{info.rent}</p>
           <p className="mt-5 text-caption text-ink-600">Areas you can choose from (up to 5)</p>

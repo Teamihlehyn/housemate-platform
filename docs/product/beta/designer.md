@@ -35,6 +35,29 @@
 | **DES-17** | Invite-only: the request-access form, the "thanks" state, the `/invite/[code]` welcome and invalid pages, the invite email (HTML + text), and the staff "Access requests" tab | M | **Launch** | ENG-37, ENG-38 |
 | **DES-18** | HM-26 busy screen: honest, and engaging while people wait (mascot, countdown, something playful) | S | Honest text at **launch**; playful version after | HM-26 |
 | **DES-19** | Full responsive pass, with results in `docs/design/responsive-qa.md` | M | **Launch** (in progress) | — |
+| **DES-24** | Photo city cards on "Which city?" (`/join` and the onboarding/profile flow), part of DES-20 | S | **Launch** | Founder confirms photo rights (F-23) |
+
+## DES-24: Photo city cards (founder request, 10 Nov)
+
+- **What:** replace the £/₦ symbol cards with photo cards using the founder's own photos: London (Big Ben and Westminster), Lagos (Civic Centre and the lagoon skyline). Static assets in `public/cities/`, a card component, and a handoff at `docs/design/city-cards.md`.
+- **Acceptance criteria:**
+  1. **Accessible.**
+     - The city name is real text on the card, not baked into the image.
+     - The image is decorative (`alt=""`) because the label carries the meaning.
+     - The selected state is shown by more than colour (a tick and the text "Selected").
+     - Touch targets are at least 44 px.
+     - Keyboard and screen reader work as a radio group.
+     - Text over the photo meets 4.5:1 contrast, using a scrim if needed.
+  2. **Responsive (DES-19).** No clipping or overflow at 320–1920 px. The two cards stack on narrow phones without squashing the image focal point.
+  3. **Data-light (go/no-go performance criterion, T4c).**
+     - Served through `next/image` with `sizes` set, so phones get small files. WebP, with a JPEG fallback if needed.
+     - *Proposed budget:* **≤ 60 KB per card at 360 px width**, and ≤ 150 KB at desktop.
+     - Not preloaded above the fold unless the city step is the first screen; lazy-loaded otherwise.
+     - A blurred or colour placeholder, so the step is usable on Slow 3G before the photos arrive. Choosing a city must never wait for an image.
+     - The handoff records the measured sizes.
+  4. **Honest and neutral.** The photos are scenery, not homes. Nothing implies that listings or specific homes are offered. No people are identifiable in the photos (or the founder confirms consent, F-23).
+  5. **Rights.** No photo ships until the founder confirms F-23. Record the source and licence in the handoff (no personal data).
+- **Size** S.
 
 > **Founder decisions, 10 Nov evening:**
 > - **Invite-only (DES-17).**
@@ -60,7 +83,7 @@
 
 ## DES-18: Busy screen (HM-26)
 
-- **Must (launch):** the same message for everyone: "We're getting a lot of sign-in requests right now. Try again in an hour." Add a clear "Try again at {time}", and a link to request access for people who aren't members yet.
+- **Must (launch):** the same message for everyone: "We're getting a lot of sign-in requests right now. Try again in an hour." Add a clear "Try again at {time}", and a link to request access for people who aren't users yet.
 - **Then:** the playful version.
   - The mascot "holding the door", a live countdown to the retry time, and a tiny optional game or animation.
   - It must respect reduced motion, be fully usable with a screen reader (the countdown announced politely, not every second), stay under about 50 KB extra for Lagos data costs, and never imply the person did something wrong.
@@ -106,7 +129,7 @@
 
 - **Signed in:** "Sent with your account and the page you're on, so we can follow up if needed." Signed out: "Sent with the page you're on. Please don't include personal details."
 - Remove "anonymous tester ID" from beta.
-- **Staff list labels:** "Feedback and reports"; each item shows the member name or "Signed out", the page, the rating as text plus the emoji ("2 of 5 🙁"), and the time.
+- **Staff list labels:** "Feedback and reports"; each item shows the user name or "Signed out", the page, the rating as text plus the emoji ("2 of 5 🙁"), and the time.
 
 ## DES-15: Didit identity check screens (after launch, D22)
 
@@ -159,19 +182,19 @@ Rows marked **FT** must ship by 10 Nov. "Beta" means the change applies only whe
 | 6 | FT | `app/page.tsx:272–286` credibility card | "Demo credibility · 80/100 · Demo verified", plus a points table; body "A transparent score with the full evidence breakdown." | A checklist mock: "✓ Email confirmed · ✓ Identity checked by the Peabudy team". Heading "Trust, shown honestly". Body: "We show which checks someone has completed, never a score. Checks completed — not a guarantee of safety." |
 | 7 | FT | `app/page.tsx:159` stage 04 | "Shortlist & view — Add sample homes, vote, and book a viewing." | "Find the place — Look for a home together however suits you. Peabudy doesn't list homes yet." |
 | 8 | FT | `app/page.tsx:160` stage 05 | "Move in — Complete a demo handoff and confirm your move-in." | Hidden in beta (4 stages) |
-| 9 | FT | `app/page.tsx:164` trust card | "Grounded in research — Built on housing research across the UK and Nigeria…" | "Built with early members — We're testing this with people in London and Lagos and changing it based on what they tell us." |
+| 9 | FT | `app/page.tsx:164` trust card | "Grounded in research — Built on housing research across the UK and Nigeria…" | "Built with early users — We're testing this with people in London and Lagos and changing it based on what they tell us." |
 | 10 | FT | `app/page.tsx:165` | "…The credibility score shows which checks are complete…" | "Evidence, never guarantees — We show which checks someone has completed. It's never a promise that they're safe." |
 | 11 | FT | `app/page.tsx:167` | "No real money — No payments, deposits or binding agreements. The rental handoff is a demo — no home is reserved." | "No money through Peabudy — We never take payments or deposits, and your agreement isn't a tenancy. Never pay anyone before you've seen a home in person and checked who the landlord is." |
 | 12 | FT | `app/page.tsx:170–174, 368–383` scenarios | Three made-up quotes. "Room host, Lekki" describes room authority review and an address that unlocks at viewing, **neither of which exists** | **Remove the section in beta.** In research, remove the room-host scenario (All) |
 | 13 | FT | `app/page.tsx:332` | "Seeded neighbourhoods across both pilots" | "Opening first in these areas" (list the launch areas, D12) |
 | 14 | FT | `app/safety/page.tsx:5` | "Evidence, not guarantees — The credibility score reflects…" | "Evidence, not guarantees — We show which checks someone has completed. It's never a promise that they're safe." |
-| 15 | FT | `app/safety/page.tsx:6` | "Simulated checks are labelled — Every verification badge reads "Demo verified"…" | "How we check identity — Before anyone can see other members or be seen, someone from our team checks their photo ID on a short video call. We record only that the check passed and when. We don't keep a copy of your ID." |
+| 15 | FT | `app/safety/page.tsx:6` | "Simulated checks are labelled — Every verification badge reads "Demo verified"…" | "How we check identity — Before anyone can see other users or be seen, someone from our team checks their photo ID on a short video call. We record only that the check passed and when. We don't keep a copy of your ID." |
 | 16 | FT | `app/safety/page.tsx:10, 30–33` | "No real money … rental handoff is a demo" · "Prototype support is simulated and is not an emergency service…" · intro "…in this prototype." | As #11 · "We read every report, usually within 24 hours. We're not an emergency service: if you're in danger, call 999 in the UK or 112 in Nigeria." *(The founder confirms the numbers, F-04)* · "…in early access." Add a "Meeting safely" card using the DES-03 text |
 | 17 | FT | `app/terms/page.tsx:11–13, 15, 19` | Beta: "…property listings and viewings are guided examples." · "An accepted application is a demo…" · "…data in the test environment may be reset." | Replaced wholesale by [`legal/terms.md`](legal/terms.md) in beta (ENG-25) |
 | 18 | FT | `app/(app)/discover/page.tsx:72, 119` | Subtitle "…The number is match strength, not a percentage." Chip "Demo {score}/100" (the code passes the **credibility** score here, `lib/matching.ts:271,289`) | Subtitle "Ranked by shared dates, areas and living habits." Chip: "ID checked" (beta) or none. **Remove the number in all modes** (agreed with the designer's audit) |
 | 19 | FT | `app/(app)/discover/page.tsx:83–88` pending | "…once our team verifies your identity. We'll email you to arrange a short check." | See DES-04 "Verification pending" |
 | 20 | FT | `app/(app)/onboarding/page.tsx:387–390` (shown in beta too) | "Publishing runs a simulated core identity check (demo) and gives you a baseline demo credibility of 60…" | "When you publish, we'll ask you to book a 10-minute video call to check your photo ID. Nobody can see your profile until that's done." |
-| 21 | FT | `app/(app)/onboarding/page.tsx:370–371, 382` | "Profile submitted — Our team will verify your identity with a short check… you can look around in the meantime." Button "Look around" | "Profile saved — Next: a 10-minute video call with our team to check your photo ID. We'll email you within a day to book it. Until then you won't see other members and they won't see you." Button "Go to my profile" |
+| 21 | FT | `app/(app)/onboarding/page.tsx:370–371, 382` | "Profile submitted — Our team will verify your identity with a short check… you can look around in the meantime." Button "Look around" | "Profile saved — Next: a 10-minute video call with our team to check your photo ID. We'll email you within a day to book it. Until then you won't see other users and they won't see you." Button "Go to my profile" |
 | 22 | FT | `app/(app)/members/[id]/page.tsx:72, 107` and `profile/page.tsx:75` | "Demo {score}/100", "Demo credibility: {score}/100" | See DES-02 |
 | 23 | FT | `app/api/v1/reports/route.ts` receipt | "Case X is open. Support in this prototype is simulated and is not an emergency service." | "Case X is open. We'll review it, usually within 24 hours. If you're in danger, call 999 (UK) or 112 (Nigeria)." |
 | 24 | FT | `components/ResearchTools.tsx` dialog | "Sent with the page you're on ({page}) and your anonymous tester ID {id}." · "Thank you!" | Signed in: "Sent with the page you're on. Because you're signed in, it's linked to your account so we can reply." Signed out: "Sent with the page you're on. We don't know who you are unless you tell us." · "Thank you" (All) |
@@ -198,7 +221,7 @@ Rows marked **FT** must ship by 10 Nov. "Beta" means the change applies only whe
 
 **Spec (beta):**
 - **Compact** (Discover card, profile header): one chip, "ID checked". If identity isn't verified, show nothing, because unverified people aren't visible in beta (ENG-02). Use a check icon plus the text, never colour alone.
-- **Full** (member profile, own profile), a card titled "What's been checked":
+- **Full** (user profile, own profile), a card titled "What's been checked":
   - "✓ Email confirmed"
   - "✓ Identity checked by the Peabudy team · November 2026"
   - "— Phone: not checked" *(the staff approval currently also marks the phone as verified, `staff/verifications/[userId]/route.ts`. Only show "Phone confirmed on the ID call" if the SOP F-08 actually confirms it; otherwise hide the phone row. Decision recorded in F-08)*
@@ -233,7 +256,7 @@ Rows marked **FT** must ship by 10 Nov. "Beta" means the change applies only whe
 
 | State | Trigger (API) | Heading | Body | Action |
 |---|---|---|---|---|
-| **Verification pending** (FT) | `gate = "identity_pending"` (ENG-02) | "Your ID check is next" | "Before you can see other members, someone from our team checks your photo ID on a 10-minute video call. We'll email you within a day to book it. Nobody can see your profile until then." | "Check my profile" (secondary). Optional "Try a demo with sample people" (D6) |
+| **Verification pending** (FT) | `gate = "identity_pending"` (ENG-02) | "Your ID check is next" | "Before you can see other users, someone from our team checks your photo ID on a 10-minute video call. We'll email you within a day to book it. Nobody can see your profile until then." | "Check my profile" (secondary). Optional "Try a demo with sample people" (D6) |
 | **Verification couldn't be completed** | identity `failed` | "We couldn't complete your ID check" | "This can happen if the call didn't connect or the ID wasn't clear. We'll email you about next steps." | "Contact us" (mailto [CONTACT EMAIL]) |
 | **City not open** (S1) | `NEXT_PUBLIC_BETA_CITIES` excludes the city (ENG-13) | "We're not open in {city} yet" | "We're starting in London and Lagos. Join the waitlist and we'll tell you when we open near you." | "Join the waitlist" (Tally) |
 | **Area not open yet** (S1) | `gate = "area_not_open"` | "{Area} isn't open yet" | "We open each area once enough people are searching there, so you'll have people to talk to. We'll email you when {area} opens. You can also add a nearby area that's already open." | "Add another area" → `/profile#areas` |
@@ -254,7 +277,7 @@ Rows marked **FT** must ship by 10 Nov. "Beta" means the change applies only whe
 | Event | Subject | Body | Button |
 |---|---|---|---|
 | Login code (existing; review only) | "Your Peabudy sign-in code: {code}" | Keep. Add "Peabudy will never ask you for this code." | — |
-| `identity_verified` | "You're in: your ID check is done" | "Thanks for doing the call. Other checked members in your area can now see you, and you can see them." (If the area isn't open: "We'll email you as soon as {area} opens.") | "See who fits" |
+| `identity_verified` | "You're in: your ID check is done" | "Thanks for doing the call. Other checked users in your area can now see you, and you can see them." (If the area isn't open: "We'll email you as soon as {area} opens.") | "See who fits" |
 | `identity_rejected` | "We couldn't complete your ID check" | "We weren't able to finish your ID check. Reply to this email and we'll sort out next steps." | — |
 | `introduction_received` | "{First name} introduced themselves on Peabudy" | "{First name} thinks your plans fit. Read their introduction and decide whether to reply. It expires in 7 days." | "Read the introduction" |
 | `introduction_accepted` | "{First name} accepted your introduction" | "You can now chat. Take your time, and keep chatting on Peabudy until you trust them." | "Open the chat" |
@@ -304,7 +327,7 @@ Rows marked **FT** must ship by 10 Nov. "Beta" means the change applies only whe
   3. "We open your area when enough people are searching"
   4. "Introduce yourself and chat"
 - **Announcement (11 Nov, links to the Tally waitlist):**
-  > "Finding someone to live with shouldn't mean guessing. Peabudy matches you on move-in dates, budget, areas and living habits, then helps you agree rent, bills and notice in writing before anyone moves in. We're opening early access in London and Lagos, area by area, and every member has their ID checked by our team on a video call. Checks aren't a guarantee of safety, so meet safely. Join the waitlist: {link}?source={channel}"
+  > "Finding someone to live with shouldn't mean guessing. Peabudy matches you on move-in dates, budget, areas and living habits, then helps you agree rent, bills and notice in writing before anyone moves in. We're opening early access in London and Lagos, area by area, and every user has their ID checked by our team on a video call. Checks aren't a guarantee of safety, so meet safely. Join the waitlist: {link}?source={channel}"
 - Provide 3 lengths: a 280-character version, a WhatsApp message, and a LinkedIn post.
 - Don't claim "verified people" without "by our team", and don't claim "safe".
 
@@ -340,9 +363,9 @@ Rows marked **FT** must ship by 10 Nov. "Beta" means the change applies only whe
 |---|---|---|
 | **Overview** | Two columns, London and Lagos (one column stacked on mobile). Cards for each ENG-16 metric, plus a date-range picker and "Download CSV" | Empty: "No data for this range." Every number has a label and the definition on hover or tap |
 | **Verification** | Queue table, oldest first. Columns: name · city · areas · move-in window · journey · waiting (h) · contacted. Row actions: "Mark contacted", "Approve", "Reject" (with a reason picker). Overdue counts per city at the top | Over 24 h: amber with the text "Over 24 h". Over 72 h: red with "Over 72 h". Approve confirmation: "Approve only after you've seen their photo ID on a live video call and confirmed they're 18+." |
-| **Reports** | Filter by status (Open · Investigating · Actioned · Dismissed) and category. List shows case ID, category, age and SLA badge. The detail pane has the description, reporter and target links, prior reports against the target, an action log timeline, a status change with a resolution code and a note (500 characters), and "Suspend target" | Safety-critical over 4 h: red with "Over 4 h". The note field is labelled "Staff note (never shown to members)" |
+| **Reports** | Filter by status (Open · Investigating · Actioned · Dismissed) and category. List shows case ID, category, age and SLA badge. The detail pane has the description, reporter and target links, prior reports against the target, an action log timeline, a status change with a resolution code and a note (500 characters), and "Suspend target" | Safety-critical over 4 h: red with "Over 4 h". The note field is labelled "Staff note (never shown to users)" |
 | **Users** | Search box (email, exact match only, or name or ID), results list, then detail: status, checks, counts, recent activity, "Show contact details" (audited), "Suspend" / "Restore" | Suspend dialog: reason picker, then "Suspending signs them out and hides them straight away. Their chats and household close. They're not told why." Restore: "Restoring lets them sign in again. Nothing is reopened." |
-| **Areas** | A table per city: area · published · verified · pending · move-in months (small counts) · status · Open/Close (admin only) | Open confirmation: "Opening {area} lets checked members there see each other. We'll email them." |
+| **Areas** | A table per city: area · published · verified · pending · move-in months (small counts) · status · Open/Close (admin only) | Open confirmation: "Opening {area} lets checked users there see each other. We'll email them." |
 | **Feedback** | The existing list, plus filters (page, rating, signed in or not) | — |
 | **Audit** | Filter bar (event type, actor, subject, dates, outcome), a 50-row table, "Load more" | Payloads shown as key/value pairs |
 

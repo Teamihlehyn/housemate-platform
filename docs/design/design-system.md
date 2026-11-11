@@ -430,7 +430,7 @@ The hero of the household screen, Revolut-style money at a glance.
   under it (never colour alone).
 - Rows: Bills ("Split equally" / "Same as rent split") · Notice ("4 weeks if someone leaves") ·
   Stay length · Notes.
-- Acceptance strip: each member's avatar with "Accepted v3" or "Not yet". The current user's
+- Acceptance strip: each housemate's avatar with "Accepted v3" or "Not yet". The current user's
   action is `Accept version 3` (confirm) or `Propose a change` (secondary).
 - Footer line: "No money moves through Peabudy."
 - States: proposed · agreed · needs re-agreement (caution border with a diff hint: "Rent changed
@@ -593,8 +593,8 @@ Built for the Lagos beta (D15, D16, D17, HM-26). All on the existing tokens; no 
 |---|---|---|
 | `PublicShell`, `PeaSays`, `TextLink` | `components/PublicShell.tsx` | Frame for small public pages: logo bar, `bg-pastel`, one `max-w-xl` column, safe-area padding, `100dvh`. `PeaSays` is the onboarding speech bubble (mascot decorative, line is real text). |
 | Request an invite | `app/request-access/` | One page, five questions (name, email, city, area, move-in month) plus optional how-heard chips and a note (≤ 300). City is a two-card radio group: Lagos "Open now", London "Opening later" with a sky info line. Client validation mirrors `lib/accessRequests.ts`; server field errors map back to the same fields. The thanks state is the same for everyone in a city: "We read every request. If it's a fit…, usually within 2 days." No counts, no queue position. |
-| Invite landing | `app/invite/[code]/` | States: checking · valid ("Invite found", masked email, Continue to sign in → `/signin?invite=CODE`) · invalid (sleeping Pea, "Request a new invite" + "I'm already a member") · network error (retry). |
-| Sign-in invite field | `app/signin/page.tsx` | Beta only. "Invite code (new members)", pre-filled from `?invite=`; members leave it empty. `INVITE_REQUIRED` → alert with "Request an invite"; `INVITE_INVALID` → field error on the code. |
+| Invite landing | `app/invite/[code]/` | States: checking · valid ("Invite found", masked email, Continue to sign in → `/signin?invite=CODE`) · invalid (sleeping Pea, "Request a new invite" + "I'm already a user") · network error (retry). |
+| Sign-in invite field | `app/signin/page.tsx` | Beta only. "Invite code (new users)", pre-filled from `?invite=`; existing users leave it empty. `INVITE_REQUIRED` → alert with "Request an invite"; `INVITE_INVALID` → field error on the code. |
 | Busy screen (HM-26) | `components/signin/WaitingRoom.tsx` | Shown for `429 RATE_LIMITED` with `Retry-After` on request-code. Pea and Bud toss a pea (`.pb-toss`, transform only, still under reduced motion), the API's message verbatim, a `role="timer"` countdown (not announced every second; the end is announced once), "Try again at about HH:MM", a request-invite link, a six-pea "wake the pod" toy (44 px buttons, counts only your taps) and four "How Peabudy works" cards. The submit button says "Try again in m:ss" (`aria-disabled`) and re-enables itself at zero. The wait survives a reload in the same tab (`sessionStorage`). Extra weight: no images, a few KB of JS. |
 | Survey opt-in | onboarding "Ready to go live?" step, Settings | Unticked checkbox with the DES-13 wording. Onboarding saves it with publish and never blocks publishing (a caution line on the next screen if it failed). Settings saves on change and states On/Off in words. |
 | Unsubscribe | `app/unsubscribe/` (+ `/unsubscribe/survey`) | GET shows "Stop survey emails?" and a button; only the POST withdraws, so mail scanners can't unsubscribe anyone. Shows no email address. Done → "Changed your mind? Go to Settings". |
@@ -604,3 +604,35 @@ Built for the Lagos beta (D15, D16, D17, HM-26). All on the existing tokens; no 
 **Honesty checks applied:** no "you're in the queue" or position numbers; the countdown comes only from
 `Retry-After`; the mascots never appear on the invalid-invite reason or near safety claims; the
 email says why the person got it (they ticked the box) and how to stop.
+
+## 17. Approval-first sign-up components (10 Nov 2026, DES-20 to DES-24)
+
+The conversational questions now live in `components/apply/` and are shared by `/join` (the
+beta application), in-app `/onboarding` (demo modes) and the section editors on `/profile`. Full
+flow and copy: [approval-first-ux.md](approval-first-ux.md).
+
+| Component | What it is |
+|---|---|
+| `useProfileDraft()` | All profile answers, `hydrate(me)`, per-screen `validate()` and `save(screens)` (one PATCH per screen to `/me/profile` or `/me/search`). Exposes `saveState` for the autosave label |
+| `StepBody` | One question's controls for any screen. `compact` renders an h3 for `/profile` editors; `idCheck` switches the name hint to the ID-call wording; `cityBadges` adds a status chip to a city |
+| `QuestionFlow` | The one-question-per-screen shell: Back · section progress · Skip, Pea's line, sticky Continue, a review screen with Edit links, and `SaveStatus`. `mode="join"` adds the private rows to the review |
+| `SaveStatus` | "Saving…" / ✓ "Saved" / "Not saved yet", text plus icon, `role="status"` |
+| `CityCard` | The photo city card (§17.1) |
+| `resumeScreen(me)` | The first unanswered screen, so a returning applicant carries on where they stopped |
+
+Rules:
+- Every Continue saves that screen; going Back saves it too if it's valid, and so does hiding the
+  tab (phone locked). "Saved" is only shown after the server said so.
+- The questions and options are the same everywhere (matching depends on them). Only headings and
+  hints change between the flow and the editors.
+- Destructive actions on `/join/status` confirm inline (real text, focus moved to the question),
+  not with `window.confirm`.
+
+### 17.1 City card
+
+Photo fills the card (16:10 phones, 4:3 from 640 px). Bottom scrim `rgb(20 19 16/.92)` →
+transparent (no blur) carries the white name and rent period. White currency chip top left;
+optional sky status chip above the name. Selected = 4 px ink ring + offset, ink check badge,
+`motion-safe:scale-[1.02]`. Never grey out an unselected city. `role="radio"`, accessible name
+"City. Rent usually per …[. Chip]". Images: `public/cities/<city>-480|960.jpg` via `srcset`, lazy.
+See [city-cards.md](city-cards.md).

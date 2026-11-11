@@ -5,7 +5,7 @@ Status: built 10 Nov 2026, awaiting security review. Owner: engineer.
 ## Flow
 
 1. `POST /api/v1/access-requests` (public) stores an `AccessRequest` and always answers
-   `202 {status: "received"}` for valid input — new, duplicate-pending, or already a member.
+   `202 {status: "received"}` for valid input — new, duplicate-pending, or already a user.
 2. Staff review at `/staff` → Access requests. `invite` creates an `Invite` (14 days, single
    use, bound to the request's email) and emails `<site>/invite/<CODE>` through Resend. The
    response also returns the link so staff can send it by hand if email fails.
@@ -25,7 +25,7 @@ account, invite or not (403 `FORBIDDEN`), in both request-code and verify-code.
 ## Enumeration decision
 
 An inline "you need an invite" error necessarily tells someone who already knows an address
-that it has no account: an existing member gets "sent", an unknown address gets
+that it has no account: an existing user gets "sent", an unknown address gets
 `403 INVITE_REQUIRED`. Options considered:
 
 | Option | Leak | UX |
@@ -54,7 +54,7 @@ Residual: someone who already knows an email can learn whether it has an account
 
 Over the site-wide cap (300 emailed codes an hour) everyone, staff included, gets
 `429 RATE_LIMITED` "We're getting a lot of sign-in requests right now. Try again in an hour."
-with `Retry-After: 3600`. Members wait 150–500 ms of jitter; staff codes are still created and
+with `Retry-After: 3600`. Users wait 150–500 ms of jitter; staff codes are still created and
 emailed (the send stands in for the jitter, and a send failure doesn't change the answer).
 
 ## After the security review (SEC-14, 10 Nov)

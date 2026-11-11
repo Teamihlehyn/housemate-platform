@@ -1,1 +1,2 @@
-- [Testing other modes](testing-other-modes.md) — scratch copy on :3100, scratch-DB migrations, guard-hook and bash 3.2 gotchas
+- [Testing other modes](testing-other-modes.md) — scratch copy on :3100, scratch-DB migrations, guard-hook, browser and e2e env gotchas
+- [Staff allowlist and back office](staff-allowlist-and-back-office.md) — staff roles from env only; staff never in the product

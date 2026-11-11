@@ -1,14 +1,16 @@
 import { NextRequest } from "next/server";
 import { handler, ok, fail } from "@/lib/api";
-import { requireUser } from "@/lib/guard";
+import { requireAccount } from "@/lib/guard";
 import { prisma } from "@/lib/db";
 import { writeAudit, writeOutbox } from "@/lib/audit";
 import { CITIES, GENDER_IDS, OWN_GENDER_OPTIONS, QUESTIONNAIRE } from "@/lib/constants";
 import { testToday, addMonths } from "@/lib/dates";
+import { assertAnswersEditable, isNameLocked } from "@/lib/applicationService";
 
 // PATCH /api/v1/me/search — partial onboarding updates. Stores a search version on change.
 export const PATCH = handler(async (req: NextRequest, { rid }) => {
-  const user = await requireUser();
+  const user = await requireAccount();
+  await assertAnswersEditable(user);
   const body = await req.json().catch(() => ({}));
   const search = await prisma.search.findUnique({ where: { userId: user.id } });
   if (!search) return fail("NOT_FOUND", "No search found.", 404, rid);
@@ -16,6 +18,13 @@ export const PATCH = handler(async (req: NextRequest, { rid }) => {
   const fe: Record<string, string> = {};
   const data: Record<string, unknown> = {};
 
+  // City lock (R5, ENG-46): after approval the city was part of what staff checked, so it
+  // can't change here. Areas within the same city stay editable.
+  if (body.cityId !== undefined && search.cityId && body.cityId !== search.cityId && (await isNameLocked(user.id))) {
+    return fail("VALIDATION", "Your city is fixed once you're approved. Email hello@peabudy.com if you're moving city.", 422, rid, {
+      field_errors: { cityId: "Your city is fixed once you're approved." },
+    });
+  }
   if (body.cityId !== undefined) {
     if (!(body.cityId in CITIES)) {
       fe.cityId = "This prototype supports London and Lagos.";

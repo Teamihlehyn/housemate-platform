@@ -1,11 +1,11 @@
 import { NextRequest } from "next/server";
 import { handler, ok } from "@/lib/api";
-import { requireStaff } from "@/lib/guard";
+import { requireAdmin } from "@/lib/guard";
 import { prisma } from "@/lib/db";
 
-// GET /api/v1/staff/audit — scoped, redacted audit explorer + outbox health.
+// GET /api/v1/staff/audit — scoped, redacted audit explorer + outbox health. Admin only (404 otherwise).
 export const GET = handler(async (req: NextRequest, { rid }) => {
-  await requireStaff();
+  await requireAdmin();
   const url = new URL(req.url);
   const eventType = url.searchParams.get("event_type") ?? undefined;
 

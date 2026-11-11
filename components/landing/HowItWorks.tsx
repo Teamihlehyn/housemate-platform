@@ -9,7 +9,7 @@ type Step = { t: string; d: string };
 
 export default function HowItWorks({ isBeta }: { isBeta: boolean }) {
   const steps: Step[] = [
-    { t: "Tell us your plans", d: "Your move-in dates, budget, areas, how long you want to stay, and six living habits. One question at a time." },
+    { t: isBeta ? "Apply with your plans" : "Tell us your plans", d: "Your move-in dates, budget, areas, how long you want to stay, and six living habits. One question at a time." },
     { t: "See who fits, and why", d: "Every match explains itself: the dates you share, the areas you both want, the habits you agree on. No swiping, no % scores." },
     { t: "Say hello", d: "Send a short introduction. If they accept, a private chat opens. Report and block are always one tap away." },
     { t: "Agree the money stuff", d: "Rent split, bills and notice if someone leaves, written down. Every change is a new version you both accept." },
@@ -83,8 +83,8 @@ export default function HowItWorks({ isBeta }: { isBeta: boolean }) {
                 Next step
               </button>
             ) : (
-              <a href="/signin" className="btn-primary">
-                Get started
+              <a href={isBeta ? "/join" : "/signin"} className="btn-primary">
+                {isBeta ? "Apply to join" : "Get started"}
               </a>
             )}
           </div>

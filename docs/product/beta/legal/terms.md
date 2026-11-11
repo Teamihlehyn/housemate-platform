@@ -29,7 +29,7 @@ Peabudy is **for individuals, not agents, landlords or businesses** advertising 
 
 ## 3. Identity check
 
-Before you can see other members or be seen, someone from our team checks your photo ID on a short video call. We record only whether it passed and when. We don't keep a copy (see the privacy notice).
+Before you can see other users or be seen, someone from our team checks your photo ID on a short video call. We record only whether it passed and when. We don't keep a copy (see the privacy notice).
 
 **A completed check means we saw an ID that matched the person on the call. It doesn't mean that person is safe, honest or a good housemate.** Checks completed — not a guarantee of safety.
 
@@ -44,7 +44,7 @@ You agree **not** to:
 - pretend to be someone else, or create an account for someone else
 - share another person's private information (address, phone, ID) without their permission
 - advertise, spam or recruit for other services
-- scrape, copy or collect other members' data, or try to get around our security or limits
+- scrape, copy or collect other users' data, or try to get around our security or limits
 - use Peabudy if you're under 18.
 
 Use your own judgement. Have a video call before meeting, meet in public first, and **never pay anything before you've seen a home in person and checked who the landlord or agent is.**
@@ -80,7 +80,7 @@ You can delete your account at any time in Settings. We may close accounts as de
 ## 10. Our responsibility to you
 
 - We provide Peabudy with reasonable care and skill.
-- We **aren't** responsible for what other members say or do, for any home, landlord or agent, or for any arrangement you make with another member.
+- We **aren't** responsible for what other users say or do, for any home, landlord or agent, or for any arrangement you make with another user.
 - Nothing in these terms limits liability that can't be limited by law, including for death or personal injury caused by our negligence, for fraud, or your statutory rights as a consumer.
 - [LIABILITY CAP, IF ANY, counsel to draft.]
 

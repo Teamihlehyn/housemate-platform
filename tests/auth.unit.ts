@@ -1,7 +1,7 @@
 // Unit checks for sign-in helpers (ENG-06). Run: npm run test:unit
 import {
   MAX_CODES_PER_EMAIL_HOUR, MAX_EMAILED_CODES_PER_HOUR, MAX_EMAILED_CODES_PER_IP_HOUR,
-  BUSY_MESSAGE, clientIp, codesMatch, decideCodeRequest, generateLoginCode, hashIp, ipBucket, ipHashSalt, isReconsent, needsConsent,
+  BUSY_MESSAGE, CODE_RESPONSE_FLOOR_MS, clientIp, codesMatch, decideCodeRequest, generateLoginCode, hashEmailKey, hashIp, ipBucket, ipHashSalt, isReconsent, needsConsent,
 } from "../lib/auth";
 import { demoModeFor, resolveAppEnv } from "../lib/env";
 
@@ -62,7 +62,7 @@ check("the old public default salt is gone", ipHashSalt({}) !== "peabudy-ip-v1")
 check("different salts give different hashes", hashIp("203.0.113.7", "x".repeat(16)) !== hashIp("203.0.113.7", "y".repeat(16)));
 
 // Code request caps (HM-08).
-const base = { emailedCode: true, isStaff: false, fromEmail: 0, fromIp: 0, sitewide: 0 };
+const base = { emailedCode: true, isStaff: false, eligible: true, fromEmail: 0, fromIp: 0, sitewide: 0 };
 check("under every cap: send", decideCodeRequest(base) === "send");
 check("per-email cap: 429 for everyone",
   decideCodeRequest({ ...base, fromEmail: MAX_CODES_PER_EMAIL_HOUR }) === "email_limited" &&
@@ -75,16 +75,22 @@ check("site-wide cap (HM-26): staff get the same 429 but their code is sent",
   decideCodeRequest({ ...base, isStaff: true, sitewide: MAX_EMAILED_CODES_PER_HOUR + 50 }) === "send_sitewide_limited");
 check("just under the site-wide cap: send", decideCodeRequest({ ...base, sitewide: MAX_EMAILED_CODES_PER_HOUR - 1 }) === "send");
 
-// Invite-only sign-up (D15).
-check("new address, no invite: INVITE_REQUIRED", decideCodeRequest({ ...base, newAccount: "required" }) === "invite_required");
-check("new address, bad invite: INVITE_INVALID", decideCodeRequest({ ...base, newAccount: "invalid" }) === "invite_invalid");
-check("new address, good invite: send", decideCodeRequest({ ...base, newAccount: "ok" }) === "send");
-check("existing account (gate null): send", decideCodeRequest({ ...base, newAccount: null }) === "send");
-check("sign-ups paused beats a good invite", decideCodeRequest({ ...base, newAccount: "paused" }) === "signups_paused");
-check("the per-IP cap applies before the invite check (so probing is capped)",
-  decideCodeRequest({ ...base, fromIp: MAX_EMAILED_CODES_PER_IP_HOUR, newAccount: "required" }) === "ip_limited");
-check("an invite refusal is the same whatever the site-wide count",
-  decideCodeRequest({ ...base, sitewide: MAX_EMAILED_CODES_PER_HOUR, newAccount: "required" }) === "invite_required");
+// Approval-first sign-in (ENG-41, HM-28): every limit applies the same way whether or not the
+// address may sign in; only the very last step differs, and both answers are the same 200.
+const ineligible = { ...base, eligible: false };
+check("not an active member: silent (no code, same 200)", decideCodeRequest(ineligible) === "silent");
+check("per-email cap: the same 429 for an ineligible address",
+  decideCodeRequest({ ...ineligible, fromEmail: MAX_CODES_PER_EMAIL_HOUR }) === decideCodeRequest({ ...base, fromEmail: MAX_CODES_PER_EMAIL_HOUR }));
+check("per-IP cap: the same 429 for an ineligible address",
+  decideCodeRequest({ ...ineligible, fromIp: MAX_EMAILED_CODES_PER_IP_HOUR }) === "ip_limited");
+check("site-wide cap: the same 429 for an ineligible address (nothing sent)",
+  decideCodeRequest({ ...ineligible, sitewide: MAX_EMAILED_CODES_PER_HOUR }) === "sitewide_limited");
+check("an ineligible staff-looking address never gets a send behind the cap",
+  decideCodeRequest({ ...ineligible, isStaff: true, sitewide: MAX_EMAILED_CODES_PER_HOUR }) === "sitewide_limited");
+check("the response floor is long enough to cover a code insert", CODE_RESPONSE_FLOOR_MS >= 300);
+check("email keys are salted, stable and case-insensitive",
+  hashEmailKey("A@x.co", "s".repeat(16)) === hashEmailKey("a@x.co", "s".repeat(16)) && hashEmailKey("a@x.co", "s".repeat(16)) !== hashEmailKey("a@x.co", "t".repeat(16))
+  && !hashEmailKey("a@x.co", "s".repeat(16)).includes("@"));
 check("busy message is the agreed copy", BUSY_MESSAGE === "We're getting a lot of sign-in requests right now. Try again in an hour.");
 check("on-screen codes ignore the IP and site-wide caps",
   decideCodeRequest({ ...base, emailedCode: false, fromIp: 99, sitewide: 9999 }) === "send");

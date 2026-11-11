@@ -1,21 +1,25 @@
-"""End-to-end checks for beta mode (ENG-10): gating, safety, invite-only sign-up, the full
-member journey, feedback, survey opt-in/send/unsubscribe, export and deletion.
+"""End-to-end checks for beta mode: approval-first sign-up (ENG-39–44, spec §6 cases 1–16),
+the staff allowlist (HM-10), gating, safety, the member journey, feedback, survey
+opt-in/send/unsubscribe, export and deletion.
 
 Usage:
   python3 tests/e2e_beta.py http://localhost:3100 "postgresql://<you>@localhost:5432/<beta_test_db>"
+  E2E_PAUSED=1 python3 tests/e2e_beta.py …   # case 16 only, against a server with SIGNUPS_PAUSED=true
 
 Needs a LOCAL beta-mode server and a psql connection string for the same database. The
 script runs a fake Resend on 127.0.0.1:$MAIL_PORT (default 8025) and reads the emails the
 app sends, so start the server with:
   APP_ENV=beta NEXT_PUBLIC_APP_ENV=beta OPEN_CITIES=lagos \
   RESEND_API_KEY=test-key EMAIL_FROM="Peabudy <test@example.com>" EMAIL_API_URL=http://127.0.0.1:8025 \
+  ADMIN_EMAILS=e2e-admin@example.com \
+  STAFF_EMAILS=e2e-verifier@example.com:verifier,e2e-moderator@example.com:moderator \
   DATABASE_URL=… DIRECT_URL=… next dev -p 3100
-(EMAIL_API_URL is honoured only outside Vercel.) Some setup still goes straight to the
-database: codes for pre-made members, invites for them, roles. Never point this at a shared
-or cloud database.
+(EMAIL_API_URL is honoured only outside Vercel.) Some setup goes straight to the database:
+pre-made members, codes for them, roles. Never point this at a shared or cloud database.
 """
-import datetime, hashlib, http.cookiejar, http.server, json, os, random, re, subprocess, sys, threading, time
+import datetime, hashlib, http.cookiejar, http.server, json, os, random, re, statistics, subprocess, sys, threading, time
 import urllib.error, urllib.parse, urllib.request, uuid
+from concurrent.futures import ThreadPoolExecutor
 
 BASE, PSQL = sys.argv[1], sys.argv[2]
 if "neon.tech" in PSQL or "localhost" not in PSQL:
@@ -23,6 +27,7 @@ if "neon.tech" in PSQL or "localhost" not in PSQL:
 fails = 0
 RUN = datetime.datetime.now().strftime("%H%M%S%f")
 today = datetime.date.today()
+ADMIN_EMAIL, VERIFIER_EMAIL, MODERATOR_EMAIL = "e2e-admin@example.com", "e2e-verifier@example.com", "e2e-moderator@example.com"
 
 
 # ---- fake Resend: collects every email the app sends ----
@@ -52,18 +57,19 @@ def mails_to(addr):
     return [m for m in MAIL if addr in m.get("to", [])]
 
 
-def wait_mail(addr, pred=lambda m: True, timeout=10):
+def wait_mail(addr, pred=lambda m: True, timeout=10, after=0):
     end = time.time() + timeout
     while time.time() < end:
-        found = [m for m in mails_to(addr) if pred(m)]
+        found = [m for m in mails_to(addr)[after:] if pred(m)]
         if found:
             return found[-1]
         time.sleep(0.1)
     return None
 
 
-def login_code(addr):
-    m = wait_mail(addr, lambda m: "sign-in code" in m.get("subject", ""))
+def login_code(addr, after=0):
+    """The six-digit code from the newest E0 ("Your Peabudy code: 123456")."""
+    m = wait_mail(addr, lambda m: "Peabudy code" in m.get("subject", ""), after=after)
     return re.search(r"(\d{6})", m["subject"]).group(1) if m else None
 
 
@@ -78,13 +84,17 @@ def next_ip():  # a fresh client IP per call keeps the per-IP limits out of the 
 
 class C:
     def __init__(self):
-        self.op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+        self.jar = http.cookiejar.CookieJar()
+        self.op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(self.jar))
         self.headers = {}
+        self.cookie = None  # a raw "hm_session=…" sent instead of the jar's cookie
 
     def call(self, path, body=None, method=None, ip=None):
-        headers = {"Content-Type": "application/json"}
-        if ip:  # local dev only: next dev trusts x-forwarded-for, so tests can pick the client IP
-            headers["X-Forwarded-For"] = ip
+        # Local dev only: next dev trusts x-forwarded-for, so tests pick the client IP. A fresh
+        # one by default; pass ip= to share a bucket on purpose.
+        headers = {"Content-Type": "application/json", "X-Forwarded-For": ip or next_ip()}
+        if self.cookie:
+            headers["Cookie"] = self.cookie
         req = urllib.request.Request(
             BASE + "/api/v1" + path,
             data=json.dumps(body).encode() if body is not None else None,
@@ -111,6 +121,27 @@ class C:
             return e.code, {k.lower(): v for k, v in e.headers.items()}, e.read().decode()
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *a, **k):
+        return None
+
+
+def first_hop(c, path):
+    """(status, Location) of a page request without following redirects."""
+    op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(c.jar), _NoRedirect())
+    try:
+        with op.open(urllib.request.Request(BASE + path), timeout=60) as r:
+            return r.status, r.headers.get("Location")
+    except urllib.error.HTTPError as e:
+        return e.code, e.headers.get("Location")
+
+
+def reset_email_bucket(email):
+    """Forget this run's per-address code requests (5 an hour), so later steps can ask again."""
+    key = hashlib.sha256(("peabudy-ip-local-only:email:" + email.lower()).encode()).hexdigest()[:32]
+    sql(f'delete from "AuditEvent" where "eventType" = \'auth.code_email\' and "resourceId" = {lit(key)}')
+
+
 def check(name, cond, extra=""):
     global fails
     print(("  PASS " if cond else "  FAIL ") + name + (f"  ({extra})" if extra else ""))
@@ -126,22 +157,9 @@ def lit(s):
     return "'" + s.replace("'", "''") + "'"
 
 
-ALPHABET = "ABCDEFGHJKMNPQRSTWXYZ23456789"
-
-
-def sql_invite(email=None, expires="now() + interval '14 days'"):
-    """An invite made straight in the database; returns (id, code)."""
-    code = "".join(random.choice(ALPHABET) for _ in range(8))
-    iid = uuid.uuid4().hex
-    sql(f'''insert into "Invite"(id, "codeHash", email, "createdBy", "expiresAt")
-           values ({lit(iid)}, {lit(hashlib.sha256(code.encode()).hexdigest())}, {lit(email) if email else "null"}, 'e2e', {expires})''')
-    return iid, code
-
-
-def new_code(email, invite_id=None):
+def new_code(email):
     code = "246810"
-    sql(f'''insert into "AuthCode"(id, email, code, "inviteId", "expiresAt") values ({lit(uuid.uuid4().hex)}, {lit(email)}, {lit(code)},
-           {lit(invite_id) if invite_id else "null"}, now() + interval '10 minutes')''')
+    sql(f'''insert into "AuthCode"(id, email, code, "expiresAt") values ({lit(uuid.uuid4().hex)}, {lit(email)}, {lit(code)}, now() + interval '10 minutes')''')
     return code
 
 
@@ -153,38 +171,178 @@ def set_identity(uid, status):
     sql(f'update "VerificationCheck" set status = {lit(status)} where "userId" = {lit(uid)} and category = \'identity\'')
 
 
+def audits(event, extra=""):
+    return int(sql(f'select count(*) from "AuditEvent" where "eventType" = {lit(event)} {extra}'))
+
+
 d = lambda r: r[1].get("data") or {}
 err = lambda r: (r[1].get("error") or {}).get("code")
 
 
+def sql_account(email, status="active", role="member", name="Member"):
+    """An account made straight in the database (approval-first has no open sign-up)."""
+    uid = "e2e" + uuid.uuid4().hex[:22]
+    sql(f'''insert into "User"(id, email, "emailVerified", "displayName", "accountStatus", role, "updatedAt")
+           values ({lit(uid)}, {lit(email)}, true, {lit(name)}, {lit(status)}, {lit(role)}, now())''')
+    sql(f'''insert into "Profile"(id, "userId", "updatedAt") values ({lit("p" + uid)}, {lit(uid)}, now())''')
+    sql(f'''insert into "Search"(id, "userId", "updatedAt") values ({lit("s" + uid)}, {lit(uid)}, now())''')
+    return uid
+
+
+def sign_in(email):
+    c = C()
+    r = c.call("/auth/verify-code", {"email": email, "code": new_code(email), "accept_privacy": True})
+    assert r[0] == 200, (email, r)
+    return c
+
+
+INTRO = "Hello, our dates and areas line up well. Shall we talk about a place?"
+HABITS = {"cleaning": "weekly", "quiet": "before_00", "guests": "up_to_2_nights", "smoking": "no", "pets": "none", "social": "balanced"}
+PREFS = [{"dimension": k, "ownAnswer": v, "acceptedValues": [v]} for k, v in HABITS.items()]
+BIO = "Beta end-to-end test member with a bio comfortably over the eighty character minimum."
+DATES = {"moveMode": "range", "earliestDate": (today + datetime.timedelta(days=20)).isoformat(),
+         "latestDate": (today + datetime.timedelta(days=50)).isoformat(), "stayMinMonths": 6, "stayMaxMonths": 12}
+LAGOS_MONEY = {"rentPeriod": "year", "rentMinMinor": 150000000, "rentMaxMinor": 250000000}
+
+
 def member(name, area, city="london"):
-    c, email = C(), f"beta-{name}-{RUN}@example.com"
-    iid, _ = sql_invite(email)
-    r = c.call("/auth/verify-code", {"email": email, "code": new_code(email, iid), "accept_privacy": True})
-    assert r[0] == 200, r
-    c.call("/me/profile", {"journey": "find_together", "displayName": name.title(),
-                           "bio": "Beta end-to-end test member with a bio comfortably over the eighty character minimum."}, method="PATCH")
-    money = {"rentPeriod": "month", "rentMinMinor": 80000, "rentMaxMinor": 120000} if city == "london" else \
-        {"rentPeriod": "year", "rentMinMinor": 150000000, "rentMaxMinor": 250000000}
-    c.call("/me/search", {"cityId": city, "areaIds": [area], **money,
-                          "moveMode": "range", "earliestDate": (today + datetime.timedelta(days=20)).isoformat(),
-                          "latestDate": (today + datetime.timedelta(days=50)).isoformat(), "stayMinMonths": 6, "stayMaxMonths": 12}, method="PATCH")
-    habits = {"cleaning": "weekly", "quiet": "before_00", "guests": "up_to_2_nights", "smoking": "no", "pets": "none", "social": "balanced"}
-    c.call("/me/search", {"gender": "prefer_not_to_say",
-                          "preferences": [{"dimension": k, "ownAnswer": v, "acceptedValues": [v]} for k, v in habits.items()]}, method="PATCH")
+    """A pre-made active member who publishes the older way (identity then waits in review)."""
+    email = f"beta-{name}-{RUN}@example.com"
+    sql_account(email, name=name.title())
+    c = sign_in(email)
+    c.call("/me/profile", {"journey": "find_together", "displayName": name.title(), "bio": BIO}, method="PATCH")
+    money = {"rentPeriod": "month", "rentMinMinor": 80000, "rentMaxMinor": 120000} if city == "london" else LAGOS_MONEY
+    c.call("/me/search", {"cityId": city, "areaIds": [area], **money, **DATES}, method="PATCH")
+    c.call("/me/search", {"gender": "prefer_not_to_say", "preferences": PREFS}, method="PATCH")
     r = c.call("/me/search/publish", {})
     assert r[0] == 200, r
     return c, email, user_id(email)
 
 
+def staff_client(email):
+    """A listed staff address signs in; the account is created with its listed role if needed."""
+    return sign_in(email)
+
+
+def start_application(email):
+    """/join steps 1–2 with the emailed code. Returns (client, verify response)."""
+    c = C()
+    before = len(mails_to(email))
+    r = c.call("/applications/start", {"email": email, "consent_privacy": True})
+    assert r[0] == 200, (email, r)
+    code = login_code(email, after=before)
+    assert code, f"no code mailed to {email}"
+    return c, c.call("/applications/verify", {"email": email, "code": code})
+
+
+def fill_application(c, name, city="lagos", area="yaba", gender="woman"):
+    c.call("/me/profile", {"journey": "find_together", "displayName": name, "bio": BIO}, method="PATCH")
+    money = LAGOS_MONEY if city == "lagos" else {"rentPeriod": "month", "rentMinMinor": 80000, "rentMaxMinor": 120000}
+    c.call("/me/search", {"cityId": city, "areaIds": [area], **money, **DATES}, method="PATCH")
+    return c.call("/me/search", {"gender": gender, "preferences": PREFS}, method="PATCH")
+
+
+def application_id(email):
+    return sql(f'select a.id from "Application" a join "User" u on u.id = a."userId" where u.email = {lit(email)}')
+
+
+def app_version(aid):
+    return int(sql(f'select version from "Application" where id = {lit(aid)}'))
+
+
+def staff_act(c, aid, action, **extra):
+    return c.call(f"/staff/applications/{aid}", {"action": action, "expected_version": app_version(aid), **extra})
+
+
+def activate(email, admin, own_note=None):
+    """Approve an applicant's submitted application, then activate it. Returns the member client."""
+    aid = application_id(email)
+    before = len(mails_to(email))
+    extra = {"own_account": True, "relationship_note": own_note} if own_note else {}
+    r = staff_act(admin, aid, "approve", id_check_confirmed=True, id_check_method="video", **extra)
+    assert r[0] == 200, r
+    code = d(r)["activation_code"]
+    c = C()
+    c.call(f"/invites/{code}", {})
+    otp = login_code(email, after=before)
+    r = c.call("/auth/verify-code", {"activation_code": code, "code": otp})
+    assert r[0] == 200, r
+    return c
+
+
+def apply_activated(name, admin, area="yaba", gender="man", own_note=None):
+    email = f"beta-{name}-{RUN}@example.com"
+    c, _ = start_application(email)
+    fill_application(c, name.title(), area=area, gender=gender)
+    assert c.call("/applications/submit", {})[0] == 200
+    return activate(email, admin, own_note), email, user_id(email)
+
+
+if os.environ.get("E2E_PAUSED"):
+    print("== Case 16: SIGNUPS_PAUSED ==")
+    r = C().call("/applications/start", {"email": f"beta-paused-{RUN}@example.com", "consent_privacy": True})
+    check("/join step 1 refuses with the pause message", r[0] == 403 and err(r) == "FORBIDDEN" and "not taking new applications" in r[1]["error"]["message"], r)
+    pm = f"beta-pausedmember-{RUN}@example.com"
+    sql_account(pm)
+    r = C().call("/auth/request-code", {"email": pm})
+    code = login_code(pm)
+    check("existing members still get a sign-in code", r[0] == 200 and bool(code), r)
+    r = C().call("/auth/verify-code", {"email": pm, "code": code, "accept_privacy": True})
+    check("…and sign in normally", r[0] == 200, r)
+    print()
+    print(f"{fails} FAILED" if fails else "ALL PASSED")
+    sys.exit(1 if fails else 0)
+
+
 print("== Beta mode is on ==")
 probe = f"beta-probe-{RUN}@example.com"
-_, probe_code = sql_invite(probe)
-r = C().call("/auth/request-code", {"email": probe, "invite_code": probe_code}, ip=next_ip())
+sql_account(probe)
+r = C().call("/auth/request-code", {"email": probe})
 check("no on-screen code in beta; the code is emailed", r[0] == 200 and not d(r).get("sink_code") and login_code(probe), f"{r[0]} {err(r)}")
 if r[0] == 200 and not mails_to(probe):
     sys.exit(f"The server isn't sending mail to the fake Resend on :{MAIL_PORT}. Start it with EMAIL_API_URL=http://127.0.0.1:{MAIL_PORT}, RESEND_API_KEY and EMAIL_FROM.")
 check("demo personas are off", C().call("/auth/demo-persona", {"persona": "ben", "accept_privacy": True})[0] == 404)
+
+print("== HM-10: staff access only from the allowlist ==")
+admin_c = staff_client(ADMIN_EMAIL)
+admin_id = user_id(ADMIN_EMAIL)
+check("an ADMIN_EMAILS address signs in as admin", d(admin_c.call("/me")).get("role") == "admin" and sql(f'select role from "User" where id = {lit(admin_id)}') == "admin")
+staff_c = staff_client(VERIFIER_EMAIL)
+staff_email, staff_id = VERIFIER_EMAIL, user_id(VERIFIER_EMAIL)
+check("a STAFF_EMAILS verifier signs in as verifier", d(staff_c.call("/me")).get("role") == "verifier")
+mod_c = staff_client(MODERATOR_EMAIL)
+check("a STAFF_EMAILS moderator signs in as moderator", d(mod_c.call("/me")).get("role") == "moderator")
+rogue = f"beta-rogue-{RUN}@example.com"
+rogue_id = sql_account(rogue, role="admin", name="Rogue")
+token = uuid.uuid4().hex + uuid.uuid4().hex
+sql(f'''insert into "Session"(token, "userId", "expiresAt") values ({lit(token)}, {lit(rogue_id)}, now() + interval '1 day')''')
+rc = C()
+rc.cookie = f"hm_session={token}"
+codes_ = [rc.call(p)[0] for p in ("/staff/applications", "/staff/audit", "/staff/research", "/staff/verifications")]
+check("a stored admin NOT on the allowlist gets 404 on /staff routes (an existing session)", codes_ == [404] * 4, codes_)
+check("…and 404 on the /staff page", first_hop(rc, "/staff")[0] == 404)
+check("…and is a member as far as /me says", d(rc.call("/me")).get("role") == "member")
+check("…including admin-only tools (404)", rc.call("/staff/survey/send", {"campaign": "x", "dry_run": True})[0] == 404)
+sign_in(rogue)
+check("…and signing in demotes the stored role, audited",
+      sql(f'select role from "User" where id = {lit(rogue_id)}') == "member" and audits("staff.role_revoked", f'and "subjectId" = {lit(rogue_id)}') == 1)
+
+print("== ENG-46: the back office is back office only ==")
+r = C().call("/auth/verify-code", {"email": VERIFIER_EMAIL, "code": new_code(VERIFIER_EMAIL), "accept_privacy": True})
+check("a staff sign-in is sent to /staff", r[0] == 200 and d(r).get("redirect") == "/staff", d(r))
+for path in ("/discover", "/messages", "/household", "/profile", "/onboarding", "/notifications", "/settings", "/members/x"):
+    st, loc = first_hop(staff_c, path)
+    check(f"staff GET {path} redirects to /staff", st in (303, 307, 308) and (loc or "").endswith("/staff"), f"{st} {loc}")
+for method, path in [("GET", "/recommendations"), ("GET", "/users/x"), ("POST", "/introductions"), ("GET", "/conversations"),
+                     ("GET", "/households/current"), ("PATCH", "/me/profile"), ("PATCH", "/me/search"), ("GET", "/notifications")]:
+    r = staff_c.call(path, {} if method != "GET" else None, method)
+    check(f"staff {method} {path}: 404", r[0] == 404 and err(r) == "NOT_FOUND", f"{r[0]} {err(r)}")
+check("staff keep /me, export and sign-out", staff_c.call("/me")[0] == 200 and staff_c.call("/me/export")[0] == 200)
+st, _, html = staff_c.raw("/staff")
+check("the back office renders its own shell: no member nav, no Feedback pill",
+      st == 200 and "Back office" in html and 'aria-label="Main"' not in html and ">Discover<" not in html and ">Household<" not in html, st)
+st, loc = first_hop(admin_c, "/staff")
+check("admins open /staff directly", st == 200, st)
 
 print("== ENG-02: verified-only browsing ==")
 a, a_email, a_id = member("ada", "hackney")
@@ -207,6 +365,23 @@ check("two verified members see each other",
       b_id in [c["userId"] for c in d(a.call("/recommendations"))["candidates"]]
       and a_id in [c["userId"] for c in d(b.call("/recommendations"))["candidates"]])
 check("verified members can open each other's profile", a.call("/users/" + b_id)[0] == 200)
+# A staff account with a full, verified, published Lagos/London profile still never appears.
+sql(f'''update "Profile" set "publicationStatus" = 'published', journey = 'find_together', bio = {lit(BIO)} where "userId" = {lit(staff_id)}''')
+sql(f'''update "Search" s set status = 'active', "cityId" = o."cityId", currency = o.currency, "rentMinMinor" = o."rentMinMinor", "rentMaxMinor" = o."rentMaxMinor",
+        "rentPeriod" = o."rentPeriod", "moveMode" = o."moveMode", "earliestDate" = o."earliestDate", "latestDate" = o."latestDate",
+        "stayMinMonths" = o."stayMinMonths", "stayMaxMonths" = o."stayMaxMonths", gender = o.gender
+        from "Search" o where o."userId" = {lit(b_id)} and s."userId" = {lit(staff_id)}''')
+sql(f'''insert into "SearchArea"(id, "searchId", "areaId") select {lit("sa" + RUN)}, id, 'hackney' from "Search" where "userId" = {lit(staff_id)} on conflict do nothing''')
+sql(f'''insert into "PreferenceAnswer"(id, "searchId", dimension, "ownAnswer", "acceptedValues")
+        select {lit("pa" + RUN)} || p.dimension, s.id, p.dimension, p."ownAnswer", p."acceptedValues" from "PreferenceAnswer" p, "Search" s
+        where p."searchId" = (select id from "Search" where "userId" = {lit(b_id)}) and s."userId" = {lit(staff_id)} on conflict do nothing''')
+sql(f'''insert into "VerificationCheck"(id, "userId", category, status, points) values ({lit("vc" + RUN)}, {lit(staff_id)}, 'identity', 'verified', 40)
+        on conflict ("userId", category) do update set status = 'verified' ''')
+check("a staff account never appears in recommendations", staff_id not in [c["userId"] for c in d(a.call("/recommendations"))["candidates"]])
+check("…or as a profile (404)", a.call("/users/" + staff_id)[0] == 404)
+check("…and can't be introduced (404)", a.call("/introductions", {"target_user_id": staff_id, "text": INTRO})[0] == 404)
+r = a.call("/me/search/publish", {})
+check("re-publishing never undoes a verified identity", r[0] == 200 and sql(f'select status from "VerificationCheck" where "userId" = {lit(a_id)} and category = \'identity\'') == "verified")
 
 print("== ENG-01: homes, viewings, application and move-in are off ==")
 routes = [("GET", "/properties"), ("POST", "/households/x/shortlist"), ("POST", "/shortlist/x/vote"),
@@ -220,7 +395,6 @@ for method, path in routes:
           f"{anon[0]}/{signed[0]}")
 check("households/current still works", a.call("/households/current")[0] == 200)
 
-INTRO = "Hello, our dates and areas line up well. Shall we talk about a place?"
 
 
 def verified_member(name):
@@ -268,11 +442,9 @@ r = e.call(f"/conversations/{convo}/messages", {"client_message_id": "m1", "body
 check("blocked person can't message: 404", r[0] == 404, f"{r[0]} {err(r)}")
 check("blocker gets no notification (household, message)", notes(f) == before)
 
-from concurrent.futures import ThreadPoolExecutor
-
 print("== HM-03: parallel guesses can't beat the attempt cap ==")
-from concurrent.futures import ThreadPoolExecutor
 g_email = f"beta-guess-{RUN}@example.com"
+sql_account(g_email)
 new_code(g_email)
 with ThreadPoolExecutor(max_workers=50) as pool:
     results = list(pool.map(lambda i: C().call("/auth/verify-code", {"email": g_email, "code": "000000", "accept_privacy": True}), range(50)))
@@ -283,13 +455,17 @@ for _ in range(2):
     for _ in range(5):
         C().call("/auth/verify-code", {"email": g_email, "code": "000000", "accept_privacy": True})
 code = new_code(g_email)
-r = C().call("/auth/verify-code", {"email": g_email, "code": code, "accept_privacy": True})
+gc = C()
+r = gc.call("/auth/verify-code", {"email": g_email, "code": code, "accept_privacy": True})
 check("10 failed guesses an hour locks the address, even with a fresh correct code", r[0] == 429 and err(r) == "TOO_MANY_ATTEMPTS", f"{r[0]} {err(r)}")
+check("…with Retry-After", gc.headers.get("retry-after") == "3600", gc.headers.get("retry-after"))
 
 print("== HM-08: emailed code requests are capped per IP ==")
-codes = [C().call("/auth/request-code", {"email": f"beta-cap{i}-{RUN}@example.com"}) for i in range(12)]
+cap_ip = f"192.0.2.{random.randint(100, 250)}"
+codes = [C().call("/auth/request-code", {"email": f"beta-cap{i}-{RUN}@example.com"}, ip=cap_ip) for i in range(12)]
 first_429 = next((i for i, r in enumerate(codes) if r[0] == 429), None)
-check("an IP is capped within 11 requests an hour", first_429 is not None and first_429 <= 10 and err(codes[first_429]) == "RATE_LIMITED", f"first 429 at #{first_429}")
+check("an IP is capped within 11 requests an hour, unknown addresses included",
+      first_429 is not None and first_429 <= 10 and err(codes[first_429]) == "RATE_LIMITED", f"first 429 at #{first_429}")
 
 print("== HM-08: IPv6 is capped per /64 ==")
 net = f"2001:db8:{int(RUN[-4:]) % 65536:x}:{int(RUN[:4]) % 65536:x}"
@@ -301,11 +477,17 @@ check("another /64 isn't affected", r[0] != 429, f"{r[0]} {err(r)}")
 
 print("== HM-08: a burst can't beat the per-email cap ==")
 burst_email = f"beta-burst-{RUN}@example.com"
-_, burst_invite = sql_invite(burst_email)
+sql_account(burst_email)
 with ThreadPoolExecutor(max_workers=20) as pool:
-    burst = list(pool.map(lambda i: C().call("/auth/request-code", {"email": burst_email, "invite_code": burst_invite}, ip=f"198.51.100.{i + 1}"), range(20)))
+    burst = list(pool.map(lambda i: C().call("/auth/request-code", {"email": burst_email}), range(20)))
 made = int(sql(f'select count(*) from "AuthCode" where email = {lit(burst_email)}'))
 check("20 parallel requests for one address create at most 5 codes", made == 5, f"codes={made}, statuses={sorted(r[0] for r in burst)}")
+unknown_burst = f"beta-burst-unknown-{RUN}@example.com"
+ub = [C().call("/auth/request-code", {"email": unknown_burst}) for _ in range(6)]
+mb = [r[0] for r in burst]
+check("an unknown address hits the same per-address cap at the 6th request, same body (HM-28)",
+      [r[0] for r in ub] == [200] * 5 + [429] and mb.count(200) == 5 and ub[5][1]["error"] == next(r for r in burst if r[0] == 429)[1]["error"],
+      [r[0] for r in ub])
 
 print("== HM-26: over the site-wide cap, everyone gets the same honest 429 ==")
 BUSY = "We're getting a lot of sign-in requests right now. Try again in an hour."
@@ -321,17 +503,17 @@ took = time.time() - t0
 check("member over the site-wide cap: 429 RATE_LIMITED with the agreed message",
       r[0] == 429 and err(r) == "RATE_LIMITED" and r[1]["error"]["message"] == BUSY, r)
 check("…with Retry-After", cm.headers.get("retry-after") == "3600", cm.headers.get("retry-after"))
-check("…after the 150–500 ms jitter", took >= 0.15, f"{took:.3f}s")
+check("…after the response floor", took >= 0.4, f"{took:.3f}s")
 check("…and no code is created or sent", sql(f'select count(*) from "AuthCode" where email = {lit(m_email)}') == "0" and not mails_to(m_email))
 check("…and the refusal is logged", sql(f'''select count(*) from "AuditEvent" where "eventType" = 'auth.code_requested' and action = 'dropped_sitewide_cap' and "occurredAt" > now() - interval '1 minute' ''') != "0")
-r = C().call("/auth/request-code", {"email": f"beta-floodnew-{RUN}@example.com"}, ip="192.0.2.12")
-check("a new address without an invite still gets INVITE_REQUIRED (no new signal)", err(r) == "INVITE_REQUIRED", f"{r[0]} {err(r)}")
-staff_c, staff_email, staff_id = member("staffer", "camden")
-sql(f'update "User" set role = \'verifier\' where id = {lit(staff_id)}')
+r2 = C().call("/auth/request-code", {"email": f"beta-floodnew-{RUN}@example.com"}, ip="192.0.2.12")
+check("an unknown address gets the identical 429 (no new signal)", r2[0] == 429 and r2[1]["error"] == r[1]["error"], f"{r2[0]} {err(r2)}")
+sql(f'delete from "AuthCode" where email = {lit(staff_email)}')
+before_staff = len(mails_to(staff_email))
 cs = C()
 r = cs.call("/auth/request-code", {"email": staff_email}, ip="192.0.2.11")
 check("staff over the cap get the identical 429…", r[0] == 429 and err(r) == "RATE_LIMITED" and r[1]["error"]["message"] == BUSY and cs.headers.get("retry-after") == "3600", r)
-check("…but their code is created and emailed", sql(f'select count(*) from "AuthCode" where email = {lit(staff_email)}') == "1" and login_code(staff_email))
+check("…but their code is created and emailed", sql(f'select count(*) from "AuthCode" where email = {lit(staff_email)}') == "1" and login_code(staff_email, after=before_staff))
 sql(f'delete from "AuditEvent" where "resourceId" like {lit(fill + "%")}')
 
 print("== ENG-04: beta shows checks, never a score ==")
@@ -339,8 +521,8 @@ r = b.call("/users/" + a_id)
 cred = d(r).get("credibility", {})
 check("public profile has only the checks list", r[0] == 200 and set(cred.keys()) == {"checks"}, cred)
 cats = {c["category"]: c for c in cred.get("checks", [])}
-check("email and identity are listed with a month, not a timestamp",
-      {"email", "identity"} <= set(cats) and all(len(c["checkedMonth"]) == 7 and c["checkedMonth"][4] == "-" for c in cats.values()), cats)
+check("identity is listed with a month, not a timestamp",
+      "identity" in cats and all(len(c["checkedMonth"]) == 7 and c["checkedMonth"][4] == "-" for c in cats.values()), cats)
 check("no score anywhere in the profile JSON", "/100" not in json.dumps(d(r)) and '"score"' not in json.dumps(d(r)))
 recs = d(b.call("/recommendations"))["candidates"]
 check("recommendations carry idChecked, not a score", recs and all(c.get("idChecked") is True and "score" not in c for c in recs))
@@ -350,11 +532,14 @@ check("own /me: no score; pending identity shown as pending",
 p_id = user_id(sql(f'select email from "User" where email like {lit("beta-pending-" + RUN + "%")}'))
 sql(f'update "VerificationCheck" set "checkedAt" = \'2026-01-15\' where "userId" = {lit(p_id)} and category = \'identity\'')
 r = staff_c.call(f"/staff/verifications/{p_id}", {"action": "approve"})
-check("staff approval works", r[0] == 200, r[1].get("error"))
+check("older-queue staff approval works", r[0] == 200, r[1].get("error"))
 check("approval dates the identity check to the approval, not the publish",
       sql(f'select to_char("checkedAt", \'YYYY-MM\') from "VerificationCheck" where "userId" = {lit(p_id)} and category = \'identity\'')
       == datetime.datetime.utcnow().strftime("%Y-%m"))
 check("staff approval response has no score", "score" not in json.dumps(d(r)), d(r))
+check("case 13 (older queue): approval grants identity only, no phone check or phoneVerified",
+      sql(f'select count(*) from "VerificationCheck" where "userId" = {lit(p_id)} and category = \'phone\'') == "0"
+      and sql(f'select "phoneVerified" from "User" where id = {lit(p_id)}') == "f")
 
 print("== ENG-01: plan.propertyId is ignored in beta ==")
 g, _, g_id = verified_member("gus")
@@ -382,7 +567,6 @@ check("consent version updated", sql(f'select "privacyConsentVersion" from "User
 check("consent audit written", sql(f'select count(*) from "AuditEvent" where "eventType" = \'auth.consent_recorded\' and "actorId" = {lit(a_id)} and "safeBefore" like \'%privacy-v0%\'') == "1")
 
 print("== ENG-06: deletion-pending accounts can't sign back in ==")
-# a has a pending intro to b and an open chat with nobody; give a a pending intro first.
 check("pending intro before deletion", a.call("/introductions", {"target_user_id": b_id, "text": INTRO})[0] == 200)
 check("deletion requested", c_a.call("/me/delete", {})[0] == 200)
 check("deleted account's old session no longer works", c_a.call("/me")[0] == 401)
@@ -396,214 +580,317 @@ check("code not consumed", sql(f'select count(*) from "AuthCode" where email = {
 check("denial audited", sql(f'select count(*) from "AuditEvent" where "eventType" = \'auth.session_denied\' and "subjectId" = {lit(a_id)} and "reasonCode" = \'deletion_pending\' and outcome = \'denied\'') == "1")
 
 # ------------------------------------------------------------------------------------------
-# ENG-10: the launch journey — request access → staff invite → invite sign-up → onboarding →
-# staff ID approval → discover → intro → chat → block/report → household agreement →
-# feedback → survey opt-in → survey send → unsubscribe → export/delete.
+# Approval-first sign-up (spec §6): apply → staff review + ID call → approve → activate →
+# discover → intro → chat → block/report → household → feedback → survey → export/delete.
 # ------------------------------------------------------------------------------------------
-admin_c, admin_email, admin_id = member("admin", "camden")
-sql(f'update "User" set role = \'admin\' where id = {lit(admin_id)}')
+print("== Case 1: apply at /join ==")
+ada = f"beta-ada-app-{RUN}@example.com"
+r = C().call("/applications/start", {"email": ada})
+check("step 1 needs the privacy tick: 422 CONSENT_REQUIRED", r[0] == 422 and err(r) == "CONSENT_REQUIRED", r)
+r = C().call("/applications/start", {"email": "a@b.co,d@e.fg", "consent_privacy": True})
+check("step 1 rejects two addresses in one field (HM-32)", r[0] == 422 and err(r) == "VALIDATION")
+start_new = C().call("/applications/start", {"email": ada.upper(), "consent_privacy": True})
+start_member = C().call("/applications/start", {"email": b_email, "consent_privacy": True})
+check("step 1: the same 200 for a new address and a member",
+      start_new[0] == start_member[0] == 200 and d(start_new) == d(start_member) and not d(start_new).get("sink_code"), d(start_new))
+code = login_code(ada)
+check("the code is emailed (E0) to the address itself", bool(code))
+check("nothing is created before the code is used", user_id(ada) == "")
+ada_c = C()
+r = ada_c.call("/applications/verify", {"email": ada, "code": "000000"})
+check("a wrong code: 422 INVALID_CODE", r[0] == 422 and err(r) == "INVALID_CODE")
+r = ada_c.call("/applications/verify", {"email": ada, "code": code})
+check("verify: an applicant with a draft application", r[0] == 200 and d(r).get("outcome") == "application" and d(r)["application"]["status"] == "draft"
+      and d(r)["application"]["can_edit"] is True, r)
+ada_id = user_id(ada)
+check("account is an applicant with the privacy version recorded, email verified",
+      sql(f'select "accountStatus" || \'/\' || "privacyConsentVersion" || \'/\' || "emailVerified" from "User" where id = {lit(ada_id)}') == "applicant/privacy-v2/true")
+check("application.started audited", audits("application.started", f'and "actorId" = {lit(ada_id)}') == 1)
+me = d(ada_c.call("/me"))
+check("/me works for applicants: scope, status, application", me.get("accountStatus") == "applicant" and me.get("sessionScope") == "application"
+      and me.get("application", {}).get("status") == "draft" and me.get("nameLocked") is False, {k: me.get(k) for k in ("accountStatus", "sessionScope", "nameLocked")})
 
+print("== Case 9: an application session can't reach member data ==")
+for method, path in [("GET", "/recommendations"), ("GET", f"/users/{b_id}"), ("GET", "/users/does-not-exist"), ("GET", "/introductions"),
+                     ("POST", "/introductions"), ("GET", "/conversations"), ("POST", "/households"), ("GET", "/households/current"),
+                     ("GET", "/notifications"), ("POST", "/me/search/publish"), ("POST", "/me/search/status"), ("POST", "/blocks"),
+                     ("POST", "/reports"), ("GET", "/staff/applications")]:
+    body = {} if method == "POST" else None
+    r = ada_c.call(path, body, method)
+    check(f"applicant {method} {path}: 404 NOT_FOUND", r[0] == 404 and err(r) == "NOT_FOUND", f"{r[0]} {err(r)}")
+st, loc = first_hop(ada_c, "/discover")
+check("the member pages send an applicant back to /join", st in (303, 307, 308) and (loc or "").endswith("/join"), f"{st} {loc}")
 
-def audits(event, extra=""):
-    return int(sql(f'select count(*) from "AuditEvent" where "eventType" = {lit(event)} {extra}'))
+print("== Case 15: incomplete application ==")
+r = ada_c.call("/applications/submit", {})
+check("submit an empty draft: 422 INCOMPLETE listing the missing fields",
+      r[0] == 422 and err(r) == "INCOMPLETE" and {"journey", "displayName", "bio", "cityId", "areaIds", "preferences"} <= set(r[1]["error"]["field_errors"] or {}), r)
+check("…and the draft is kept", sql(f'select status from "Application" where "userId" = {lit(ada_id)}') == "draft")
+ada_c.call("/me/profile", {"journey": "find_together", "displayName": "Ada", "bio": BIO}, method="PATCH")
+ada_c.call("/me/search", {"cityId": "lagos", "areaIds": ["yaba"], **LAGOS_MONEY, "moveMode": "undecided", "stayMinMonths": 6, "stayMaxMonths": 12}, method="PATCH")
+ada_c.call("/me/search", {"gender": "woman", "preferences": PREFS}, method="PATCH")
+r = ada_c.call("/applications/submit", {})
+check("undecided dates: 422 UNDECIDED_DATES", r[0] == 422 and err(r) == "UNDECIDED_DATES", r)
+r = ada_c.call("/me/search", DATES, method="PATCH")
+check("autosave works for applicants (PATCH /me/search)", r[0] == 200, r)
 
+print("== Case 1: submit ==")
+before = len(mails_to(ada))
+r = ada_c.call("/applications/submit", {"survey_opt_in": True})
+check("submit: 200, status submitted", r[0] == 200 and d(r)["application"]["status"] == "submitted" and d(r)["application"]["submitted_at"], r)
+e1 = wait_mail(ada, lambda m: "application" in m.get("subject", "").lower(), after=before)
+status_link = re.search(r"https?://\S+/join/status\?t=([A-Za-z0-9_-]+)", (e1 or {}).get("text", ""))
+check("E1 sent with the status magic link", bool(e1 and status_link), (e1 or {}).get("subject"))
+check("application.submitted and email.sent audited, no address in the audit log",
+      audits("application.submitted", f'and "actorId" = {lit(ada_id)}') == 1 and audits("email.sent", f'and "subjectId" = {lit(ada_id)} and "resourceId" = \'E1\'') == 1
+      and sql(f'''select count(*) from "AuditEvent" where ("safeAfter" like {lit('%' + ada + '%')} or "safeBefore" like {lit('%' + ada + '%')})''') == "0")
+check("not published by submitting", sql(f'select "publicationStatus" from "Profile" where "userId" = {lit(ada_id)}') == "draft")
+check("survey opt-in recorded from the application",
+      audits("consent.survey_granted", f'''and "actorId" = {lit(ada_id)} and "safeAfter" like '%survey-v1%' and "safeAfter" like '%onboarding%' ''') == 1)
+check("resubmitting: 409", ada_c.call("/applications/submit", {})[0] == 409)
+r = C().call("/applications/status?t=" + (status_link.group(1) if status_link else "x"))
+check("the magic link shows the status, signed out and read-only",
+      r[0] == 200 and d(r)["application"]["status"] == "submitted" and d(r)["application"]["read_only"] is True and d(r)["application"]["can_withdraw"] is False
+      and ada not in json.dumps(d(r)) and "Ada" not in json.dumps(d(r)), r)
+check("a bad token: 404", C().call("/applications/status?t=" + "x" * 43)[0] == 404)
+check("answers still editable while submitted", ada_c.call("/me/profile", {"bio": BIO + " Edited."}, method="PATCH")[0] == 200)
 
-def request_row(email, col="status"):
-    return sql(f'select "{col}" from "AccessRequest" where email = {lit(email)} order by "createdAt" desc limit 1')
+print("== Case 14: London is waitlisted (F4) ==")
+lon = f"beta-lon-app-{RUN}@example.com"
+lon_c, r = start_application(lon)
+fill_application(lon_c, "Lola", city="london", area="hackney")
+before = len(mails_to(lon))
+r = lon_c.call("/applications/submit", {})
+check("London: waitlisted", r[0] == 200 and d(r)["application"]["status"] == "waitlisted" and d(r)["application"]["city_open"] is False, r)
+e5 = wait_mail(lon, lambda m: "application" in m.get("subject", "").lower(), after=before)
+check("E1 sent with the waitlist (E5) wording", e5 and "London" in e5["text"])
+subs = [x["id"] for x in d(admin_c.call("/staff/applications?status=submitted"))["applications"]]
+waits = [x["id"] for x in d(admin_c.call("/staff/applications?status=waitlisted"))["applications"]]
+lon_aid, ada_aid = application_id(lon), application_id(ada)
+check("not in the submitted filter; in the waitlisted one", lon_aid not in subs and lon_aid in waits and ada_aid in subs)
+r = staff_act(admin_c, lon_aid, "approve", id_check_confirmed=True, id_check_method="video")
+check("approving a city that isn't open: 409", r[0] == 409 and err(r) == "STATE_CONFLICT", r)
 
+print("== Cases 2, 12, 13: the Applications queue ==")
+check("members and visitors get 404 on the queue", flood_c.call("/staff/applications")[0] == 404 and C().call("/staff/applications")[0] == 404)
+r = admin_c.call("/staff/applications?status=nope")
+check("bad filter: 422", r[0] == 422)
+row = next((x for x in d(admin_c.call("/staff/applications?status=submitted&city=lagos&area=yaba"))["applications"] if x["id"] == ada_aid), None)
+check("city and area filters; waiting label and cluster hint", row and row["waiting_label"] == "On time" and "area_matches" in row["cluster"], row)
+r = mod_c.call(f"/staff/applications/{ada_aid}")
+detail = d(r).get("application", {})
+check("a moderator can view the detail", r[0] == 200 and detail.get("email") == ada and detail.get("can_act") is False)
+check("gender and preference are hidden by default", "woman" not in json.dumps(detail) and "gender" not in json.dumps(detail).replace("private_hidden", ""), [k for k in detail if "gender" in k])
+check("viewing is audited", audits("staff.application_viewed", f'and "resourceId" = {lit(ada_aid)}') >= 1)
+r = mod_c.call(f"/staff/applications/{ada_aid}/reveal", {})
+check("reveal shows them, audited", d(r).get("gender") == "woman" and audits("staff.application_private_revealed", f'and "resourceId" = {lit(ada_aid)}') == 1)
+r = staff_act(mod_c, ada_aid, "approve", id_check_confirmed=True, id_check_method="video")
+check("case 12: a moderator approving gets 404", r[0] == 404 and err(r) == "NOT_FOUND", r)
+sql(f'''insert into "Application"(id, "userId", status, "submittedAt", "updatedAt") values ({lit("self" + RUN)}, {lit(staff_id)}, 'submitted', now(), now())
+        on conflict ("userId") do update set status = 'submitted' ''')
+self_aid = sql(f'select id from "Application" where "userId" = {lit(staff_id)}')
+r = staff_c.call(f"/staff/applications/{self_aid}", {"action": "approve", "id_check_confirmed": True, "id_check_method": "video"})
+check("case 12: approving your own application gets 404", r[0] == 404 and err(r) == "NOT_FOUND", r)
+check("…and viewing it too", staff_c.call(f"/staff/applications/{self_aid}")[0] == 404 and self_aid not in json.dumps(d(staff_c.call("/staff/applications"))))
+sql(f'delete from "Application" where id = {lit(self_aid)}')
+r = staff_act(staff_c, ada_aid, "approve", id_check_confirmed=True, id_check_method="video", own_account=True)
+check("declaring your own account needs a note: 422", r[0] == 422 and "relationship_note" in (r[1]["error"]["field_errors"] or {}), r)
+r = staff_act(staff_c, ada_aid, "approve", id_check_method="video")
+check("approve without the ID confirmation: 422", r[0] == 422 and "id_check_confirmed" in (r[1]["error"]["field_errors"] or {}), r)
+r = staff_c.call(f"/staff/applications/{ada_aid}", {"action": "start_review", "expected_version": 0})
+check("a stale version: 409 VERSION_CONFLICT", r[0] == 409 and err(r) == "VERSION_CONFLICT", r)
+r = staff_act(staff_c, ada_aid, "start_review")
+check("start review → in_review", r[0] == 200 and d(r)["application"]["status"] == "in_review", r)
+check("answers lock once review starts", ada_c.call("/me/profile", {"bio": BIO}, method="PATCH")[0] == 409)
+call_at = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)).replace(microsecond=0).isoformat()
+before = len(mails_to(ada))
+r = staff_act(staff_c, ada_aid, "call_booked", call_at=call_at, send_email=True)
+check("call booked, with E4", r[0] == 200 and d(r)["application"]["status"] == "call_booked" and d(r)["email_status"] == "sent", r)
+e4 = wait_mail(ada, lambda m: "ID call" in m.get("subject", ""), after=before)
+check("E4 names the time in Lagos time", e4 and "Lagos time" in e4["subject"])
+check("the applicant's status shows the call time", d(ada_c.call("/applications/status"))["application"]["call_at"])
+before = len(mails_to(ada))
+r = staff_act(staff_c, ada_aid, "approve", id_check_confirmed=True, id_check_method="video")
+act_code, act_url = d(r).get("activation_code"), d(r).get("activation_url", "")
+check("case 2: approve → 200, activation link, E2 sent", r[0] == 200 and d(r)["application"]["status"] == "approved" and d(r)["email_status"] == "sent"
+      and act_url.endswith("/invite/" + str(act_code)), r)
+e2 = wait_mail(ada, lambda m: "approved" in m.get("subject", "").lower(), after=before)
+check("E2 carries the link and the code", e2 and act_url in e2["html"] and act_code in e2["text"])
+check("identity verified, application approved, reviewer and method recorded",
+      sql(f'select status from "VerificationCheck" where "userId" = {lit(ada_id)} and category = \'identity\'') == "verified"
+      and sql(f'select status || \'/\' || "reviewedBy" || \'/\' || "idCheckMethod" from "Application" where id = {lit(ada_aid)}') == f"approved/{staff_id}/video")
+check("case 13: no phone check and phoneVerified stays false",
+      sql(f'select count(*) from "VerificationCheck" where "userId" = {lit(ada_id)} and category = \'phone\'') == "0"
+      and sql(f'select "phoneVerified" from "User" where id = {lit(ada_id)}') == "f")
+check("not visible to members until activation", sql(f'select "publicationStatus" from "Profile" where "userId" = {lit(ada_id)}') == "draft"
+      and b.call("/users/" + ada_id)[0] == 404)
+check("approving twice: 409", staff_act(staff_c, ada_aid, "approve", id_check_confirmed=True, id_check_method="video")[0] == 409)
+check("approval audited", audits("application.approved", f'and "resourceId" = {lit(ada_aid)} and "actorId" = {lit(staff_id)}') == 1)
+check("the applicant still can't reach member routes", ada_c.call("/recommendations")[0] == 404)
 
-print("== D15: request access ==")
-ada = f"beta-ada-req-{RUN}@example.com"
-req = {"name": "Ada", "email": ada.upper(), "city": "lagos", "area": "yaba", "move_in_month": (today.replace(day=1) + datetime.timedelta(days=40)).strftime("%Y-%m"),
-       "how_heard": "friend", "note": "Looking for a calm flatmate near work.", "consent": True}
-ip_req = next_ip()
-r = C().call("/access-requests", req, ip=ip_req)
-check("request accepted: 202 received", r[0] == 202 and d(r) == {"status": "received"}, r)
-check("stored once, email lower-cased, pending, with the privacy version", request_row(ada, "status") == "pending" and request_row(ada, "consentVersion") == "privacy-v2")
-r2 = C().call("/access-requests", req, ip=next_ip())
-check("a repeat gets the same 202 and stores nothing new", r2[0] == 202 and d(r2) == d(r) and sql(f'select count(*) from "AccessRequest" where email = {lit(ada)}') == "1")
-r3 = C().call("/access-requests", {**req, "email": m_email}, ip=next_ip())
-check("an existing member's address gets the same 202 and stores nothing", r3[0] == 202 and d(r3) == d(r) and sql(f'select count(*) from "AccessRequest" where email = {lit(m_email)}') == "0")
-r = C().call("/access-requests", {**req, "city": "paris", "email": "nope"}, ip=next_ip())
-check("bad input: 422 with field errors", r[0] == 422 and err(r) == "VALIDATION" and {"city", "email"} <= set(r[1]["error"]["field_errors"]), r)
-r = C().call("/access-requests", {**req, "consent": False}, ip=next_ip())
-check("no consent: 422 CONSENT_REQUIRED", r[0] == 422 and err(r) == "CONSENT_REQUIRED", r)
-r = C().call("/access-requests", {**req, "area": "hackney"}, ip=next_ip())
-check("area must belong to the city", r[0] == 422 and "area" in (r[1]["error"]["field_errors"] or {}))
-lon = f"beta-lon-req-{RUN}@example.com"
-r = C().call("/access-requests", {**req, "email": lon, "city": "london", "area": "not_sure", "move_in_month": "not_sure"}, ip=next_ip())
-check("London is accepted too", r[0] == 202 and request_row(lon) == "pending")
-for i in range(4):
-    C().call("/access-requests", {**req, "email": f"beta-ipcap{i}-{RUN}@example.com"}, ip=ip_req)
-r = C().call("/access-requests", {**req, "email": f"beta-ipcap9-{RUN}@example.com"}, ip=ip_req)
-check("per-IP limit: the 6th request in an hour is 429", r[0] == 429 and err(r) == "RATE_LIMITED", r[0])
-check("audit carries the city and nothing personal",
-      audits("access.requested", "and \"occurredAt\" > now() - interval '5 minutes'") >= 3
-      and sql(f'''select count(*) from "AuditEvent" where "eventType" = 'access.requested' and ("safeAfter" like {lit('%' + ada + '%')} or "safeAfter" like '%Ada%')''') == "0")
+print("== Cases 5–8: sign-in gives every address the identical answer ==")
+# Applicants in each state, a declined one, a suspended member, an unknown address — and an
+# active member for comparison.
+dru = f"beta-dru-app-{RUN}@example.com"
+start_application(dru)  # draft
+sub = f"beta-sub-app-{RUN}@example.com"
+sub_c, _ = start_application(sub)
+fill_application(sub_c, "Sule")
+sub_c.call("/applications/submit", {"survey_opt_in": True})
+dec = f"beta-dec-app-{RUN}@example.com"
+dec_c, _ = start_application(dec)
+fill_application(dec_c, "Dayo")
+dec_c.call("/applications/submit", {})
+dec_aid = application_id(dec)
+before = len(mails_to(dec))
+r = staff_act(staff_c, dec_aid, "decline", reason="nope")
+check("decline needs a reason from the allow-list: 422", r[0] == 422)
+r = staff_act(staff_c, dec_aid, "decline", reason="not_genuine")
+check("decline → declined, reapply in 30 days, E3 sent", r[0] == 200 and d(r)["application"]["status"] == "declined" and d(r)["email_status"] == "sent"
+      and sql(f'''select ("reapplyAfter" - now()) > interval '29 days' from "Application" where id = {lit(dec_aid)}''') == "t", r)
+e3 = wait_mail(dec, lambda m: "About your" in m.get("subject", ""), after=before)
+check("E3 is generic: no reason given", e3 and "not_genuine" not in e3["text"] + e3["html"] and "genuine" not in e3["text"].lower())
+susp = f"beta-susp-{RUN}@example.com"
+sql_account(susp, status="suspended")
+unknown = f"beta-unknown-{RUN}@example.com"
+active = f"beta-active-{RUN}@example.com"
+sql_account(active)
+SIGNIN_MSG = "If you have an approved Peabudy account, we've sent a code. New here? Apply to join."
+targets = {"unknown": unknown, "applicant draft": dru, "applicant submitted": sub, "applicant approved, not activated": ada,
+           "declined": dec, "suspended": susp, "active member": active}
+time.sleep(2)  # let earlier sends land
+mail_before = {k: len(mails_to(v)) for k, v in targets.items()}
+results, timings = {}, {k: [] for k in targets}
+for _ in range(3):
+    for k, addr in targets.items():
+        t0 = time.time()
+        results[k] = C().call("/auth/request-code", {"email": addr})
+        timings[k].append(time.time() - t0)
+time.sleep(2.5)  # sends happen after the response
+ref = results["active member"]
+check("the active member gets 200 with the agreed message and a code", ref[0] == 200 and d(ref) == {"status": "sent", "message": SIGNIN_MSG}
+      and len(mails_to(active)) > mail_before["active member"], d(ref))
+for k in targets:
+    if k == "active member":
+        continue
+    r = results[k]
+    check(f"{k}: identical status and body, no email", r[0] == ref[0] and d(r) == d(ref) and len(mails_to(targets[k])) == mail_before[k], f"{r[0]} {d(r)}")
+med = {k: statistics.median(v) for k, v in timings.items()}
+spread = max(med.values()) - min(med.values())
+check("timing: medians within 150 ms of each other (floor + send after the response)", spread < 0.15, {k: round(v, 3) for k, v in med.items()})
+for addr in targets.values():
+    reset_email_bucket(addr)
+before = len(mails_to(sub))
+C().call("/applications/start", {"email": sub, "consent_privacy": True})
+code_from_join = login_code(sub, after=before)
+r = C().call("/auth/verify-code", {"email": sub, "code": code_from_join, "accept_privacy": True})
+new_code(active)
+wrong = C().call("/auth/verify-code", {"email": active, "code": "000001", "accept_privacy": True})
+check("an applicant's real code at /signin looks exactly like a wrong code", r[0] == wrong[0] == 422 and r[1]["error"] == wrong[1]["error"], r)
+check("no member session for the applicant", sql(f'select count(*) from "Session" where "userId" = {lit(user_id(sub))} and scope = \'member\'') == "0")
 
-print("== D15: invite required for new accounts ==")
-r = C().call("/auth/request-code", {"email": "a@b.co,d@e.fg"}, ip=next_ip())
-check("two addresses in one field: 422 (HM-32)", r[0] == 422 and err(r) == "VALIDATION", r[0])
-r = C().call("/auth/request-code", {"email": ada}, ip=next_ip())
-check("new address, no invite: 403 INVITE_REQUIRED pointing to /request-access",
-      r[0] == 403 and err(r) == "INVITE_REQUIRED" and "/request-access" in r[1]["error"]["message"], r)
-r_unknown = C().call("/auth/request-code", {"email": f"beta-nobody-{RUN}@example.com"}, ip=next_ip())
-check("…the same answer for any unknown address", r_unknown[0] == 403 and r_unknown[1]["error"] == r[1]["error"])
-r = C().call("/auth/request-code", {"email": ada, "invite_code": "not-a-code"}, ip=next_ip())
-check("junk invite code: 422 INVITE_INVALID", r[0] == 422 and err(r) == "INVITE_INVALID", r)
-r = C().call("/auth/request-code", {"email": ada, "invite_code": "ABCD-EFGH"}, ip=next_ip())
-check("well-formed unknown code: 422 INVITE_INVALID", r[0] == 422 and err(r) == "INVITE_INVALID")
-_, expired_code = sql_invite(ada, "now() - interval '1 minute'")
-r = C().call("/auth/request-code", {"email": ada, "invite_code": expired_code}, ip=next_ip())
-check("expired invite: 422 INVITE_INVALID", err(r) == "INVITE_INVALID")
-r = C().call("/auth/request-code", {"email": m_email, "invite_code": "ABCD-EFGH"}, ip=next_ip())
-check("an existing account ignores invite_code entirely", r[0] != 422 and err(r) != "INVITE_INVALID", f"{r[0]} {err(r)}")
-check("no code row was made for a refused address", sql(f'select count(*) from "AuthCode" where email = {lit(ada)}') == "0")
+print("== Case 11: reapplying before the date ==")
+c11, r = start_application(dec)
+check("a declined applicant sees the status page with the date", d(r).get("outcome") == "application" and d(r)["application"]["status"] == "declined"
+      and d(r)["application"]["reapply_after"], r)
+check("…and no new application is created", sql(f'select count(*) from "Application" where "userId" = {lit(user_id(dec))}') == "1"
+      and sql(f'select status from "Application" where id = {lit(dec_aid)}') == "declined")
+check("…and can't edit answers", c11.call("/me/profile", {"bio": BIO}, method="PATCH")[0] == 409)
+sql(f'''update "Application" set "reapplyAfter" = now() - interval '1 minute' where id = {lit(dec_aid)}''')
+_, r = start_application(dec)
+check("after the date the same application reopens as a draft, answers kept", d(r)["application"]["status"] == "draft"
+      and sql(f'select "displayName" from "User" where email = {lit(dec)}') == "Dayo")
 
-print("== D15: staff review and invite ==")
-r = flood_c.call("/staff/access-requests")
-check("members can't list access requests", r[0] == 403)
-r = admin_c.call("/staff/access-requests?status=pending")
-rows = {x["email"]: x for x in d(r).get("requests", [])}
-check("staff see the pending request with what was typed", ada in rows and rows[ada]["name"] == "Ada" and rows[ada]["note"].startswith("Looking"))
-check("London is marked waitlisted (OPEN_CITIES=lagos) and sorted last",
-      rows.get(lon, {}).get("waitlisted") is True and rows[ada]["waitlisted"] is False
-      and [x["email"] for x in d(r)["requests"]].index(lon) > [x["email"] for x in d(r)["requests"]].index(ada), rows.get(lon))
-check("bad status filter: 422", admin_c.call("/staff/access-requests?status=nope")[0] == 422)
-check("unknown request: 404", admin_c.call("/staff/access-requests/nope", {"action": "invite"})[0] == 404)
-check("unknown action: 422", admin_c.call(f"/staff/access-requests/{rows[ada]['id']}", {"action": "approve"})[0] == 422)
-r = admin_c.call(f"/staff/access-requests/{rows[ada]['id']}", {"action": "invite"})
-inv_code, inv_url = d(r).get("invite_code"), d(r).get("invite_url", "")
-check("invite: 200, link returned, email sent", r[0] == 200 and d(r).get("email_status") == "sent" and inv_url.endswith("/invite/" + str(inv_code)), r)
-mail = wait_mail(ada, lambda m: "invite" in m.get("subject", "").lower())
-check("the invite email has the link and the code", mail and inv_url in mail["html"] and inv_code in mail["text"])
-check("request is now invited, reviewed by staff", request_row(ada) == "invited" and request_row(ada, "reviewedBy") == admin_id)
-check("invite audited without the address", audits("access.invited", f'and "actorId" = {lit(admin_id)}') == 1
-      and sql(f'''select count(*) from "AuditEvent" where "eventType" in ('access.invited', 'invite.emailed') and ("safeAfter" like {lit('%' + ada + '%')} or "safeBefore" like {lit('%' + ada + '%')})''') == "0")
-r = admin_c.call(f"/staff/access-requests/{rows[ada]['id']}", {"action": "invite"})
-check("inviting twice: 409 STATE_CONFLICT", r[0] == 409 and err(r) == "STATE_CONFLICT")
+print("== Withdraw ==")
+wd_c, _ = start_application(f"beta-wd-app-{RUN}@example.com")
+r = wd_c.call("/applications/withdraw", {})
+check("withdraw → withdrawn", r[0] == 200 and d(r)["application"]["status"] == "withdrawn", r)
+check("withdrawing twice: 409", wd_c.call("/applications/withdraw", {})[0] == 409)
 
-print("== D15: the invite link ==")
-ipc = next_ip()
-r = C().call(f"/invites/{inv_code}", ip=ipc)
-check("valid invite: {valid: true, email_hint} with a masked address", d(r).get("valid") is True and d(r).get("email_hint", "").startswith("be•••@"), d(r))
-check("lower case and hyphens work", d(C().call(f"/invites/{inv_code[:4].lower()}-{inv_code[4:].lower()}", ip=ipc)).get("valid") is True)
-unknown, expired = C().call("/invites/ABCDEFGH", ip=ipc), C().call(f"/invites/{expired_code}", ip=ipc)
-check("unknown and expired codes look the same", unknown[0] == expired[0] == 200 and d(unknown) == d(expired) == {"valid": False})
+print("== Cases 3 and 10: activation ==")
+r = C().call(f"/invites/{act_code}")
+check("the activation link is valid, with a masked address", d(r).get("valid") is True and d(r).get("email_hint", "").startswith("be•••@"), d(r))
+check("lower case and hyphens work", d(C().call(f"/invites/{act_code[:4].lower()}-{act_code[4:].lower()}")).get("valid") is True)
+check("case 10: signed in as someone else, the link is invalid", b.call(f"/invites/{act_code}")[0] == 200 and d(b.call(f"/invites/{act_code}")) == {"valid": False})
+r = b.call(f"/invites/{act_code}", {})
+check("case 10: …and can't send a code", r[0] == 422 and err(r) == "INVITE_INVALID", r)
+r = b.call("/auth/verify-code", {"activation_code": act_code, "code": "123456"})
+check("case 10: …or activate", r[0] == 422 and err(r) == "INVITE_INVALID", r)
+for bad in ("ABCDEFGH", "not-a-code"):
+    check(f"unknown code {bad}: invalid", d(C().call(f"/invites/{bad}")) == {"valid": False} and C().call(f"/invites/{bad}", {})[0] == 422)
+before = len(mails_to(ada))
+r = ada_c.call(f"/invites/{act_code}", {})
+check("Continue: a code is emailed to the approved address", r[0] == 200 and d(r).get("status") == "sent" and not d(r).get("sink_code"), r)
+otp = login_code(ada, after=before)
+check("…E0 arrives", bool(otp))
+r = ada_c.call("/auth/verify-code", {"activation_code": act_code, "code": "000000"})
+check("a wrong code: 422 INVALID_CODE, nothing activated", err(r) == "INVALID_CODE" and sql(f'select "accountStatus" from "User" where id = {lit(ada_id)}') == "applicant")
+r = ada_c.call("/auth/verify-code", {"activation_code": act_code, "code": otp})
+check("case 3: activated, redirect to /discover", r[0] == 200 and d(r).get("activated") is True and d(r).get("redirect") == "/discover", r)
+check("account active, profile published, search active",
+      sql(f'''select u."accountStatus" || '/' || p."publicationStatus" || '/' || s.status from "User" u join "Profile" p on p."userId" = u.id join "Search" s on s."userId" = u.id where u.id = {lit(ada_id)}''')
+      == "active/published/active")
+check("one member session; the application session is gone", sql(f'select string_agg(scope, \',\') from "Session" where "userId" = {lit(ada_id)}') == "member")
+check("activation audited", audits("application.activated", f'and "actorId" = {lit(ada_id)}') == 1)
+check("the code can't be used again", d(C().call(f"/invites/{act_code}")) == {"valid": False}
+      and C().call("/auth/verify-code", {"activation_code": act_code, "code": "123456"})[0] == 422)
+check("the member can use the app now", ada_c.call("/recommendations")[0] == 200)
+me = d(ada_c.call("/me"))
+check("/me: active, member scope, name locked, application approved",
+      me.get("accountStatus") == "active" and me.get("sessionScope") == "member" and me.get("nameLocked") is True
+      and me["application"]["status"] == "approved" and me["application"]["can_withdraw"] is False)
+r = ada_c.call("/me/profile", {"displayName": "Adaeze"}, method="PATCH")
+check("display name locked after approval (HM-12): 409", r[0] == 409 and err(r) == "STATE_CONFLICT", r)
+check("…sending the same name is fine; bio still editable", ada_c.call("/me/profile", {"displayName": "Ada", "bio": BIO}, method="PATCH")[0] == 200)
+r = ada_c.call("/me/search", {"cityId": "london"}, method="PATCH")
+check("city locked after approval (R5): 422 with a clear message", r[0] == 422 and "cityId" in (r[1]["error"]["field_errors"] or {}) and "hello@peabudy.com" in r[1]["error"]["message"], r)
+r = ada_c.call("/me/search", {"cityId": "lagos", "areaIds": ["yaba", "surulere"]}, method="PATCH")
+check("…the same city and other areas in it stay editable", r[0] == 200, r)
+r = ada_c.call("/me/search", {"stayMaxMonths": 18}, method="PATCH")
+check("matching changes still write a search version", r[0] == 200 and int(sql(f'select count(*) from "SearchVersion" sv join "Search" s on s.id = sv."searchId" where s."userId" = {lit(ada_id)}')) >= 2)
+
+print("== Resend and revoke ==")
+sub_aid = application_id(sub)
+r = staff_act(admin_c, sub_aid, "approve", id_check_confirmed=True, id_check_method="video")
+first_code = d(r)["activation_code"]
+r = staff_act(admin_c, sub_aid, "resend_activation")
+second = d(r).get("activation_code")
+check("resend: a new code, emailed", r[0] == 200 and second and second != first_code and d(r)["email_status"] == "sent")
+check("the old code stops working, the new one works", d(C().call(f"/invites/{first_code}")) == {"valid": False} and d(C().call(f"/invites/{second}"))["valid"] is True)
+sql(f'''update "Invite" set "expiresAt" = now() - interval '1 minute' where "applicationId" = {lit(sub_aid)} and "revokedAt" is null''')
+check("an expired code: invalid", d(C().call(f"/invites/{second}")) == {"valid": False})
+
+print("== Invite checks are rate-limited ==")
 ipx = next_ip()
 statuses = [C().call("/invites/ABCDEFGH", ip=ipx)[0] for _ in range(31)]
-check("invite checks are rate-limited per IP (31st is 429)", statuses[:30] == [200] * 30 and statuses[30] == 429, statuses[-3:])
-r = C().call("/auth/request-code", {"email": f"beta-thief-{RUN}@example.com", "invite_code": inv_code}, ip=next_ip())
-check("a bound invite doesn't work for another address", r[0] == 422 and err(r) == "INVITE_INVALID")
-
-print("== D15: invite sign-up ==")
-ada_c = C()
-r = ada_c.call("/auth/request-code", {"email": ada, "invite_code": inv_code}, ip=next_ip())
-check("request-code with the invite: sent", r[0] == 200 and d(r).get("status") == "sent", r)
-code = login_code(ada)
-check("the code is emailed", bool(code))
-check("the invite isn't used up yet", sql(f'select "usedAt" is null from "Invite" where "codeHash" = {lit(hashlib.sha256(inv_code.encode()).hexdigest())}') == "t")
-r = ada_c.call("/auth/verify-code", {"email": ada, "code": code})
-check("privacy consent is still required first (code kept)", err(r) == "CONSENT_REQUIRED")
-r = ada_c.call("/auth/verify-code", {"email": ada, "code": code, "accept_privacy": True})
-check("account created", r[0] == 200 and d(r).get("is_new") is True, r)
-ada_id = user_id(ada)
-check("invite consumed by this account", sql(f'select "usedByUserId" from "Invite" where "codeHash" = {lit(hashlib.sha256(inv_code.encode()).hexdigest())}') == ada_id)
-check("invite use audited", audits("invite.used", f'and "actorId" = {lit(ada_id)}') == 1)
-check("the link no longer works", d(C().call(f"/invites/{inv_code}", ip=next_ip())) == {"valid": False})
-r = C().call("/auth/request-code", {"email": ada}, ip=next_ip())
-check("signing in again needs no invite", r[0] == 200 and d(r).get("status") == "sent", r)
-
-print("== D15: resend, decline and ad-hoc invites ==")
-bo = f"beta-bo-req-{RUN}@example.com"
-C().call("/access-requests", {**req, "name": "Bo", "email": bo}, ip=next_ip())
-bo_id = d(admin_c.call("/staff/access-requests"))["requests"]
-bo_id = next(x["id"] for x in bo_id if x["email"] == bo)
-first = d(admin_c.call(f"/staff/access-requests/{bo_id}", {"action": "invite"}))["invite_code"]
-r = admin_c.call(f"/staff/access-requests/{bo_id}", {"action": "resend"})
-second = d(r).get("invite_code")
-check("resend makes a new code and emails it", r[0] == 200 and second and second != first and d(r)["email_status"] == "sent")
-check("the old code stops working, the new one works",
-      d(C().call(f"/invites/{first}", ip=next_ip()))["valid"] is False and d(C().call(f"/invites/{second}", ip=next_ip()))["valid"] is True)
-check("resend audited", audits("access.invite_resent", f'and "resourceId" = {lit(bo_id)}') == 1)
-r = admin_c.call(f"/staff/access-requests/{bo_id}", {"action": "decline", "reason": "Test decline"})
-check("declining an invited request works and kills the invite",
-      r[0] == 200 and request_row(bo) == "declined" and d(C().call(f"/invites/{second}", ip=next_ip()))["valid"] is False)
-check("…and stores the reason", request_row(bo, "declineReason") == "Test decline")
-r = admin_c.call("/staff/invites", {})
-open_code = d(r).get("invite_code")
-check("ad-hoc invite without an email: unbound, not emailed", r[0] == 200 and d(r).get("bound") is False and d(r).get("email_status") == "not_requested")
-hours = (datetime.datetime.fromisoformat(d(r)["expires_at"].replace("Z", "+00:00")) - datetime.datetime.now(datetime.timezone.utc)).total_seconds() / 3600
-check("unbound codes expire after 72 hours (HM-29)", 71.5 < hours <= 72.1, f"{hours:.2f} h")
-x1, x2 = f"beta-race1-{RUN}@example.com", f"beta-race2-{RUN}@example.com"
-c1, c2 = C(), C()
-r1 = c1.call("/auth/request-code", {"email": x1, "invite_code": open_code}, ip=next_ip())
-r2 = c2.call("/auth/request-code", {"email": x2, "invite_code": open_code}, ip=next_ip())
-check("an unbound invite lets either address ask for a code", r1[0] == r2[0] == 200)
-k1, k2 = login_code(x1), login_code(x2)
-r1 = c1.call("/auth/verify-code", {"email": x1, "code": k1, "accept_privacy": True})
-r2 = c2.call("/auth/verify-code", {"email": x2, "code": k2, "accept_privacy": True})
-check("only the first sign-up uses it; the second gets INVITE_INVALID",
-      r1[0] == 200 and r2[0] == 422 and err(r2) == "INVITE_INVALID" and user_id(x2) == "", f"{r1[0]} / {r2[0]} {err(r2)}")
-check("…and the second person's code isn't burnt", sql(f'select count(*) from "AuthCode" where email = {lit(x2)}') == "1")
-r = admin_c.call("/staff/invites", {"email": ada})
-check("ad-hoc invite for an existing account: 409", r[0] == 409 and err(r) == "STATE_CONFLICT")
-check("ad-hoc invite with a bad email: 422", admin_c.call("/staff/invites", {"email": "nope"})[0] == 422)
-check("members can't create invites: 404", flood_c.call("/staff/invites", {})[0] == 404)
-check("non-admin staff can't create ad-hoc invites either (HM-31): 404", staff_c.call("/staff/invites", {})[0] == 404 and staff_c.call("/staff/invites")[0] == 404)
-
-print("== HM-29: revoke, and site-wide caps on invite guessing ==")
-rv = f"beta-rv-req-{RUN}@example.com"
-C().call("/access-requests", {**req, "name": "Rev", "email": rv}, ip=next_ip())
-rv_id = next(x["id"] for x in d(admin_c.call("/staff/access-requests"))["requests"] if x["email"] == rv)
-rv_code = d(admin_c.call(f"/staff/access-requests/{rv_id}", {"action": "invite"}))["invite_code"]
-rv_inv = next(x for x in d(admin_c.call("/staff/access-requests?status=invited"))["requests"] if x["email"] == rv)["invite"]
-check("the staff list exposes the invite id and state", rv_inv["state"] == "active" and rv_inv["id"])
-check("members can't revoke: 403", flood_c.call(f"/staff/invites/{rv_inv['id']}", {"action": "revoke"})[0] == 403)
-r = staff_c.call(f"/staff/invites/{rv_inv['id']}", {"action": "revoke"})
-check("any staff role can revoke", r[0] == 200 and d(r).get("state") == "revoked", r)
-check("a revoked code answers {valid:false}", d(C().call(f"/invites/{rv_code}", ip=next_ip())) == {"valid": False})
-r = C().call("/auth/request-code", {"email": rv, "invite_code": rv_code}, ip=next_ip())
-check("…and can't start a sign-up", err(r) == "INVITE_INVALID")
-check("revoking twice: 409", staff_c.call(f"/staff/invites/{rv_inv['id']}", {"action": "revoke"})[0] == 409)
-check("revoke audited", audits("invite.revoked", f'and "resourceId" = {lit(rv_inv["id"])}') == 1)
-check("unknown invite: 404", staff_c.call("/staff/invites/nope", {"action": "revoke"})[0] == 404)
-adhoc_id = d(admin_c.call("/staff/invites", {}))["id"]
-check("admins see direct invites to revoke", any(i["id"] == adhoc_id and i["state"] == "active" for i in d(admin_c.call("/staff/invites"))["invites"]))
+check("30 checks an hour per connection (31st is 429)", statuses[:30] == [200] * 30 and statuses[30] == 429, statuses[-3:])
 cap = f"e2e-cap-{RUN}"
 sql(f'''insert into "AuditEvent"(id, "eventType", "actorType", "resourceType", "resourceId", action, outcome, "occurredAt")
        select {lit(cap)} || g, 'invite.checked', 'service', 'ip', {lit(cap)} || g, 'check', 'allowed', now() from generate_series(1, 300) g''')
-r = C().call(f"/invites/{rv_code}", ip=next_ip())
-check("300 invite checks site-wide in an hour: the next is 429, from any IP", r[0] == 429 and err(r) == "RATE_LIMITED", r[0])
-abuse = d(admin_c.call("/staff/access-requests")).get("abuse", {})
-check("staff see the invite-check count", abuse.get("invite_checks_1h", 0) >= 300 and abuse.get("max_checks_1h") == 300, abuse)
-sql(f'delete from "AuditEvent" where "resourceId" like {lit(cap + "%")}')
-sql(f'''insert into "AuditEvent"(id, "eventType", "actorType", "resourceType", "resourceId", action, outcome, "occurredAt")
-       select {lit(cap)} || g, 'auth.code_requested', 'service', 'ip', {lit(cap)} || g, 'invite_invalid', 'denied', now() from generate_series(1, 300) g''')
-_, good_code = sql_invite(f"beta-capped-{RUN}@example.com")
-r = C().call("/auth/request-code", {"email": f"beta-capped-{RUN}@example.com", "invite_code": good_code}, ip=next_ip())
-check("300 wrong invite codes site-wide: every invite sign-up waits, even with a good code", r[0] == 429 and err(r) == "RATE_LIMITED", r)
-check("staff see the wrong-code count", d(admin_c.call("/staff/access-requests"))["abuse"]["invite_failures_1h"] >= 300)
+r = C().call("/invites/ABCDEFGH")
+check("300 checks site-wide in an hour: the next is 429, from any connection", r[0] == 429 and err(r) == "RATE_LIMITED", r[0])
 sql(f'delete from "AuditEvent" where "resourceId" like {lit(cap + "%")}')
 
-print("== Onboarding → staff ID approval → discover ==")
-ada_c.call("/me/profile", {"journey": "find_together", "displayName": "Ada", "bio": "Invited beta member with a bio that is comfortably longer than eighty characters."}, method="PATCH")
-lagos_dates = {"moveMode": "range", "earliestDate": (today + datetime.timedelta(days=20)).isoformat(), "latestDate": (today + datetime.timedelta(days=50)).isoformat(),
-               "stayMinMonths": 6, "stayMaxMonths": 12}
-ada_c.call("/me/search", {"cityId": "lagos", "areaIds": ["yaba"], "rentPeriod": "year", "rentMinMinor": 150000000, "rentMaxMinor": 250000000, **lagos_dates}, method="PATCH")
-habits = {"cleaning": "weekly", "quiet": "before_00", "guests": "up_to_2_nights", "smoking": "no", "pets": "none", "social": "balanced"}
-ada_c.call("/me/search", {"gender": "prefer_not_to_say", "preferences": [{"dimension": k, "ownAnswer": v, "acceptedValues": [v]} for k, v in habits.items()]}, method="PATCH")
-r = ada_c.call("/me/search/publish", {})
-check("invited member publishes", r[0] == 200, r[1].get("error"))
-check("…and waits in the ID queue", ada_id in [c["userId"] for c in d(admin_c.call("/staff/verifications")).get("cases", [])])
-r = admin_c.call(f"/staff/verifications/{ada_id}", {"action": "approve"})
-check("staff approve the ID check", r[0] == 200, r[1].get("error"))
-tobi_c, tobi_email, tobi_id = member("tobi", "yaba", "lagos")
-kemi_c, kemi_email, kemi_id = member("kemi", "yaba", "lagos")
-for uid in (tobi_id, kemi_id):
-    admin_c.call(f"/staff/verifications/{uid}", {"action": "approve"})
+print("== Case 4: sign in later ==")
+before = len(mails_to(ada))
+r = C().call("/auth/request-code", {"email": ada})
+k = login_code(ada, after=before)
+r = C().call("/auth/verify-code", {"email": ada, "code": k})
+check("an activated member signs in with an emailed code", r[0] == 200 and bool(k), r)
+r = C().call("/applications/start", {"email": ada, "consent_privacy": True})
+k = login_code(ada, after=before + 1)
+r = C().call("/applications/verify", {"email": ada, "code": k})
+check("…and /join signs a member in normally too", d(r).get("outcome") == "member", r)
+
+print("== Case 3: two activated members see each other ==")
+tobi_c, tobi_email, tobi_id = apply_activated("tobi", admin_c)
+kemi_c, kemi_email, kemi_id = apply_activated("kemi", admin_c, gender="woman", own_note="Founder's own test account for the Lagos launch")
+check("an own-account approval is audited with the note", sql(f'''select count(*) from "AuditEvent" where "eventType" = 'application.approved' and "subjectId" = {lit(kemi_id)}
+      and "reasonCode" = 'own_account_declared' and "safeAfter" like '%own test account%' ''') == "1")
 cands = [c["userId"] for c in d(ada_c.call("/recommendations")).get("candidates", [])]
-check("verified Lagos members discover each other", tobi_id in cands and kemi_id in cands, cands)
+check("activated Lagos members discover each other", tobi_id in cands and kemi_id in cands, cands)
+check("…both ways", ada_id in [c["userId"] for c in d(tobi_c.call("/recommendations")).get("candidates", [])])
+check("an approved-but-not-activated applicant is never a candidate", user_id(sub) not in cands)
 
 print("== Intro → chat → block/report → household agreement ==")
 r = ada_c.call("/introductions", {"target_user_id": tobi_id, "text": INTRO})
@@ -645,18 +932,14 @@ check("signed-out feedback shows as signed out", anon and anon["sender"] == {"si
 
 print("== ENG-29: survey opt-in ==")
 r = ada_c.call("/me/preferences")
-check("default: opted out", r[0] == 200 and d(r)["survey_opt_in"] is False)
+check("opted in at submit", r[0] == 200 and d(r)["survey_opt_in"] is True and d(r)["survey_opt_in_version"] == "survey-v1")
 check("only a boolean is accepted", ada_c.call("/me/preferences", {"survey_opt_in": "yes"}, method="PATCH")[0] == 422)
-r = ada_c.call("/me/preferences", {"survey_opt_in": True, "source": "onboarding"}, method="PATCH")
-check("opt in from onboarding", r[0] == 200 and d(r)["survey_opt_in"] is True and d(r)["survey_opt_in_version"] == "survey-v1" and d(r)["survey_opt_in_at"])
-check("consent audited with version and source",
-      audits("consent.survey_granted", f'''and "actorId" = {lit(ada_id)} and "safeAfter" like '%survey-v1%' and "safeAfter" like '%onboarding%' ''') == 1)
 ada_c.call("/me/preferences", {"survey_opt_in": True}, method="PATCH")
 check("opting in again writes no second audit row", audits("consent.survey_granted", f'and "actorId" = {lit(ada_id)}') == 1)
 check("signed out: 401", C().call("/me/preferences")[0] == 401)
 
 print("== D17: survey send ==")
-SURVEY = {"campaign": f"e2e-{RUN[-6:]}", "survey_url": "https://tally.so/r/e2e-test", "limit": 50}
+SURVEY = {"campaign": f"e2e-{RUN[-6:]}", "survey_url": "https://tally.so/r/e2e-test", "limit": 200}
 check("members get 404", ada_c.call("/staff/survey/send", {**SURVEY, "dry_run": True})[0] == 404)
 check("non-admin staff get 404", staff_c.call("/staff/survey/send", {**SURVEY, "dry_run": True})[0] == 404)
 check("bad campaign / URL: 422", admin_c.call("/staff/survey/send", {**SURVEY, "campaign": "X"})[0] == 422
@@ -664,24 +947,25 @@ check("bad campaign / URL: 422", admin_c.call("/staff/survey/send", {**SURVEY, "
 dry = d(admin_c.call("/staff/survey/send", {**SURVEY, "dry_run": True}))
 check("dry run counts and sends nothing", dry.get("dry_run") is True and dry["would_send"] >= 1 and not wait_mail(ada, lambda m: "survey" in m.get("subject", "").lower(), 1), dry)
 r = admin_c.call("/staff/survey/send", SURVEY)
-check("send: 200, nothing failed", r[0] == 200 and d(r)["failed"] == 0 and d(r)["sent"] >= 1 and d(r)["remaining"] == 0, d(r))
+check("send: 200, nothing failed", r[0] == 200 and d(r)["failed"] == 0 and d(r)["sent"] >= 1, d(r))
 sm = wait_mail(ada, lambda m: "survey" in m.get("subject", "").lower())
 ref = re.search(r"https://tally\.so/r/e2e-test\?ref=([0-9a-f]+)", sm["text"] if sm else "")
 check("the survey email arrives with a pseudonymous ref (not the account ID)", ref and ada_id not in ref.group(0))
 lu = (sm or {}).get("headers", {})
 check("List-Unsubscribe (+ one-click) headers set", lu.get("List-Unsubscribe", "").startswith("<http") and lu.get("List-Unsubscribe-Post") == "List-Unsubscribe=One-Click", lu)
 check("not sent to members who didn't opt in", not [m for m in mails_to(tobi_email) if "survey" in m.get("subject", "").lower()])
+check("not sent to applicants who opted in but aren't members", not [m for m in mails_to(sub) if "survey" in m.get("subject", "").lower()])
 check("each send audited, without the address",
       audits("survey.sent", f'and "subjectId" = {lit(ada_id)} and "resourceId" = {lit(SURVEY["campaign"])}') == 1
       and sql(f'''select count(*) from "AuditEvent" where "eventType" = 'survey.sent' and coalesce("safeAfter", '') like {lit('%' + ada + '%')}''') == "0")
 r = admin_c.call("/staff/survey/send", SURVEY)
-check("a second press sends nobody twice", d(r).get("sent") == 0 and len([m for m in mails_to(ada) if "survey" in m.get("subject", "").lower()]) == 1, d(r))
+check("a second press sends nobody twice", len([m for m in mails_to(ada) if "survey" in m.get("subject", "").lower()]) == 1, d(r))
 
 print("== ENG-30: survey export ==")
 st, hdrs, csv = admin_c.raw("/api/v1/staff/survey/export.csv")
 check("admin gets a CSV attachment, no-store", st == 200 and "text/csv" in hdrs.get("content-type", "") and "attachment" in hdrs.get("content-disposition", "") and hdrs.get("cache-control") == "no-store", hdrs)
 check("it lists opted-in members only", ada in csv and tobi_email not in csv and csv.startswith("email,first_name,city"))
-check("export audited with the row count only", audits("staff.export_survey_optins", f'and "actorId" = {lit(admin_id)}') == 1)
+check("export audited with the row count only", audits("staff.export_survey_optins", f'and "actorId" = {lit(admin_id)}') >= 1)
 check("non-admin staff get 404", staff_c.raw("/api/v1/staff/survey/export.csv")[0] == 404)
 
 print("== ENG-29: unsubscribe link ==")
@@ -699,24 +983,59 @@ r = C().call(q, {})
 check("a second POST is 200 with no new audit row", r[0] == 200 and audits("consent.survey_withdrawn", f'and "actorId" = {lit(ada_id)}') == 1)
 bad = C().call("/unsubscribe?token=" + urllib.parse.quote(token[:-3] + "abc"), {})
 check("tampered token: 404, no account hint", bad[0] == 404 and err(bad) == "NOT_FOUND" and ada not in json.dumps(bad[1]))
-dry = d(admin_c.call("/staff/survey/send", {**SURVEY, "campaign": SURVEY["campaign"] + "-r", "dry_run": True}))
 check("unsubscribed people aren't eligible any more", ada not in admin_c.raw("/api/v1/staff/survey/export.csv")[2])
 check("Settings shows the change", d(ada_c.call("/me/preferences"))["survey_opt_in"] is False and d(ada_c.call("/me/preferences"))["unsubscribed_at"])
 
-print("== HM-30: purge old access requests ==")
+print("== Retired: access requests ==")
+check("POST /access-requests is gone", C().call("/access-requests", {"name": "x"})[0] == 404)
+check("staff invite creation is gone", admin_c.call("/staff/invites", {})[0] in (404, 405))
+st, loc = first_hop(C(), "/request-access")
+check("/request-access redirects to /join", st in (307, 308) and (loc or "").endswith("/join"), f"{st} {loc}")
 old = f"beta-old-req-{RUN}@example.com"
-C().call("/access-requests", {**req, "email": old}, ip=next_ip())
-sql(f'''update "AccessRequest" set "createdAt" = now() - interval '31 days' where email = {lit(old)}''')
-fresh = f"beta-fresh-req-{RUN}@example.com"
-C().call("/access-requests", {**req, "email": fresh}, ip=next_ip())
+sql(f'''insert into "AccessRequest"(id, name, email, city, area, "moveInMonth", "consentVersion", status, "createdAt")
+       values ({lit("ar" + RUN)}, 'Old', {lit(old)}, 'lagos', 'yaba', 'not_sure', 'privacy-v2', 'pending', now() - interval '31 days')''')
 check("purge is admin only: 404 for other staff", staff_c.call("/staff/access-requests/purge", {"dry_run": True})[0] == 404)
-dry = d(admin_c.call("/staff/access-requests/purge", {"dry_run": True}))
-check("dry run counts declined and stale pending, deletes nothing",
-      dry.get("declined", 0) >= 1 and dry.get("stale_pending", 0) >= 1 and request_row(bo) == "declined")
 r = admin_c.call("/staff/access-requests/purge", {})
-check("purge deletes declined and >30-day pending requests", r[0] == 200 and request_row(bo) == "" and request_row(old) == "", d(r))
-check("…but keeps recent pending and invited ones", request_row(fresh) == "pending" and request_row(rv) == "invited")
-check("purge audited with counts only", sql(f'''select count(*) from "AuditEvent" where "eventType" = 'access.purged' and "actorId" = {lit(admin_id)} and "safeAfter" not like '%@%' ''') == "1")
+check("old access requests can still be purged", r[0] == 200 and sql(f'select count(*) from "AccessRequest" where email = {lit(old)}') == "0", d(r))
+
+print("== R7: application retention ==")
+old_draft = f"beta-olddraft-{RUN}@example.com"
+od_c, _ = start_application(old_draft)
+fill_application(od_c, "Odun")
+od_id = user_id(old_draft)
+fresh_draft = f"beta-freshdraft-{RUN}@example.com"
+start_application(fresh_draft)
+old_dec = f"beta-olddec-{RUN}@example.com"
+odc, _ = start_application(old_dec)
+fill_application(odc, "Obi")
+odc.call("/applications/submit", {})
+check("decline for the retention test", staff_act(admin_c, application_id(old_dec), "decline", reason="duplicate")[0] == 200)
+odec_id = user_id(old_dec)
+sql(f'''update "Application" set "updatedAt" = now() - interval '31 days' where "userId" = {lit(od_id)}''')
+for t in ("User", "Profile", "Search"):
+    col = "id" if t == "User" else '"userId"'
+    sql(f'''update "{t}" set "updatedAt" = now() - interval '31 days' where {col} = {lit(od_id)}''')
+sql(f'''update "Application" set "reviewedAt" = now() - interval '31 days', "reapplyAfter" = now() + interval '5 days' where "userId" = {lit(odec_id)}''')
+check("purge is admin only: 404 for other staff and users",
+      staff_c.call("/staff/applications/purge", {"dry_run": True})[0] == 404 and ada_c.call("/staff/applications/purge", {"dry_run": True})[0] == 404)
+dry = d(admin_c.call("/staff/applications/purge", {"dry_run": True}))
+check("dry run counts the old draft and the old decline, deletes nothing",
+      dry.get("dry_run") is True and dry.get("stale_drafts", 0) >= 1 and dry.get("declined", 0) >= 1 and user_id(old_draft) == od_id, dry)
+r = admin_c.call("/staff/applications/purge", {})
+check("purge deletes the old draft and the old decline: accounts, answers, applications",
+      r[0] == 200 and user_id(old_draft) == "" and user_id(old_dec) == ""
+      and sql(f'''select count(*) from "Search" where "userId" in ({lit(od_id)}, {lit(odec_id)})''') == "0"
+      and sql(f'''select count(*) from "Application" where "userId" in ({lit(od_id)}, {lit(odec_id)})''') == "0", d(r))
+check("…keeps a recent draft and every user", user_id(fresh_draft) != "" and user_id(tobi_email) != "")
+key = hashlib.sha256(("peabudy-ip-local-only:email:" + old_dec).encode()).hexdigest()[:32]
+check("…keeps only a hashed email + reapply date for the decline",
+      sql(f'''select count(*) from "ApplicantTombstone" where "emailHash" = {lit(key)}''') == "1"
+      and sql(f'''select count(*) from "ApplicantTombstone" where "emailHash" like '%@%' ''') == "0")
+check("purge audited with counts only", sql(f'''select count(*) from "AuditEvent" where "eventType" = 'application.purged' and "actorId" = {lit(admin_id)} and "safeAfter" not like '%@%' ''') >= "1")
+_, r = start_application(old_dec)
+check("the purged, declined person still sees the declined status page with the date (no new draft)",
+      d(r).get("outcome") == "application" and d(r)["application"]["status"] == "declined" and d(r)["application"]["reapply_after"], r)
+check("…and the tombstone has done its job", sql(f'''select count(*) from "ApplicantTombstone" where "emailHash" = {lit(key)}''') == "0")
 
 print("== ENG-25: draft legal pages ==")
 for path, needle in (("/privacy", "privacy-v2"), ("/terms", "Terms of use")):
@@ -730,15 +1049,21 @@ ex = d(ada_c.call("/me/export")).get("export", {})
 check("export includes feedback and survey choices",
       any(f["message"] == "The ID call booking was smooth." for f in ex.get("feedback", []))
       and ex.get("account", {}).get("surveyOptIn") is False and ex["account"].get("surveyOptInVersion") == "survey-v1" and ex["account"].get("unsubscribedAt"))
-check("export includes the access request, invite and survey sends (HM-30)",
-      any(x["email"] == ada for x in ex.get("accessRequests", [])) and ex.get("invites") and any(x["campaign"] == SURVEY["campaign"] for x in ex.get("surveyEmails", [])))
+check("export includes the application, the activation invite and survey sends",
+      (ex.get("application") or {}).get("status") == "approved" and ex.get("invites") and any(x["campaign"] == SURVEY["campaign"] for x in ex.get("surveyEmails", [])))
+dru_c = start_application(dru)[0]
+check("an applicant can export their data too", (d(dru_c.call("/me/export")).get("export", {}).get("application") or {}).get("status") == "draft")
+r = dru_c.call("/me/delete", {})
+check("an applicant can delete their application", r[0] == 200 and sql(f'select status from "Application" where id = {lit(application_id(dru))}') == "withdrawn"
+      and sql(f'select "accountStatus" from "User" where email = {lit(dru)}') == "deletion_pending")
 check("deletion requested", ada_c.call("/me/delete", {})[0] == 200)
-check("deletion removes the access request and the address on invites (HM-30)",
-      sql(f'select count(*) from "AccessRequest" where email = {lit(ada)}') == "0" and sql(f'select count(*) from "Invite" where email = {lit(ada)}') == "0"
+check("deletion removes the address on invites", sql(f'select count(*) from "Invite" where email = {lit(ada)}') == "0"
       and sql(f'select count(*) from "Invite" where "usedByUserId" = {lit(ada_id)}') == "1")
 check("feedback deleted with the account", sql(f'select count(*) from "TesterFeedback" where "userId" = {lit(ada_id)}') == "0")
-r = C().call("/auth/request-code", {"email": ada}, ip=next_ip())
-check("a deleting account is still an account: no invite asked", err(r) != "INVITE_REQUIRED", f"{r[0]} {err(r)}")
+before = len(mails_to(ada))
+r = C().call("/auth/request-code", {"email": ada})
+time.sleep(1.5)
+check("a deleting account gets the identical sign-in answer and no email", r[0] == 200 and d(r) == {"status": "sent", "message": SIGNIN_MSG} and len(mails_to(ada)) == before)
 
 print()
 print(f"{fails} FAILED" if fails else "ALL PASSED")

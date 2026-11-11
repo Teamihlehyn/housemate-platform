@@ -18,11 +18,9 @@ const NAV = [
 export default function AppNav({
   displayName,
   initials,
-  isStaff,
 }: {
   displayName: string;
   initials: string;
-  isStaff: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -81,17 +79,6 @@ export default function AppNav({
                 {n.label}
               </Link>
             ))}
-            {isStaff && (
-              <Link
-                href="/staff"
-                aria-current={active("/staff") ? "page" : undefined}
-                className={`inline-flex min-h-[44px] items-center rounded-full px-3 text-sm font-semibold lg:px-4 ${
-                  active("/staff") ? "bg-ink text-cream" : "text-ink-700 hover:bg-ink-50"
-                }`}
-              >
-                Staff
-              </Link>
-            )}
           </nav>
 
           <div className="flex items-center gap-1">

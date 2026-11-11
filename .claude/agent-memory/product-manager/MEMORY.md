@@ -1,2 +1,3 @@
 - [Beta launch plan](project_beta_launch.md) — live Lagos-first beta 13 Nov, research retired, Didit after launch, survey opt-in, Peabudy name risk
+- [Say "users", not "members"](feedback_terminology_users.md) — founder rule: visitor → applicant → user; staff = back office; code identifiers unchanged
 - [Feedback tools](reference_feedback_tools.md) — Tally/Clarity facts checked 9 Nov 2026; built-in pill + Tally survey split

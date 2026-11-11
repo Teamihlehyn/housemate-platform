@@ -9,6 +9,8 @@ import { IS_BETA } from "@/lib/env";
 
 // POST /api/v1/staff/verifications/[userId] {action: approve|reject, reason}
 // Records the outcome of a human, out-of-band identity check. No ID documents are stored.
+// Legacy: members who published before approval-first sign-up. New people are approved in
+// the Applications queue (POST /staff/applications/[id] {action: "approve"}).
 export const POST = handler(async (req: NextRequest, { rid, params }) => {
   const staff = await requireStaff();
   const { action, reason } = await req.json().catch(() => ({}));
@@ -23,16 +25,12 @@ export const POST = handler(async (req: NextRequest, { rid, params }) => {
 
   if (action === "approve") {
     const bd = await prisma.$transaction(async (tx) => {
-      await tx.user.update({ where: { id: userId }, data: { adultEligible: true, phoneVerified: true } });
+      // Identity only. Nobody checks a phone on the call, so no phone check or
+      // phoneVerified is granted here (spec R3.4, F-08).
+      await tx.user.update({ where: { id: userId }, data: { adultEligible: true } });
       await tx.verificationCheck.update({
         where: { userId_category: { userId, category: "identity" } },
         data: { status: "verified", points: RUBRIC.identity, checkedAt: new Date() },
-      });
-      // Phone confirmed during the same live check.
-      await tx.verificationCheck.upsert({
-        where: { userId_category: { userId, category: "phone" } },
-        create: { userId, category: "phone", status: "verified", points: RUBRIC.phone },
-        update: { status: "verified", points: RUBRIC.phone },
       });
       const score = await snapshotScore(tx, userId);
       await writeAudit(tx, {

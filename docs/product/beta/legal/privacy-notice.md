@@ -25,8 +25,8 @@ Peabudy is run by **[CONTROLLER NAME]** ([COMPANY NUMBER OR "a sole trader"]), [
 ## 2. The short version
 
 - We use your data to find you compatible people to live with, let you talk to them, and help you agree how you'll share a home.
-- Before anyone can see other members or be seen, someone from our team checks your photo ID on a short video call. **We don't keep a copy of your ID.** We record only that the check passed or failed, and when.
-- Other members see your public profile only. They never see your email, phone number, gender, who you're open to living with, or any preferred address.
+- Before anyone can see other users or be seen, someone from our team checks your photo ID on a short video call. **We don't keep a copy of your ID.** We record only that the check passed or failed, and when.
+- Other users see your public profile only. They never see your email, phone number, gender, who you're open to living with, or any preferred address.
 - We don't sell your data, and we don't show adverts.
 - Peabudy is for people aged **18 or over**.
 
@@ -35,15 +35,15 @@ Peabudy is run by **[CONTROLLER NAME]** ([COMPANY NUMBER OR "a sole trader"]), [
 | Category | What | Where it comes from |
 |---|---|---|
 | Account | Email address, display name, sign-in codes (deleted when used or after 10 minutes), session cookie, date you agreed to this notice and its version, date you confirmed you're 18+ | You |
-| Profile (public to checked members) | Display name, bio, initials, which journey you're on, city, areas, budget, move-in window, how long you want to stay, your answers to six living-habit questions | You |
-| Private matching details (never shown to other members) | Which habit answers you accept from others; your gender (optional, "prefer not to say" is available); the genders you're open to living with; an optional preferred postcode or address (stored but not currently used) | You |
+| Profile (public to checked users) | Display name, bio, initials, which journey you're on, city, areas, budget, move-in window, how long you want to stay, your answers to six living-habit questions | You |
+| Private matching details (never shown to other users) | Which habit answers you accept from others; your gender (optional, "prefer not to say" is available); the genders you're open to living with; an optional preferred postcode or address (stored but not currently used) | You |
 | Identity check | That the check passed or failed, the date, and the reviewer. We may confirm your phone number on the call. **We don't store your ID document, ID number, date of birth, photo or a recording** | Our team, on a live video call with you |
 | [FROM DIDIT GO-LIVE, about 27 Nov; remove until then] Automated identity check | Only the result (passed, failed or needs review), the date, Didit's session reference, a reason category if it failed, and whether you're 18 or over. **Peabudy never receives or keeps your ID images, selfie, ID number or date of birth.** Didit processes your ID and face image (biometric data) to do the check | You, through Didit |
-| Activity | Introductions you send and receive, messages, household agreements and every version you accepted, blocks, reports you make, in-app notifications | You and other members |
-| Safety | Reports others make about you, and any action we take (for example a suspension and its reason category) | Other members and our team |
+| Activity | Introductions you send and receive, messages, household agreements and every version you accepted, blocks, reports you make, in-app notifications | You and other users |
+| Safety | Reports others make about you, and any action we take (for example a suspension and its reason category) | Other users and our team |
 | Feedback and research | Feedback you send in the app (linked to your account if you're signed in), the page you were on, a rating; survey answers you choose to give (through Tally, linked to your account by a pseudonymous reference); waitlist sign-ups (through Tally) | You |
 | Survey email choice | Whether you asked us to email you a survey, when, which version of the wording you saw, and when you stopped | You |
-| Access request (Peabudy is invite-only for now) | First name, email, city, areas, move-in month, what you're looking for, how you heard about us, an optional note; our decision and invite | You and our team |
+| Application to join (Peabudy reviews every user before they can sign in) | Everything in "Profile" and "Private matching details" above, given before you're approved; our review: status, dates, reviewer, the ID check method and date, and a reason category if declined; your activation code (stored only in scrambled form) | You and our team |
 | Technical | IP address and browser information in server logs; a random browser ID used to group feedback; [USAGE RECORDINGS: if Microsoft Clarity is switched on, and only with your consent: clicks, scrolls and pages viewed. Text you type, messages, emails and codes are masked] | Your device |
 | Emails we send | Whether an email was sent and for which event. Never its content beyond your first name | Our systems |
 
@@ -58,13 +58,13 @@ The legal bases are those in the UK GDPR (Article 6) and the Nigeria Data Protec
 | Create your account and sign you in | Account | Contract (providing the service you asked for) |
 | Show you compatible people and show you to them | Profile, private matching details | Contract |
 | Use your gender and who you're open to living with in matching | Gender, gender preference | **Consent.** It's optional; you can withdraw by choosing "prefer not to say" and "open to anyone" in your profile |
-| Check identity and age before anyone can see other members | Identity check outcome | Legitimate interests: keeping members safe from fake profiles and under-18s |
+| Check identity and age before anyone can see other users | Identity check outcome | Legitimate interests: keeping users safe from fake profiles and under-18s |
 | Introductions, chat and household agreements | Activity | Contract |
-| Safety: reports, blocks, suspensions, records of what happened | Safety, activity, technical | Legitimate interests (member safety, preventing fraud and abuse). Legal obligation where the law requires us to keep or share records |
+| Safety: reports, blocks, suspensions, records of what happened | Safety, activity, technical | Legitimate interests (user safety, preventing fraud and abuse). Legal obligation where the law requires us to keep or share records |
 | Service emails: sign-in codes, ID check results, account and safety messages | Account | Contract |
 | Activity emails: introductions, replies, your area opening | Account, activity | Legitimate interests. You can turn these off in Settings or with the link in every email |
 | Improve Peabudy from feedback and surveys | Feedback and research | Legitimate interests (improving the service) for in-app feedback; **consent** for surveys and for being contacted for an interview |
-| Decide whom to invite while we're invite-only, and email you an invite | Access request | Legitimate interests (opening safely, a few people at a time); steps you asked us to take before joining |
+| Review your application, check your ID on a video call, and email you about the decision | Application | Steps you asked us to take before joining (contract); legitimate interests (only admitting genuine people, opening safely a few at a time) |
 | Email you a short survey about your experience (about once, with at most one reminder; sent by Resend) | Email, first name, city, how far you've got (for example "verified" or "chatting"), survey email choice | **Consent.** Only if you tick "Email me a short survey" (it's never pre-ticked). Stop any time in Settings or with the link in the email |
 | [FROM DIDIT GO-LIVE] Automated identity check | Your ID and a selfie video (processed by Didit only); the result (kept by us) | **Explicit consent** (UK GDPR Art. 9(2)(a); [NDPA SECTION FOR SENSITIVE DATA, counsel to confirm]), given on the screen before the check. You can choose a video call with our team instead |
 | Waitlist | Waitlist answers, email | Consent |
@@ -75,7 +75,7 @@ The legal bases are those in the UK GDPR (Article 6) and the Nigeria Data Protec
 
 ## 5. Who can see your data
 
-- **Other checked members:** your public profile (section 3), plus your introductions and messages to them.
+- **Other checked users:** your public profile (section 3), plus your introductions and messages to them.
 - **Our team:** the minimum needed to run identity checks, deal with reports and help you. Staff can't read your private chats. If you report a conversation, we see what you put in the report. Staff access to individual accounts is logged.
 - **Service providers (processors)** who handle data on our instructions under contract:
 
@@ -118,7 +118,9 @@ You can ask us for a copy of the safeguards.
 | Survey answers (Tally) | **[12] months** |
 | Survey email choice | While your account is open (a withdrawal is kept so we don't email you again), then deleted with it |
 | Record of survey emails sent to you (which survey, when) | While your account is open |
-| Access requests not taken further (declined or unanswered) | **[30] days** |
+| Unsubmitted applications | **[30] days** after your last change |
+| Declined or withdrawn applications | **[30] days** after the decision; after that we keep only a scrambled form of your email and the date you can reapply, until that date |
+| Applications waiting for your city to open | Until it opens, or **[12] months**, whichever is sooner |
 | Waitlist answers (Tally) | Until we open in your area and invite you, or **[12] months**, whichever is sooner |
 | Usage recordings (if consented) | [CLARITY RETENTION, per Microsoft's settings] |
 

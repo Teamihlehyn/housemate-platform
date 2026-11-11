@@ -6,7 +6,54 @@
 >
 > Assumes D1: real people, London and Lagos, Option B from 11 Nov. All times are UK (Lagos is UK + 1 h).
 
-## Live launch to-do (re-planned 10 Nov; supersedes the fast-track dates below)
+## Approval-first sign-up: decided 10 Nov (supersedes the dates and invite steps below)
+
+**You approved F1–F4** ([`approval-first-signup.md`](approval-first-signup.md)):
+- **F1:** launch in **Lagos on Wed 18 Nov**, go/no-go **Tue 17 Nov 18:00**; Thu 12 Nov is a build checkpoint.
+- **F2:** the video ID call is part of approval.
+- **F3:** declined applicants get a kind, generic email and can reapply after 30 days.
+- **F4:** London applications are waitlisted.
+
+**Your to-do, in order:**
+
+| # | Task | When |
+|---|---|---|
+| 1 | F-03 real mailbox (`hello@`, `privacy@`) and F-04 legal placeholders + reviewer name (F-22) | **By Thu 12 Nov** (checkpoint) |
+| 2 | F-17 name check, so D13 can be decided | By Tue 17 Nov 12:00 |
+| 2a | **F-23: confirm you have the rights or licence to use both city photos** (London: Big Ben and Westminster; Lagos: Civic Centre and the lagoon skyline). If you took them yourself, say so. If not, name the licence. If anyone is identifiable in them, confirm you have their consent or pick another shot. Tell the designer (no personal data in the repo) | **By Thu 12 Nov** (checkpoint; the photos don't ship without it) |
+| 3 | Build the Lagos outreach list (at least 8, one cluster: Yaba, Surulere, Gbagada), privately | By Mon 16 Nov |
+| 4 | Rehearse on staging: apply → book and run a mock video call → approve → activate → see each other; and one decline and one suspension | Sat 14 – Sun 15 Nov |
+| 5 | T3 real-inbox test of the code, "application received", approval and decline emails | Mon 16 Nov |
+| 6 | Find a helper with a low- or mid-range Android (360 px; Tecno or Infinix) and an iPhone for T4 | By Mon 16 Nov |
+| 7 | T4 real-device pass | Tue 17 Nov 10:00–14:00 |
+| 8 | **Go/no-go** (written) | **Tue 17 Nov 18:00** |
+| 9 | `switch-to-beta.sh` + smoke test | Wed 18 Nov 09:00 |
+| 9a | **Domain cut-over to `peabudy.com`** (F-24, below), straight after the beta deployment is Ready. **Don't attach the domain earlier:** production runs the old research site until the switch | Wed 18 Nov, about 09:30 |
+| 10 | Share the `/join` link with the Lagos list | Wed 18 Nov 12:00 UK / 13:00 Lagos |
+| 11 | Review applications daily: contact within 24 h to book the video call, decide within 72 h. London applications stay waitlisted | From Wed 18 Nov |
+| 12 | After launch: F-21 (`updates.peabudy.com`), F-18 Didit account, F-19 counsel booking; the research database deletion only when you explicitly say so | From Wed 18 Nov |
+
+## F-24: Domain cut-over (Wed 18 Nov, straight after `switch-to-beta.sh`; about 20 minutes)
+
+This replaces F-02 parts F and G: **don't** point `peabudy.com` at the project before launch day.
+
+1. Vercel → **housemate-platform** → Settings → **Domains** → Add `peabudy.com`, and accept **`www.peabudy.com` redirecting to it**. DNS is Vercel-managed and the certificate is automatic. Wait for "Valid Configuration".
+2. Production `NEXT_PUBLIC_SITE_URL=https://peabudy.com`: the switch script sets it, and it takes effect with that rebuild. If you set it by hand, redeploy.
+3. Add `gethousemate.vercel.app` → **permanent redirect** to `https://peabudy.com`, in the same Domains screen. Anyone signed in on the old address will need to sign in once more (cookies are per address).
+4. **Check:**
+   - `https://peabudy.com` loads over HTTPS;
+   - `www` redirects;
+   - `gethousemate.vercel.app` redirects;
+   - the code, application and approval emails link to `peabudy.com`;
+   - pasting `https://peabudy.com` into WhatsApp shows the Peabudy preview.
+5. Update the links in Tally, your social profiles and the Lagos invite message to `https://peabudy.com/join`.
+6. Optional: `staging.peabudy.com` for the staging branch (Domains → Add → assign to the `staging` Git branch).
+
+**Engineer to confirm before Tue 17 Nov:** the ENG-08 spec has the switch script check that `SITE_URL` answers over HTTPS before it changes anything. With the domain attached only *after* the switch, that check must be skipped or moved to after the deploy. Otherwise, attach the domain moments before running the script.
+
+**Not needed any more:** approving "access requests" and sending invites by hand. The invite/activation email now goes automatically when you approve an application.
+
+## Live launch to-do (re-planned 10 Nov; dates and invite steps superseded by the section above)
 
 **Goal:** a live beta in **Lagos on Fri 13 Nov**, with go/no-go on Thu 12 Nov 18:00 and Mon 16 Nov as the fallback (README "Live launch plan").
 
@@ -130,7 +177,7 @@ About 45 minutes of clicking, plus waiting for verification. Do parts A–E toni
 | | **1. `Peabudy <hello@peabudy.com>` (root domain, your suggestion; recommended)** | 2. `Peabudy <hello@mail.peabudy.com>` (sending subdomain) |
 |---|---|---|
 | What Resend says | Recommends sending from subdomains, to keep reputations separate ([Resend: domains](https://resend.com/docs/dashboard/domains/introduction), fetched 9 Nov 2026) | Follows Resend's advice |
-| For us | The domain is a day old with no reputation to protect yet, and the only mail is sign-in codes. A From address that exactly matches the website looks more trustworthy to a nervous new member | Slightly odder-looking address |
+| For us | The domain is a day old with no reputation to protect yet, and the only mail is sign-in codes. A From address that exactly matches the website looks more trustworthy to a nervous new user | Slightly odder-looking address |
 | Later | Send any future newsletters or marketing from a separate subdomain (e.g. `news.peabudy.com`), never from the root | Already separated |
 
 The steps below use option 1. For option 2, enter `mail.peabudy.com` in A3 and use `hello@mail.peabudy.com` in E2; the record names gain `.mail` (e.g. `send.mail`).
@@ -140,7 +187,7 @@ The steps below use option 1. For option 2, enter `mail.peabudy.com` in A3 and u
 1. Go to **resend.com** and sign in (create an account if needed). In your account settings, **turn on two-factor authentication**: this account can send email as Peabudy.
 2. Left sidebar → **Domains** → **Add domain**.
 3. **Domain:** `peabudy.com`.
-4. **Region:** choose **Ireland (eu-west-1)** if offered. Your members are in the UK and Nigeria, and keeping processing in the EU is simpler for the privacy notice. *Assumption (not checked):* the region can't be changed later without removing and re-adding the domain, so choose now.
+4. **Region:** choose **Ireland (eu-west-1)** if offered. Your users are in the UK and Nigeria, and keeping processing in the EU is simpler for the privacy notice. *Assumption (not checked):* the region can't be changed later without removing and re-adding the domain, so choose now.
 5. Click **Add**. Resend shows the domain as **Not started / Pending** with a list of DNS records. Leave this tab open.
 
 ### Part B: put the DNS records on Vercel (10 min)
@@ -232,7 +279,7 @@ The steps below use option 1. For option 2, enter `mail.peabudy.com` in A3 and u
 
 1. **Low, steady volume.** Only sign-in codes, only for the invited cohort (up to 40 people in week 1). No bulk email from `peabudy.com`: announce on social media and WhatsApp, not by mass email.
 2. **Plain, consistent emails.** Always the same From address; no link shorteners, images or attachments in the code email (*Fact:* today's code email has no links, `lib/email.ts`).
-3. **Positive signals.** Ask cohort members to add `hello@peabudy.com` to their contacts and to click "Not spam" if it lands in junk. Replies are good signals too.
+3. **Positive signals.** Ask cohort users to add `hello@peabudy.com` to their contacts and to click "Not spam" if it lands in junk. Replies are good signals too.
 4. **Watch.** Check the Resend dashboard's bounces and complaints daily in week 1. Optionally add `peabudy.com` to Google Postmaster Tools (it verifies with one more TXT record in Vercel); it only shows data once volume is higher.
 5. **Grow slowly.** Raise volume gradually as areas open (late November). Keep activity emails (ENG-12) and any future newsletters on their own subdomain if volumes grow.
 
@@ -246,7 +293,7 @@ The steps below use option 1. For option 2, enter `mail.peabudy.com` in A3 and u
   - `ADMIN_EMAILS` = your staff address(es), comma-separated. They become admin on sign-in.
   - `NEXT_PUBLIC_CONTACT_EMAIL` = `hello@peabudy.com` (ENG-06, ENG-25).
   - `EMAIL_LINK_SECRET` = a long random string, generated locally and never shared (needed by ENG-12 and ENG-15).
-- The second staff member (F-15) gets the `verifier` or `moderator` role set by an admin (until ENG-24 adds a UI, the engineer provides the one-line SQL).
+- The second staff user (F-15) gets the `verifier` or `moderator` role set by an admin (until ENG-24 adds a UI, the engineer provides the one-line SQL).
 
 ## F-04: Fill in the legal drafts and publish the interim versions
 
@@ -292,9 +339,9 @@ Record the outcomes (yes/no plus a date, no reference numbers needed) in the pri
 
 ## F-08: Verification SOP (live video ID check)
 
-1. **Book.** Email the member within 24 h of publish (from `hello@peabudy.com`), offering 10-minute slots. Mark the case "Contacted" (ENG-07, S1).
+1. **Book.** Email the user within 24 h of publish (from `hello@peabudy.com`), offering 10-minute slots. Mark the case "Contacted" (ENG-07, S1).
 2. **On the call:**
-   - The member holds up a government photo ID beside their face.
+   - The user holds up a government photo ID beside their face.
    - Confirm the name matches their profile's first name (or the explanation they give).
    - Confirm the face matches.
    - Confirm they're **18+** from the date of birth.
@@ -328,7 +375,7 @@ INSERT INTO "AuditEvent" (id, "eventType", "actorType", "subjectId", "resourceTy
 COMMIT;
 ```
 
-  Households aren't closed by this SQL. If the person is in one, close it in the app as the other member, or wait for ENG-11. **Rehearse it on `beta-rehearsal` first (F-09).**
+  Households aren't closed by this SQL. If the person is in one, close it in the app as the other user, or wait for ENG-11. **Rehearse it on `beta-rehearsal` first (F-09).**
 - **Log** each case (category, action, time; no personal details) in a private sheet until ENG-21 ships.
 
 ## F-10: Deletion and purge SOP
@@ -342,7 +389,7 @@ COMMIT;
 1. 18:00 Tue: go/no-go (F-12), using the SEC-11 exit criteria, the F-11 inbox results and D13 (the name).
 2. 09:00 Wed: `CONTACT=… bash scripts/switch-to-beta.sh` (ENG-08). The script lists the variables it needs.
 3. 09:15: the smoke test (ENG-08's items).
-4. 10:00: verify yourself and the second staff member as members, and check that two test members see each other. Delete these test accounts afterwards (F-10 SQL).
+4. 10:00: verify yourself and the second staff user as users, and check that two test users see each other. Delete these test accounts afterwards (F-10 SQL).
 5. 12:00: announcement (DES-08) and cohort-1 invites (up to 20 per city, in 2–3 areas each, D12), linking to `https://peabudy.com`. The invite tells people their code comes from `hello@peabudy.com` and to check junk.
 6. Book verification calls from the afternoon.
 7. **Rollback:** `bash scripts/switch-to-research.sh` (restores research mode; the engineer updates its site URL first, ENG-08).

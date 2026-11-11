@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { handler, ok } from "@/lib/api";
-import { requireUser } from "@/lib/guard";
+import { requireAccount } from "@/lib/guard";
 import { prisma } from "@/lib/db";
 import { destroySession } from "@/lib/session";
 import { writeAudit, writeOutbox, notify } from "@/lib/audit";
@@ -10,7 +10,7 @@ import { OPEN_INTRO_STATES } from "@/lib/blocks";
 // Immediately hides the profile, stops interactions and revokes sessions; a purge
 // job finalises removal under the retention policy.
 export const POST = handler(async (_req: NextRequest, { rid }) => {
-  const user = await requireUser();
+  const user = await requireAccount();
 
   await prisma.$transaction(async (tx) => {
     await tx.user.update({
@@ -32,6 +32,24 @@ export const POST = handler(async (_req: NextRequest, { rid }) => {
     // Access request and invite data go too (HM-30): the request is deleted, and invites keep
     // only the account link (usedByUserId), not the address.
     await tx.accessRequest.deleteMany({ where: { email: user.email } });
+    // An open application is withdrawn ("Delete my application"), and its activation code
+    // stops working before the address is removed from it.
+    const app = await tx.application.findUnique({ where: { userId: user.id } });
+    if (app && !["withdrawn", "declined"].includes(app.status) && user.accountStatus === "applicant") {
+      await tx.application.update({ where: { id: app.id }, data: { status: "withdrawn", version: { increment: 1 } } });
+      await writeAudit(tx, {
+        eventType: "application.withdrawn",
+        actorId: user.id,
+        subjectId: user.id,
+        resourceType: "application",
+        resourceId: app.id,
+        action: "withdraw",
+        reasonCode: "account_deleted",
+        safeBefore: { status: app.status },
+        safeAfter: { status: "withdrawn" },
+      }, rid);
+    }
+    await tx.invite.updateMany({ where: { email: user.email, usedAt: null, revokedAt: null }, data: { revokedAt: new Date() } });
     await tx.invite.updateMany({ where: { email: user.email }, data: { email: null } });
 
     // Stop everything in flight with other people (HM-07): pending intros end, chats

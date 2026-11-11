@@ -1,0 +1,21 @@
+We've got your Peabudy application
+
+Thanks, {{first_name}}. {{city_name}} opens later.
+
+We're starting in Lagos. We'll hold your application and email you when {{city_name}} opens. There's no ID call until then, and you don't need to do anything now.
+
+Check my application:
+{{status_url}}
+
+When {{city_name}} opens
+1. We email you to book a 10-minute video ID call.
+2. If you're approved, we email you a link to activate your account.
+We keep held applications for up to 12 months. To change, withdraw or delete yours, open the link above and choose "Sign in to change your answers".
+
+We'll never ask you for money, and nobody from our team will ask for a fee to speed things up.
+
+Peabudy never asks for money. Never pay an 'agent fee', 'inspection fee' or deposit before you've seen a home in person and confirmed who the landlord is.
+
+--
+Peabudy · [POSTAL ADDRESS]
+You're getting this because you applied to join Peabudy with this email address.

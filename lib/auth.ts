@@ -14,43 +14,44 @@ export const BUSY_MESSAGE = "We're getting a lot of sign-in requests right now. 
 
 export type CodeRequestDecision =
   | "send"
+  | "silent" // approval-first: not an active member, so nothing is sent — same answer as "send"
   | "email_limited"
   | "ip_limited"
-  | "signups_paused"
-  | "invite_required"
-  | "invite_invalid"
   | "sitewide_limited" // members: 429, nothing sent
   | "send_sitewide_limited"; // staff: the same 429, but the code is still sent
 
-// Where a request for an address with no account stands (null = an account exists, or no
-// invite is needed here: staff bootstrap emails and demo modes).
-export type NewAccountGate = null | "ok" | "paused" | "required" | "invalid";
-
 // What to do with a code request, given counts taken under a per-email/per-IP lock.
-// - Per email (everyone, staff too): 429. The caller already knows the address.
+// Every check before the last one ignores `eligible`, so an address with no account (or an
+// applicant, declined or suspended one) gets exactly the answer an active member gets (HM-28).
+// - Per email (5 an hour, everyone, counted for every request): 429.
 // - Per IP bucket (emailed codes only): 429. Applies to staff too, so it can't reveal them.
-//   Refused new-account requests (no invite, bad invite, paused) count towards it, which
-//   caps how fast anyone can probe for accounts.
-// - New accounts: paused → 403; no invite → 403 INVITE_REQUIRED; bad invite → 422.
 // - Site-wide (emailed codes only, HM-26): over the cap everyone gets the same honest 429.
-//   Staff codes are still sent behind it, so a flood can't lock staff out of the console,
-//   and the identical answer means the cap can't be used to discover staff addresses.
+//   Staff codes are still sent behind it, so a flood can't lock staff out of the console.
+// - Then: eligible → send; otherwise → silent (the same 200, no code, no email).
 export function decideCodeRequest(c: {
   emailedCode: boolean;
   isStaff: boolean;
+  eligible: boolean;
   fromEmail: number;
   fromIp: number; // 0 when IPs aren't recorded
   sitewide: number;
-  newAccount?: NewAccountGate;
 }): CodeRequestDecision {
   if (c.fromEmail >= MAX_CODES_PER_EMAIL_HOUR) return "email_limited";
   if (c.emailedCode && c.fromIp >= MAX_EMAILED_CODES_PER_IP_HOUR) return "ip_limited";
-  if (c.newAccount === "paused") return "signups_paused";
-  if (c.newAccount === "required") return "invite_required";
-  if (c.newAccount === "invalid") return "invite_invalid";
-  if (!c.emailedCode) return "send";
-  if (c.sitewide >= MAX_EMAILED_CODES_PER_HOUR) return c.isStaff ? "send_sitewide_limited" : "sitewide_limited";
-  return "send";
+  if (c.emailedCode && c.sitewide >= MAX_EMAILED_CODES_PER_HOUR) {
+    return c.isStaff && c.eligible ? "send_sitewide_limited" : "sitewide_limited";
+  }
+  return c.eligible ? "send" : "silent";
+}
+
+// Every code-request answer takes at least this long, so the database work for an eligible
+// address (a code row, the queued send) can't be told apart by timing (R2.4).
+export const CODE_RESPONSE_FLOOR_MS = 450;
+
+// Salted hash of an address, for counting requests per address without storing it in the
+// audit log. Same salt rules as IPs.
+export function hashEmailKey(email: string, salt: string | null = ipHashSalt()): string {
+  return createHash("sha256").update((salt ?? "peabudy-email-unsalted") + ":email:" + email.trim().toLowerCase()).digest("hex").slice(0, 32);
 }
 
 // The caller's IP. On Vercel, x-forwarded-for is set by the platform (first entry).

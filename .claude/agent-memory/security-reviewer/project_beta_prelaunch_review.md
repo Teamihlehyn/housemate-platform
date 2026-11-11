@@ -52,6 +52,21 @@ Update 2026-11-10 (SEC-14: invite-only sign-up, survey email, feedback, legal re
 - Info: invite codes stored as unsalted SHA-256; Markdown link allowlist lets "//host" through (repo-sourced); feedback DTO returns full userId; survey send mutates its audit row on failure
 - Reviewed clean: HMAC unsubscribe tokens (timing-safe, fail closed on Vercel without secret), atomic invite consumption, survey dedupe lock, CSV formula guard, email HTML escaping, Markdown renderer (React text only)
 
+Update 2026-11-11 (SEC-15: approval-first sign-up, WT on top of 192068c + hotfix d44da29; verdict OK for staging; launch go/no-go Tue 17 Nov). Status as of that review:
+- HM-10 fixed (WT + d44da29): effective role from ADMIN_EMAILS/STAFF_EMAILS only, synced and audited at sign-in; staff kept out of matching, users/[id], intros
+- HM-28 NOT yet closed: request-code body/timing identical, but a later verify step still differs by account state (HM-35)
+- HM-30 partially addressed: application purge (admin-triggered, no scheduler); AccessRequest retired
+- Phone grant removed from both approve paths (verified)
+- HM-35 NEW Medium, blocks launch: verify-code / applications/verify answer differs for addresses that were silently refused a code (lib/codes.ts claimCode)
+- HM-36 NEW Medium, blocks launch: approve isn't bound to the profile staff reviewed (applicant edits allowed while submitted; approve allowed from submitted)
+- HM-37 NEW Low: decline vs activation race (status check outside tx; activation doesn't bump app version/lock)
+- HM-38 NEW Low: withdraw/reopen of an approved application keeps the identity check and old idCheck fields
+- HM-39 NEW Low: legacy staff/verifications/[userId] approve open to moderators, no self-ban, free-text reason to audit
+- HM-40 NEW Low: switch-to-beta.sh regenerates IP_HASH_SALT every run; it now also keys per-email limits and ApplicantTombstone
+- HM-41 NEW Low (pre-existing design): targeted per-address code/attempt lockout of a named member
+- HM-42 NEW Low: activation_code at verify-code skips the invite-check caps
+- Info: relationship_note free text in audit safeAfter; moderators can reveal gender; /join member sign-in skips re-consent; export omits declineReason (legal); no security headers (frame-ancestors for /staff)
+
 Clean at re-review: npm audit 0; tsc clean; unit tests pass; no secrets/personal emails in commit candidates; docs/security/ ignored; Vercel overwrites x-forwarded-for (not spoofable on Vercel).
 
 Related: [[recurring-weak-spots]]

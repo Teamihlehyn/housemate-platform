@@ -1,7 +1,7 @@
 # Responsive QA (DES-19)
 
 Run 10 Nov 2026 by the designer agent against the local dev server in **beta** mode
-(`housemate-beta`), with a seeded local member, a local verifier for `/staff`, and a fresh local
+(`housemate-beta`), with a seeded local user, a local verifier for `/staff`, and a fresh local
 account for `/onboarding`. This is browser emulation, not real devices: the real-phone pass
 (Tecno/Infinix at 360 px, then an iPhone) is still the founder's T4.
 
@@ -29,7 +29,7 @@ the on-screen keyboard, and real scrolling performance.
 | Page | 320×568 | 360×740 | 375×812 | 390×844 | 414×896 | 430×932 | 844×390 (landscape) | 768×1024 | 820×1180 | 1024×768 | 1280×800 | 1440×900 | 1920×1080 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | Landing `/` | ✓ | ✓ | ✓ (fixed 1) | ✓ | ✓ | ✓ | ✓ (fixed 2) | ✓ (fixed 2) | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `/request-access` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `/request-access` (retired 10 Nov: now redirects to `/join`) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `/invite/[code]` (invalid; valid checked visually at 375) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `/signin` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `/signin` busy state (HM-26) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
@@ -56,10 +56,10 @@ the on-screen keyboard, and real scrolling performance.
 3. **Signed-in top bar overflowed at 768–1023 px** (page 851 px wide at 768 and 844): the desktop
    nav, Feedback, the bell, the name and Sign out didn't fit. The name now hides from 768 to
    1023 px and the nav pills are 12 px narrower there (`components/AppNav.tsx`).
-4. **Member page actions overflowed at 320 px** (Block was off-screen). The row now wraps: "Send
+4. **Profile page (`/members/[id]`) actions overflowed at 320 px** (Block was off-screen). The row now wraps: "Send
    introduction" takes the full width, Report and Block share the next row
    (`app/(app)/members/[id]/page.tsx`).
-5. **The Feedback pill covered Block on the member page in landscape** (no bottom nav from
+5. **The Feedback pill covered Block on the profile page (`/members/[id]`) in landscape** (no bottom nav from
    768 px, and no bottom padding). The signed-in layout now has `md:pb-20`
    (`app/(app)/layout.tsx`).
 6. **The Feedback pill ignored the home bar** and sat 80 px up on public pages that have no
@@ -107,3 +107,36 @@ Chat at 375 px: Report and Block are fully visible; the Feedback pill is hidden 
   chip says "pending" in lower case (use "Pending", sentence case); (d) "Asked 10/11/2026, 10:58"
   is ambiguous across UK/US readers (use "10 Nov, 10:58").
 - `/privacy`, `/terms`: no layout faults at any width.
+
+---
+
+## Approval-first pages (DES-20/21/24), 10 Nov 2026
+
+Same iframe method, against `housemate-beta-e2e` (beta mode, local `housemate_e2e_beta` DB, a
+fake mail server on :8025 so the emailed codes could be read). `/profile` and `/onboarding` were
+checked against `housemate-research` with a demo persona (activation needs a staff approval, and
+local staff now needs `ADMIN_EMAILS`, so a beta user couldn't be created this round).
+
+| Page / state | 320 | 360 | 390 | 430 | 768 | 1280 |
+|---|---|---|---|---|---|---|
+| Landing `/` (beta CTAs: Sign in · Apply to join) | ✓ | ✓ | — | ✓ | — | ✓ |
+| `/join` email step | ✓ | ✓ | — | ✓ | — | ✓ |
+| `/join` code step | — | ✓ visual | — | — | — | — |
+| `/join` city step (photo cards) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `/join` steps 4–17 and review | — | walked at 360 (all screens, autosave "Saved" each time) | — | — | — | — |
+| `/join` "Application received" | — | ✓ visual | — | — | — | — |
+| `/join/status` draft | ✓ | ✓ | — | ✓ | ✓ | — |
+| `/join/status` submitted (session, with Manage) / magic link (read-only) / withdrawn | — | ✓ visual + text | — | — | — | — |
+| `/signin` (approved users only, neutral message after send) | ✓ | ✓ | — | ✓ | — | ✓ |
+| `/invite/[code]` invalid | ✓ | ✓ | — | ✓ | ✓ | — |
+| `/profile` section editors (research persona) | — | ✓ visual, saved a budget change | — | — | — | — |
+| `/onboarding` → `/profile` redirect for a published user; fresh account still onboards | — | ✓ | — | — | — | — |
+
+No overflow, no off-screen controls, no input under 16 px. The only sub-44 px hits are inline
+"privacy notice" / "Apply to join" links inside a sentence (exempt under WCAG 2.5.8).
+
+**Not verified:** `/invite/[code]` valid → code → Discover (needs an approved application; the
+engineer's e2e covers it), `/join/status` approved, call booked, waitlisted and declined (render
+from one `view()` table; checked by code, not in the browser), the `/join` busy (HM-26) and
+paused states, real devices, Slow 3G. Under reduced motion the city card's scale-up is
+`motion-safe:` only, so it doesn't apply.

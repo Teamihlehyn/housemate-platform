@@ -39,7 +39,8 @@ export class ApiError extends Error {
     public code: string,
     message: string,
     public status: number,
-    public fieldErrors?: Record<string, string>
+    public fieldErrors?: Record<string, string>,
+    public retryAfter?: number
   ) {
     super(message);
   }
@@ -56,7 +57,7 @@ export function handler(
       return await fn(req, { rid, params });
     } catch (e) {
       if (e instanceof ApiError) {
-        return fail(e.code, e.message, e.status, rid, { field_errors: e.fieldErrors });
+        return fail(e.code, e.message, e.status, rid, { field_errors: e.fieldErrors, retry_after: e.retryAfter });
       }
       console.error("Unhandled API error", e);
       return fail("INTERNAL", "Something went wrong.", 500, rid, { retryable: true });

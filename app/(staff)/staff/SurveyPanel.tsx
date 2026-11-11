@@ -31,7 +31,7 @@ export default function SurveyPanel() {
       <h2 id="survey-title" className="sr-only">Survey emails</h2>
       <div className="card p-4">
         <h3 className="font-semibold text-ink">Send the survey email</h3>
-        <p className="mt-1 text-sm text-ink-600">Goes only to members who opted in and haven&apos;t unsubscribed. Each person gets a campaign once; up to 25 per press.</p>
+        <p className="mt-1 text-sm text-ink-600">Goes only to users who opted in and haven&apos;t unsubscribed. Each person gets a campaign once; up to 25 per press.</p>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <div>
             <label htmlFor="sv-campaign" className="label">Campaign</label>

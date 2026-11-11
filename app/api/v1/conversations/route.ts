@@ -27,7 +27,7 @@ export const GET = handler(async (_req: NextRequest, { rid }) => {
           id: c.id,
           status: c.status,
           otherUserId: otherId,
-          otherName: o?.displayName ?? "Member",
+          otherName: o?.displayName ?? "User",
           otherInitials: o?.profile?.avatarInitials ?? "?",
           lastMessage: c.messages[0]?.body ?? null,
           lastAt: c.messages[0]?.sentAt ?? c.createdAt,

@@ -14,11 +14,53 @@
 
 ## Live launch plan (10 Nov)
 
-**In one line:** the live beta opens in **Lagos** on **Fri 13 Nov 2026**, using the staff video identity check, with Didit-automated checks from about Fri 27 Nov and London later.
+**In one line (updated 10 Nov, late):** the live beta opens in **Lagos** on **Wed 18 Nov 2026** (go/no-go Tue 17 Nov 18:00), with approval-first sign-up, using the staff video identity check, with Didit-automated checks from about Fri 27 Nov and London later.
 
 **Founder direction (10 Nov 2026):** research mode isn't coming back. Production goes straight to `beta` (real people) with the features we have. It must be fully tested and ready for live sign-up. The link goes to a few people; feedback comes through the Feedback button; and we keep every user's email so we can send a follow-up survey.
 
 **This supersedes:** the Option A/B/C framing, the 11 Nov fast-track and its go/no-go, the Tally waitlist as the public entry point, the public announcement (DES-08), and anything that assumes a rollback to research mode.
+
+### Approval-first sign-up (10 Nov, late): **approved, build started**
+
+Sign-up is now an **application** that staff approve before anyone can sign in. The spec is in [`approval-first-signup.md`](approval-first-signup.md).
+- **Tickets:** ENG-39–45, DES-20–23, SEC-15. They replace ENG-37/38's request-access and invite-gated sign-up, and DES-17.
+- **The founder approved F1–F4 on 10 Nov ("Approve all, start"):**
+  - **F1:** launch in **Lagos on Wed 18 Nov**, with **go/no-go on Tue 17 Nov 18:00**. Thu 12 Nov is a build checkpoint, not a go/no-go.
+  - **F2:** the video ID call is part of approval.
+  - **F3:** declined applicants get a kind, generic email and can reapply after 30 days.
+  - **F4:** London applications are waitlisted.
+- **This supersedes** every "Fri 13 Nov" launch date, "Thu 12 Nov 18:00" go/no-go and "Mon 16 Nov" fallback elsewhere in this file. It also replaces go/no-go criterion 3 (below).
+
+**Revised timeline:**
+
+| When | Step | Owner |
+|---|---|---|
+| Wed 11 – Fri 13 Nov | Build ENG-39–45 and DES-20–23. The other launch tickets continue (ENG-25, 29, 31, 33, HM-26, DES-19) | E, D |
+| **Thu 12 Nov** | **Build checkpoint:** `/join` steps 1–2 and `requireMember` on staging; the founder's F-03/F-04 done; Lagos outreach list started | E, F, PM |
+| Fri 13 Nov | Code complete for ENG-39–43; SEC-15 review starts | E, S |
+| Sat 14 – Sun 15 Nov | Buffer; the founder rehearses a full application → video call → approve on staging | F |
+| **Mon 16 Nov** | **Code freeze 12:00**; T1 + T2 (with spec §6 cases 1–16) on staging; T3 real-inbox test (E0–E3 emails); T4b responsive; T4c data-light | E, D, F |
+| Tue 17 Nov | T4 real devices (a 360 px Android first) 10:00–14:00; fix only P0/P1; SEC-15 + T5 sign-off by 17:00; **go/no-go 18:00** | F + helper, S |
+| **Wed 18 Nov** | 09:00 `switch-to-beta.sh` + smoke test → about 09:30 **domain cut-over** (founder.md F-24: attach `peabudy.com` + `www`, redirect `gethousemate.vercel.app`, check HTTPS, email links and the OG preview; update links in Tally, socials and the invite message) → 12:00 UK / 13:00 Lagos: share `https://peabudy.com/join` with the Lagos list; review applications from the afternoon. **Never attach the domain before the switch** | F |
+| From Wed 18 Nov | Daily: applications (contact within 24 h, decide within 72 h), reports, feedback, 429 counts, bounces | F |
+| After launch | ENG-36 survey sender + F-21 (first send 7 days after the first activations); Didit (ENG-35) by about 27 Nov; research database deletion only on the founder's explicit go-ahead | E, F |
+
+**Performance criterion (T4c) now includes the DES-24 photo city cards:**
+- each card ≤ 60 KB at 360 px (*proposed*);
+- lazy-loaded with a placeholder;
+- the city step usable on Slow 3G before the photos load.
+
+**F-23 (photo rights) must be confirmed** before the photos ship.
+
+**Go/no-go criterion 3 (replaced):** spec §6 cases 1–16 pass on staging-as-beta, **plus the ENG-46 cases (back office only):**
+- staff land on `/staff` with no user nav or Feedback pill;
+- staff get 404 from user APIs and are redirected from user pages;
+- staff never appear in matching;
+- the founder's separate user account has no `/staff` access.
+
+SEC-15 must also be signed off. All other criteria in L6 stand, with these changes:
+- criterion 9 now reads "at least 8 Lagos people lined up to apply in one cluster";
+- the D13 deadline moves to Tue 17 Nov 12:00.
 
 ### Founder decisions, 10 Nov evening (these override L2, L5's sending plan, L7 and L6 where they conflict)
 
@@ -97,14 +139,14 @@
   - roll back only to earlier **beta** deployments;
   - for an emergency, use the sign-up pause switch (ENG-32), plus suspensions (F-09).
 - **Staging becomes the permanent beta rehearsal environment** (ENG-33).
-  - Staging gets its own Neon branch, `beta-rehearsal`, with no seed data. The seeded demo people on `staging` would appear as real, verified members in beta.
+  - Staging gets its own Neon branch, `beta-rehearsal`, with no seed data. The seeded demo people on `staging` would appear as real, verified users in beta.
   - It uses `APP_ENV=beta` and a staging-only Resend key.
   - The research and gender e2e suites keep running locally, because that code still exists.
 - **The research database** (the old production, with real testers' sample worlds) stays as it is. No emailing those testers: they never opted in. Delete it only after launch, as a separate step, when the founder explicitly says to (D19), and in line with the research consent terms.
 
 **Rollback for a live beta (HM-27; recommendation: retire `switch-to-research.sh`, don't fix it).** Research mode isn't coming back, so the script has no job. ENG-33 makes it refuse to run. The real rollback ladder, from least to most drastic:
 1. **Vercel Instant Rollback to the previous beta deployment.** Never to one built before the beta switch.
-2. **`SIGNUPS_PAUSED=true`** plus a redeploy. New people stop; members carry on.
+2. **`SIGNUPS_PAUSED=true`** plus a redeploy. New people stop; users carry on.
 3. **Suspend accounts** (F-09).
 4. **Take the site offline:** turn on Vercel Deployment Protection (dashboard, no code) while you fix things.
 
@@ -115,7 +157,7 @@ No maintenance page is built for launch. With a handful of people, a personal me
 **Recommendation: no invite allowlist.** Instead, use four layers:
 1. **The identity gate (exists):** an unverified account sees nobody and can't be seen (HM-01).
 2. **HM-08 rate limits:** per IP (/64 for IPv6) and site-wide; staff are exempt.
-3. **A new sign-up pause switch** (ENG-32, XS): `SIGNUPS_PAUSED=true` stops new accounts with an honest message, while existing members carry on.
+3. **A new sign-up pause switch** (ENG-32, XS): `SIGNUPS_PAUSED=true` stops new accounts with an honest message, while existing users carry on.
 4. **Staff verify invited people first.**
 
 Why not an allowlist:
@@ -128,10 +170,10 @@ Why not an allowlist:
 - **Pause sign-ups** when the queue has more than 20 people waiting, or anyone has waited more than 72 h. Redeploy to apply (about 2 minutes).
 - Reports or scam messages trigger the F-09 runbook.
 
-**HM-26 (founder decision; recommendation: yes).** Above the site-wide login-code cap, members are currently told "sent" while nothing is sent. That's a false statement at the worst moment.
+**HM-26 (founder decision; recommendation: yes).** Above the site-wide login-code cap, users are currently told "sent" while nothing is sent. That's a false statement at the worst moment.
 - Return an **honest, generic 429 to everyone**: "We're getting a lot of sign-in requests right now. Try again in an hour." It's the same for every address, so it reveals nothing about who has an account.
 - Staff codes are still sent behind it.
-- Runbook line for staff: "If members report this message, check the `ip_limited` / site-wide 429 counts in the audit log and raise the cap or pause sign-ups."
+- Runbook line for staff: "If users report this message, check the `ip_limited` / site-wide 429 counts in the audit log and raise the cap or pause sign-ups."
 
 **Lagos shared IPs.** Mobile carriers in Nigeria commonly put many people behind one IP (carrier-grade NAT; *Assumption*, widely reported, not measured here). The per-IP limits (HM-08) could therefore block real people.
 - Check the `ip_limited` 429 count daily in week 1.
@@ -168,8 +210,8 @@ I checked the code on 10 Nov.
 - Staff read the latest 100 items at `/staff`, through `GET /staff/research`, which needs `requireStaff()`.
 
 **Gaps (ENG-31, DES-14):**
-1. **The dialog is wrong for signed-in members.** It says "your anonymous tester ID" (`ResearchTools.tsx:138`), but signed-in feedback is linked to the account. That's dishonest, and it contradicts the privacy notice.
-2. **Staff can't see who sent feedback.** The list shows the browser tester ID, page, rating and time, but not the member (`staff/page.tsx:93–103`). The founder can't follow up.
+1. **The dialog is wrong for signed-in users.** It says "your anonymous tester ID" (`ResearchTools.tsx:138`), but signed-in feedback is linked to the account. That's dishonest, and it contradicts the privacy notice.
+2. **Staff can't see who sent feedback.** The list shows the browser tester ID, page, rating and time, but not the user (`staff/page.tsx:93–103`). The founder can't follow up.
 3. **Signed-out feedback is unlimited.** Without a tester ID there's no rate limit (HM-13). Once the site is public, it's a spam route into the console.
 4. **The data rights don't cover it.** Feedback isn't in `/me/export`, and it isn't deleted or anonymised when an account is purged (HM-17).
 5. **The labels are wrong for beta.** The staff section is called "User research", with "Testers", "Via demo persona" and "Moved in (demo)" counts. Only the latest 100 items show, with no paging.
@@ -205,7 +247,7 @@ I checked the code on 10 Nov.
 - It's never pre-ticked, never bundled with the terms, and never required.
 
 **The export (ENG-30):**
-- What: a staff CSV of opted-in members, **admin role only**, at `/staff`.
+- What: a staff CSV of opted-in users, **admin role only**, at `/staff`.
 - Columns:
   - email
   - first name
@@ -251,7 +293,7 @@ I checked the code on 10 Nov.
 | # | Test | Who runs it | Where | Exit criterion |
 |---|---|---|---|---|
 | T1 | `npm run typecheck`, `npm run test:unit`, the research and gender e2e suites | Engineer | Local | All pass |
-| T2 | **`tests/e2e_beta.py`, extended (ENG-10)**. Login codes are read from the database. Must cover: sign-up with consent and the survey opt-in on and off · onboarding to publish · pending account sees nobody, and is invisible · staff approves identity, then two verified members see each other · intro send, accept and decline · chat, plus the money-request caution · block (404 both ways, intros expired) · report · household agreement propose, accept, change and re-accept · homes, viewings and move-in return 404 · feedback signed in (linked) and signed out (rate-limited) · survey opt-in withdrawal · `/me/export` includes feedback and consent · deletion (`deletion_pending` can't sign in) · **access request (same reply for new and existing emails; rate-limited) → staff approve → invite → `/invite/[code]` → sign-up · new email with no invite gives 403 `INVITE_REQUIRED` · a used, expired or other-email code gives 422 `INVITE_INVALID` · an existing member signs in without an invite · HM-26 busy message identical for every email, with staff still getting codes** · `SIGNUPS_PAUSED` stops access requests and invite redemption but not members | Engineer | Local beta, **and staging-as-beta** | All pass on both |
+| T2 | **`tests/e2e_beta.py`, extended (ENG-10)**. Login codes are read from the database. Must cover: sign-up with consent and the survey opt-in on and off · onboarding to publish · pending account sees nobody, and is invisible · staff approves identity, then two verified users see each other · intro send, accept and decline · chat, plus the money-request caution · block (404 both ways, intros expired) · report · household agreement propose, accept, change and re-accept · homes, viewings and move-in return 404 · feedback signed in (linked) and signed out (rate-limited) · survey opt-in withdrawal · `/me/export` includes feedback and consent · deletion (`deletion_pending` can't sign in) · **access request (same reply for new and existing emails; rate-limited) → staff approve → invite → `/invite/[code]` → sign-up · new email with no invite gives 403 `INVITE_REQUIRED` · a used, expired or other-email code gives 422 `INVITE_INVALID` · an existing user signs in without an invite · HM-26 busy message identical for every email, with staff still getting codes** · `SIGNUPS_PAUSED` stops access requests and invite redemption but not users | Engineer | Local beta, **and staging-as-beta** | All pass on both |
 | T3 | **Real-inbox test** (F-02 part H) | Founder | Staging-as-beta | Gmail inbox; SPF, DKIM and DMARC pass at Gmail, Outlook and Yahoo; Outlook or Yahoo junk acceptable only with the "check junk" copy |
 | T4 | **Manual pass on real devices**, using the same scenario list as T2, as two real people talking to each other, plus the staff approval on a laptop. **Device priorities:** (1) a low- or mid-range **Android at 360 px** (e.g. Tecno or Infinix, Chrome), the most important one for Lagos; (2) an **iPhone** (Safari); (3) an **iPad or Android tablet**, if available | Founder + one helper (agents can't hold devices). The designer supplies the checklist and reviews screenshots | Staging-as-beta | No P0 (data exposure; can't sign in; can't finish a core step) and no P1 (trust or safety copy wrong; a step broken on one device). P2s are logged |
 | T4b | **Responsive matrix** (DES-19): 320–430 px phones, 768/820/1024 tablets in both orientations, and 1280/1440/1920 desktops, recorded in `docs/design/responsive-qa.md` | Designer | Staging | No horizontal scroll, and nothing clipped or overlapping, at any listed width. Touch targets ≥ 44 px. Inputs ≥ 16 px (stops iOS zoom). Chat usable with the keyboard open |
@@ -267,7 +309,7 @@ I checked the code on 10 Nov.
    - staff approve and invite, by email or copied link (ENG-38);
    - `/invite/[code]` sign-up;
    - `INVITE_REQUIRED` and `INVITE_INVALID`;
-   - existing members sign in without an invite.
+   - existing users sign in without an invite.
 4. The survey opt-in, the unsubscribe link and the Settings toggle work (ENG-29).
 5. HM-26: the honest busy message is shipped (the playful DES-18 version can follow).
 6. ENG-04: no score and no "Demo" wording in beta. Recommended: drop "phone" from the public checks list.
@@ -311,7 +353,7 @@ I checked the code on 10 Nov.
 | After launch | **F-21 `updates.peabudy.com` in Resend** · ENG-36 "Send survey" action + DES-13 template by **Thu 19 Nov** · first survey **Fri 20 Nov** · DES-18 playful busy screen · ENG-12 email, ENG-11/21 moderation, ENG-07 queue by 27 Nov · **research database deletion only on the founder's explicit go-ahead** | E, D, F | — | Not for launch |
 | Mon 16 – Fri 20 Nov | **ENG-35 Didit integration** (sandbox) · DES-15 consent and waiting states · F-19 counsel on biometrics and transfer | E, D, F | 2–3 d | Didit path |
 | Mon 23 – Wed 25 Nov | SEC-13 Didit review; DPIA and privacy notice updated; Didit retention set; DPA signed | S, PM, F | — | Didit path |
-| **Fri 27 Nov** | Didit go/no-go → live for new Lagos members; `CLAUDE.md` rule 8 updated in the same release | F | — | — |
+| **Fri 27 Nov** | Didit go/no-go → live for new Lagos users; `CLAUDE.md` rule 8 updated in the same release | F | — | — |
 
 **If the go/no-go fails** on anything fixable within a day: launch **Mon 16 Nov** (go/no-go Fri 13 Nov 17:00). Don't cut T2, T4 or T5 to hold the date.
 
@@ -331,7 +373,7 @@ I checked the code on 10 Nov.
 **Recommendation (D20):**
 - Invite in **clusters**: at least 6–8 people per city who are looking in neighbouring areas within the same 2–3 months.
 - Tell each person honestly that it's early and there are few people.
-- Measure it: the share of verified members with at least one match (database query, ENG-16 later).
+- Measure it: the share of verified users with at least one match (database query, ENG-16 later).
 - **What would disprove the hypothesis:** at least half of the verified people in a cluster see a match.
 
 ### L9. Automated identity check: Didit, straight after launch (founder-approved 10 Nov)
@@ -358,7 +400,7 @@ I checked the code on 10 Nov.
 **Reported, not verified by me:** the NIMC Act 2026 and NIMC's NINAuth channel require the holder's consent before NIN data is shared. We avoid that risk entirely by not doing NIN or BVN lookups.
 
 **How it works (ENG-35, about 2–3 days):**
-1. On publish, a member sees a consent screen (DES-15).
+1. On publish, a user sees a consent screen (DES-15).
 2. We create a Didit session bound to their account.
 3. Didit's hosted flow runs.
 4. A signed webhook arrives.
@@ -398,14 +440,14 @@ Around that:
 
 | Metric | Target |
 |---|---|
-| Verified members | ≥ 10 |
+| Verified users | ≥ 10 |
 | Median time from publish to identity decision | ≤ 24 h |
-| Verified members with at least one match | ≥ 50% |
+| Verified users with at least one match | ≥ 50% |
 | Intros accepted / intros sent | ≥ 35% |
 | Meaningful conversations (both sides ≥ 3 messages) | ≥ 3 |
 | Survey opt-in rate at sign-in | report only |
 | Survey completes / opted-in | ≥ 40% |
-| Feedback items per verified member | report only |
+| Feedback items per verified user | report only |
 | Unresolved safety-critical reports older than 24 h | 0 |
 | Reports and blocks | report only |
 
@@ -493,7 +535,7 @@ These gaps can't be closed by 11 Nov:
 | Can't be done by 11 Nov | Why | Risk if we open anyway | Safest stopgap |
 |---|---|---|---|
 | **Legal sign-off** on the privacy notice and terms (UK GDPR / DPA 2018 / PECR; Nigeria Data Protection Act 2023) | Needs counsel; it takes days to weeks. **Drafts are ready** in `legal/` (AI-written, placeholders, not legal advice) | Processing real people's data under unreviewed text. The current live notice also makes inaccurate statements: it says feedback is "anonymous, not your name" when signed-in feedback stores `userId`, and it names no controller or contact | The founder fills the placeholders (F-04). The engineer publishes the drafts as the **interim notice** (ENG-25). The founder accepts the risk in writing (D11). Invite-led cohort only. Counsel reviews by 4 Dec |
-| **Transactional email** (ENG-12, 4 days) | Too big for 2 days | People won't know they've had an intro, so replies stall | The founder tells each cohort member personally (email or WhatsApp) when they're verified, and asks them to check the app daily. Cohort size is capped |
+| **Transactional email** (ENG-12, 4 days) | Too big for 2 days | People won't know they've had an intro, so replies stall | The founder tells each cohort user personally (email or WhatsApp) when they're verified, and asks them to check the app daily. Cohort size is capped |
 | **Domain + Resend verification** (*can* be done by 11 Nov; the domain is bought) | `vercel.app` can't carry the SPF/DKIM records Resend needs. Resend's test sender only reaches the account owner. On-screen codes would let anyone sign in as any address. **`peabudy.com` was bought on Vercel on 9 Nov (F-01 done)**; verification usually takes minutes to hours | **Hard blocker.** Beta login is email-only (`DEMO_MODE` is forced off in beta, `lib/env.ts`). If codes don't arrive, nobody can sign in. A day-old domain's deliverability is unproven | **F-02 tonight:** add `peabudy.com` in Resend, records on Vercel DNS (Auto Configure, or SPF/DKIM/MX plus DMARC), set `RESEND_API_KEY` and `EMAIL_FROM` (`Peabudy <hello@peabudy.com>`). Optionally serve the site from `peabudy.com`. If the 10 Nov rehearsal fails F-02 part H's pass rules, fall back to Option C |
 | **Moderation UI** (suspend/restore, report resolution; ENG-11) | 2.5 days | Can't act quickly on abuse | A SQL suspension runbook (ENG-11 stopgap). The founder is on call. Cohort only |
 | **Area-by-area opening** (ENG-13) | 4 days | 12 areas across 2 cities spreads liquidity thin | Staff approve verifications in **area cohorts** by hand (zero code). Invitations go only to people in 2–3 areas per city |
@@ -539,7 +581,7 @@ The fast-track is roughly **5.75 engineer-days of work in about 1.5 calendar day
 
 | Metric | Cohort 1 (11 Nov – 4 Dec), per city | Full scope (4 weeks after 7 Dec), per city |
 |---|---|---|
-| Verified members | ≥ 15 | ≥ 50 |
+| Verified users | ≥ 15 | ≥ 50 |
 | Liquidity (verified with ≥ 1 match) | ≥ 50% | ≥ 60% |
 | Intro accepted / intros sent | ≥ 35% | ≥ 35% |
 | Meaningful conversations (both sides ≥ 3 messages) | ≥ 5 | ≥ 15 |

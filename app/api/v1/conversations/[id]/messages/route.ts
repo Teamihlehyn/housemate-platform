@@ -34,7 +34,7 @@ export const GET = handler(async (req: NextRequest, { rid, params }) => {
       status: convo.status,
       introductionId: convo.introductionId,
       otherUserId: otherId,
-      otherName: other?.displayName ?? "Member",
+      otherName: other?.displayName ?? "User",
       otherInitials: other?.profile?.avatarInitials ?? "?",
       otherIsSample: !!other?.isDemoBot,
       messages: messages.map((m) => ({

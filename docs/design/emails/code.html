@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en-GB" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="x-apple-disable-message-reformatting">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
+<title>Your Peabudy code: {{code}}</title>
+<!--
+  E0 (DES-22): the 6-digit code for /join, /signin and activation. One template for all three,
+  so it never hints whether the address has an account. Placeholder: {{code}}.
+  Email-safe like invite.html: tables, inline CSS, 600 px max, web-safe fonts, no JS. The
+  <style> block only adds dark-mode and small-screen tweaks. Footer keeps [POSTAL ADDRESS].
+  Transactional (asked for), so no unsubscribe link. Every line reads without images.
+-->
+<style>
+  :root { color-scheme: light dark; supported-color-schemes: light dark; }
+  body { margin: 0 !important; padding: 0 !important; width: 100% !important; }
+  a { color: #28554a; }
+  @media (max-width: 620px) {
+    .pb-pad { padding-left: 20px !important; padding-right: 20px !important; }
+    .pb-h1 { font-size: 26px !important; line-height: 32px !important; }
+    .pb-btn a { display: block !important; }
+    .pb-code { font-size: 32px !important; letter-spacing: 6px !important; }
+  }
+  @media (prefers-color-scheme: dark) {
+    .pb-bg { background-color: #161512 !important; }
+    .pb-card { background-color: #1f1e1a !important; border-color: #3a3832 !important; }
+    .pb-soft { background-color: #26251f !important; }
+    .pb-text { color: #f3f1ea !important; }
+    .pb-muted { color: #b5b0a4 !important; }
+    .pb-link { color: #8dbfae !important; }
+    .pb-btn a, .pb-btn td { background-color: #8dbfae !important; color: #161512 !important; }
+  }
+  [data-ogsc] .pb-text { color: #f3f1ea !important; }
+  [data-ogsc] .pb-muted { color: #b5b0a4 !important; }
+  [data-ogsb] .pb-bg { background-color: #161512 !important; }
+  [data-ogsb] .pb-card { background-color: #1f1e1a !important; }
+</style>
+</head>
+<body class="pb-bg" style="margin:0;padding:0;background-color:#f6f4ef;">
+  <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:#f6f4ef;opacity:0;">
+    Your 6-digit code. It expires in 10 minutes.&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;
+  </div>
+
+  <table role="presentation" class="pb-bg" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f6f4ef;">
+    <tr>
+      <td align="center" style="padding:24px 12px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;">
+          <tr>
+            <td align="left" style="padding:0 4px 16px;">
+              <a href="https://peabudy.com" style="text-decoration:none;">
+                <img src="https://peabudy.com/email/peabudy-logo.png" width="180" height="48" alt="Peabudy" style="display:block;border:0;outline:none;width:180px;height:48px;">
+              </a>
+            </td>
+          </tr>
+
+          <tr>
+            <td class="pb-card" style="background-color:#ffffff;border:1px solid #e4e0d6;border-radius:24px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td class="pb-pad" style="padding:32px 40px 0;font-family:'Plus Jakarta Sans','Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+                    <h1 class="pb-h1 pb-text" style="margin:0;font-size:30px;line-height:36px;font-weight:800;letter-spacing:-0.5px;color:#23221e;text-align:center;">
+                      Your Peabudy code
+                    </h1>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="pb-pad pb-text" style="padding:16px 40px 0;font-family:Inter,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:16px;line-height:26px;color:#4a4740;">
+                    <p class="pb-text" style="margin:0 0 0px;color:#4a4740;font-size:16px;line-height:26px;">Enter this code on the Peabudy page you just used. It expires in 10 minutes.</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td align="center" class="pb-pad" style="padding:24px 40px 0;">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td class="pb-soft" align="center" style="background-color:#f0f7f4;border-radius:16px;padding:16px 28px;">
+                          <span class="pb-text pb-code" style="font-family:'Courier New',Courier,monospace;font-size:36px;line-height:44px;font-weight:700;letter-spacing:8px;color:#23221e;">{{code}}</span>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="pb-pad pb-text" style="padding:20px 40px 32px;font-family:Inter,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:22px;color:#4a4740;">
+                    <p class="pb-text" style="margin:0 0 12px;color:#4a4740;font-size:14px;line-height:22px;"><strong class="pb-text" style="color:#23221e;">Never share this code.</strong> Nobody from Peabudy will ever ask you for it, by phone, WhatsApp or email.</p><p class="pb-text" style="margin:0 0 0px;color:#4a4740;font-size:14px;line-height:22px;">Didn&rsquo;t ask for a code? You can ignore this email. Nothing happens without the code.</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td class="pb-muted" style="padding:20px 12px 0;font-family:Inter,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:20px;color:#5f5b52;text-align:center;">
+              Peabudy never asks for money. Never pay an &lsquo;agent fee&rsquo;, &lsquo;inspection fee&rsquo; or deposit before you&rsquo;ve seen a home in person and confirmed who the landlord is.
+            </td>
+          </tr>
+          <tr>
+            <td class="pb-muted" style="padding:16px 12px 8px;font-family:Inter,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:20px;color:#5f5b52;text-align:center;">
+              Peabudy &middot; [POSTAL ADDRESS]<br>
+              You&rsquo;re getting this because someone entered this email address at peabudy.com.
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
