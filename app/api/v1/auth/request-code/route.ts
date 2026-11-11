@@ -28,10 +28,13 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
 
   const existing = await prisma.user.findUnique({ where: { email }, select: { role: true, email: true, accountStatus: true } });
   // Listed staff (ADMIN_EMAILS / STAFF_EMAILS) sign in even before their account exists.
-  const bootstrapAdmin = listedRole(email) !== null;
-  const isStaff = bootstrapAdmin || (!!existing && effectiveRole(existing) !== "member" && (IS_RESEARCH || IS_BETA));
+  // Staff addresses never get a user sign-in code (ENG-47): they sign in at /staff/signin with a
+  // password and an emailed code. Here they get the same answer as anyone, and a decoy row.
+  const staffListed = listedRole(email) !== null;
+  const isStaff = staffListed || (!!existing && effectiveRole(existing) !== "member" && (IS_RESEARCH || IS_BETA));
   const eligible =
-    !APPROVAL_FIRST || bootstrapAdmin || (!!existing && (existing.accountStatus === "active" || existing.accountStatus === "restricted"));
+    !staffListed &&
+    (!APPROVAL_FIRST || (!!existing && (existing.accountStatus === "active" || existing.accountStatus === "restricted")));
 
   const issued = await issueCode(req, rid, { email, eligible, isStaff, channel: "signin" });
   await padResponse(start);

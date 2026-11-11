@@ -1,4 +1,5 @@
 import { getCurrentUser } from "./session";
+import { getStaffUser } from "./staffAuth";
 import { ApiError } from "./api";
 import { prisma } from "./db";
 import { HOMES_ENABLED, IS_BETA } from "./env";
@@ -42,13 +43,12 @@ export function requireHomesEnabled() {
   if (!HOMES_ENABLED) throw new ApiError("NOT_FOUND", "This isn't available in early access.", 404);
 }
 
-// Back office. Visitors, members, applicants and suspended accounts all get the same 404:
-// the staff routes don't exist for them. Effective role only (HM-10).
+// Back office. Only a staff session (ENG-47: /staff/signin, password + emailed code) on an
+// allowlisted address counts; a user session never does, whatever its stored role. Everyone
+// else gets the same 404: the staff routes don't exist for them (HM-10).
 export async function requireStaff() {
-  const user = await getCurrentUser();
-  if (!user || user.accountStatus === "suspended" || isApplicantSession(user) || !isStaffRole(user.role)) {
-    throw new ApiError("NOT_FOUND", "Not found.", 404);
-  }
+  const user = await getStaffUser();
+  if (!user || !isStaffRole(user.role)) throw new ApiError("NOT_FOUND", "Not found.", 404);
   return user;
 }
 

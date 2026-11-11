@@ -92,7 +92,7 @@ export async function issueCode(
       // that is never sent, so a later guess meets the same attempts, expiry and
       // TOO_MANY_ATTEMPTS as a user's would. Sign-in is still refused after the code check.
       await tx.authCode.create({
-        data: { email, code: generateLoginCode(), consentVersion: null, expiresAt: new Date(Date.now() + 10 * 60 * 1000) },
+        data: { email, code: generateLoginCode(), consentVersion: null, decoy: true, expiresAt: new Date(Date.now() + 10 * 60 * 1000) },
       });
     }
     if (d !== "sitewide_limited") {
@@ -153,13 +153,15 @@ export async function issueCode(
 // Check a six-digit code for an address, with the brute-force limits (HM-03). Throws the
 // usual errors; on success returns the code row (not consumed: the caller deletes it in its
 // own transaction, so a failure after this leaves the code usable).
-export async function claimCode(email: string, code: unknown) {
-  const record = await prisma.authCode.findFirst({ where: { email }, orderBy: { createdAt: "desc" } });
+// scope: null (user sign-in, /join, activation) or "staff" (back office, ENG-47): the two kinds
+// of code never stand in for each other.
+export async function claimCode(email: string, code: unknown, scope: "staff" | null = null) {
+  const record = await prisma.authCode.findFirst({ where: { email, scope }, orderBy: { createdAt: "desc" } });
   if (!record || record.expiresAt < new Date()) {
     throw new ApiError("CODE_EXPIRED", "That code has expired. Request a new one.", 422);
   }
   const failedLastHour = await prisma.authCode.aggregate({
-    where: { email, createdAt: { gt: new Date(Date.now() - HOUR) } },
+    where: { email, scope, createdAt: { gt: new Date(Date.now() - HOUR) } },
     _sum: { attempts: true },
   });
   if ((failedLastHour._sum.attempts ?? 0) >= MAX_FAILED_PER_HOUR) {

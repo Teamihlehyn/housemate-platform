@@ -22,7 +22,7 @@ export default function Staff() {
 
   const load = useCallback(async () => {
     try {
-      const me = await api<{ role: string }>("/me");
+      const me = await api<{ role: string }>("/staff/me");
       // The audit explorer is admin-only; other staff never call it.
       const [audit, vers, res] = await Promise.all([
         me.role === "admin" ? api<any>("/staff/audit") : Promise.resolve(null),

@@ -132,3 +132,36 @@ export function callBookedEmail(v: { first_name: string; call_time: string; call
     return { subject: `Your Peabudy ID call: ${v.call_time}`, text: lines.join("\n\n"), html: plainHtml("Your ID call is booked", lines) };
   });
 }
+
+// ---------------------------------------------------------------------------------------
+// Back-office emails (ENG-47). Deliberately unlike the user emails: an ink header that says
+// "Back office", no mascot, no marketing. Built in (no designer template needed).
+function backOfficeHtml(heading: string, paragraphs: string[], extra = ""): string {
+  const p = paragraphs.map((x) => `<p style="margin:0 0 14px;line-height:1.5">${escapeHtml(x)}</p>`).join("");
+  return `<!doctype html><html lang="en-GB"><body style="margin:0;background:#f6f4ef;font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#23221e"><div style="max-width:480px;margin:0 auto;padding:24px 16px"><div style="background:#23221e;color:#faf9f5;padding:12px 16px;border-radius:12px 12px 0 0;font-weight:700">Peabudy · Back office</div><div style="background:#fff;border:1px solid #e7e5df;border-top:0;border-radius:0 0 12px 12px;padding:20px 16px"><h1 style="font-size:19px;margin:0 0 12px">${escapeHtml(heading)}</h1>${p}${extra}</div></div></body></html>`;
+}
+
+export function staffSetupEmail(v: { setup_url: string; minutes: number }): Built {
+  const lines = [
+    "Use this link to set your Peabudy back-office password. It works once, for the next " + v.minutes + " minutes.",
+    "If you didn't ask for it, ignore this email: nothing changes until the link is used.",
+    "Peabudy will never ask you for your password.",
+  ];
+  return {
+    subject: "Set up your Peabudy back-office password",
+    text: `Peabudy · Back office\n\n${lines[0]}\n\n${v.setup_url}\n\n${lines.slice(1).join("\n\n")}`,
+    html: backOfficeHtml("Set up your password", lines, `<p style="margin:16px 0"><a href="${escapeHtml(v.setup_url)}" style="background:#23221e;color:#faf9f5;padding:12px 18px;border-radius:8px;text-decoration:none;display:inline-block">Set my password</a></p>`),
+  };
+}
+
+export function staffCodeEmail(v: { code: string }): Built {
+  const lines = [
+    `Your back-office sign-in code is ${v.code}. It expires in 10 minutes.`,
+    "Someone entered your email and the right password. If that wasn't you, change your password now with “Forgot password?” on the back-office sign-in page.",
+  ];
+  return {
+    subject: `Peabudy back-office code: ${v.code}`,
+    text: `Peabudy · Back office\n\n${lines.join("\n\n")}`,
+    html: backOfficeHtml("Your sign-in code", lines, `<div style="font-size:30px;font-weight:700;letter-spacing:6px;text-align:center;padding:14px;border:1px solid #e7e5df;border-radius:8px">${escapeHtml(v.code)}</div>`),
+  };
+}

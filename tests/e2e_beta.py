@@ -12,7 +12,7 @@ app sends, so start the server with:
   APP_ENV=beta NEXT_PUBLIC_APP_ENV=beta OPEN_CITIES=lagos \
   RESEND_API_KEY=test-key EMAIL_FROM="Peabudy <test@example.com>" EMAIL_API_URL=http://127.0.0.1:8025 \
   ADMIN_EMAILS=e2e-admin@example.com \
-  STAFF_EMAILS=e2e-verifier@example.com:verifier,e2e-moderator@example.com:moderator \
+  STAFF_EMAILS=e2e-verifier@example.com:verifier,e2e-moderator@example.com:moderator,e2e-lock@example.com:moderator \
   DATABASE_URL=… DIRECT_URL=… next dev -p 3100
 (EMAIL_API_URL is honoured only outside Vercel.) Some setup goes straight to the database:
 pre-made members, codes for them, roles. Never point this at a shared or cloud database.
@@ -227,9 +227,38 @@ def member(name, area, city="london"):
     return c, email, user_id(email)
 
 
-def staff_client(email):
-    """A listed staff address signs in; the account is created with its listed role if needed."""
-    return sign_in(email)
+STAFF_PASSWORD = "green kettle on a lagos tuesday " + RUN
+
+
+def staff_setup_link(email, after=0):
+    m = wait_mail(email, lambda m: "back-office password" in m.get("subject", ""), after=after)
+    t = re.search(r"/staff/setup\?token=([A-Za-z0-9_-]+)", (m or {}).get("text", ""))
+    return t.group(1) if t else None
+
+
+def staff_code(email, after=0):
+    m = wait_mail(email, lambda m: "back-office code" in m.get("subject", ""), after=after)
+    return re.search(r"(\d{6})", m["subject"]).group(1) if m else None
+
+
+def staff_client(email, password=STAFF_PASSWORD):
+    """The only way into the back office (ENG-47): set-up link → password → emailed code."""
+    # Test set-up only: forget earlier runs' set-up requests and wrong passwords for this address
+    # (3 links an hour, 5 wrong passwords in 15 minutes), so the suite can be re-run at once.
+    sql(f'''delete from "AuditEvent" where "eventType" in ('staff.setup_requested', 'staff.password_failed') and "resourceId" = {lit(email_key(email))}''')
+    before = len(mails_to(email))
+    C().call("/staff/auth/setup-request", {"email": email})
+    token = staff_setup_link(email, after=before)
+    assert token, f"no set-up link for {email}"
+    r = C().call("/staff/auth/setup", {"token": token, "password": password})
+    assert r[0] == 200, r
+    c = C()
+    before = len(mails_to(email))
+    r = c.call("/staff/auth/password", {"email": email, "password": password})
+    assert r[0] == 200, r
+    r = c.call("/staff/auth/verify", {"email": email, "code": staff_code(email, after=before)})
+    assert r[0] == 200 and d(r).get("redirect") == "/staff", r
+    return c
 
 
 def start_application(email):
@@ -315,12 +344,12 @@ check("demo personas are off", C().call("/auth/demo-persona", {"persona": "ben",
 print("== HM-10: staff access only from the allowlist ==")
 admin_c = staff_client(ADMIN_EMAIL)
 admin_id = user_id(ADMIN_EMAIL)
-check("an ADMIN_EMAILS address signs in as admin", d(admin_c.call("/me")).get("role") == "admin" and sql(f'select role from "User" where id = {lit(admin_id)}') == "admin")
+check("an ADMIN_EMAILS address signs in as admin", d(admin_c.call("/staff/me")).get("role") == "admin" and sql(f'select role from "User" where id = {lit(admin_id)}') == "admin")
 staff_c = staff_client(VERIFIER_EMAIL)
 staff_email, staff_id = VERIFIER_EMAIL, user_id(VERIFIER_EMAIL)
-check("a STAFF_EMAILS verifier signs in as verifier", d(staff_c.call("/me")).get("role") == "verifier")
+check("a STAFF_EMAILS verifier signs in as verifier", d(staff_c.call("/staff/me")).get("role") == "verifier")
 mod_c = staff_client(MODERATOR_EMAIL)
-check("a STAFF_EMAILS moderator signs in as moderator", d(mod_c.call("/me")).get("role") == "moderator")
+check("a STAFF_EMAILS moderator signs in as moderator", d(mod_c.call("/staff/me")).get("role") == "moderator")
 rogue = f"beta-rogue-{RUN}@example.com"
 rogue_id = sql_account(rogue, role="admin", name="Rogue")
 token = uuid.uuid4().hex + uuid.uuid4().hex
@@ -329,7 +358,8 @@ rc = C()
 rc.cookie = f"hm_session={token}"
 codes_ = [rc.call(p)[0] for p in ("/staff/applications", "/staff/audit", "/staff/research", "/staff/verifications")]
 check("a stored admin NOT on the allowlist gets 404 on /staff routes (an existing session)", codes_ == [404] * 4, codes_)
-check("…and 404 on the /staff page", first_hop(rc, "/staff")[0] == 404)
+st, loc = first_hop(rc, "/staff")
+check("…and the /staff page sends them to the back-office sign-in", st in (303, 307, 308) and (loc or "").endswith("/staff/signin"), f"{st} {loc}")
 _st, _loc = first_hop(C(), "/staff")
 check("a signed-out visitor to /staff is sent to /signin", _st in (303, 307, 308) and (_loc or "").endswith("/signin"), f"{_st} {_loc}")
 check("…and is a member as far as /me says", d(rc.call("/me")).get("role") == "member")
@@ -339,16 +369,18 @@ check("…and signing in demotes the stored role, audited",
       sql(f'select role from "User" where id = {lit(rogue_id)}') == "member" and audits("staff.role_revoked", f'and "subjectId" = {lit(rogue_id)}') == 1)
 
 print("== ENG-46: the back office is back office only ==")
-r = C().call("/auth/verify-code", {"email": VERIFIER_EMAIL, "code": new_code(VERIFIER_EMAIL), "accept_privacy": True})
-check("a staff sign-in is sent to /staff", r[0] == 200 and d(r).get("redirect") == "/staff", d(r))
+sx = C()
+r = sx.call("/auth/verify-code", {"email": VERIFIER_EMAIL, "code": new_code(VERIFIER_EMAIL), "accept_privacy": True})
+check("ENG-47: a staff address at the user sign-in gets the wrong-code answer and no session",
+      r[0] == 422 and err(r) == "INVALID_CODE" and sx.call("/me")[0] == 401 and sx.call("/staff/me")[0] == 404, r)
 for path in ("/discover", "/messages", "/household", "/profile", "/onboarding", "/notifications", "/settings", "/members/x"):
     st, loc = first_hop(staff_c, path)
-    check(f"staff GET {path} redirects to /staff", st in (303, 307, 308) and (loc or "").endswith("/staff"), f"{st} {loc}")
+    check(f"a staff session doesn't open the product: {path} → /signin", st in (303, 307, 308) and (loc or "").endswith("/signin"), f"{st} {loc}")
 for method, path in [("GET", "/recommendations"), ("GET", "/users/x"), ("POST", "/introductions"), ("GET", "/conversations"),
                      ("GET", "/households/current"), ("PATCH", "/me/profile"), ("PATCH", "/me/search"), ("GET", "/notifications")]:
     r = staff_c.call(path, {} if method != "GET" else None, method)
-    check(f"staff {method} {path}: 404", r[0] == 404 and err(r) == "NOT_FOUND", f"{r[0]} {err(r)}")
-check("staff keep /me, export and sign-out", staff_c.call("/me")[0] == 200 and staff_c.call("/me/export")[0] == 200)
+    check(f"a staff session gets nothing from {method} {path}", r[0] in (401, 404), f"{r[0]} {err(r)}")
+check("staff use /staff/me, not the user /me", staff_c.call("/staff/me")[0] == 200 and staff_c.call("/me")[0] == 401)
 st, hdrs_bo, html = staff_c.raw("/staff")
 check("no framing anywhere (SEC-15): X-Frame-Options DENY and frame-ancestors 'none'",
       hdrs_bo.get("x-frame-options") == "DENY" and "frame-ancestors 'none'" in hdrs_bo.get("content-security-policy", "")
@@ -526,8 +558,10 @@ sql(f'delete from "AuthCode" where email = {lit(staff_email)}')
 before_staff = len(mails_to(staff_email))
 cs = C()
 r = cs.call("/auth/request-code", {"email": staff_email}, ip="192.0.2.11")
-check("staff over the cap get the identical 429…", r[0] == 429 and err(r) == "RATE_LIMITED" and r[1]["error"]["message"] == BUSY and cs.headers.get("retry-after") == "3600", r)
-check("…but their code is created and emailed", sql(f'select count(*) from "AuthCode" where email = {lit(staff_email)}') == "1" and login_code(staff_email, after=before_staff))
+check("a staff address over the cap gets the identical 429…", r[0] == 429 and err(r) == "RATE_LIMITED" and r[1]["error"]["message"] == BUSY and cs.headers.get("retry-after") == "3600", r)
+time.sleep(1)
+check("…and no user code is created or sent (staff sign in at /staff/signin)",
+      sql(f'select count(*) from "AuthCode" where email = {lit(staff_email)} and decoy = false and scope is null') == "0" and len(mails_to(staff_email)) == before_staff)
 sql(f'delete from "AuditEvent" where "resourceId" like {lit(fill + "%")}')
 
 print("== ENG-04: beta shows checks, never a score ==")
@@ -767,7 +801,7 @@ active = f"beta-active-{RUN}@example.com"
 sql_account(active)
 SIGNIN_MSG = "If you have an approved Peabudy account, we've sent a code. New here? Apply to join."
 targets = {"unknown": unknown, "applicant draft": dru, "applicant submitted": sub, "applicant approved, not activated": ada,
-           "declined": dec, "suspended": susp, "active member": active}
+           "declined": dec, "suspended": susp, "staff address": MODERATOR_EMAIL, "active member": active}
 time.sleep(2)  # let earlier sends land
 mail_before = {k: len(mails_to(v)) for k, v in targets.items()}
 results, timings = {}, {k: [] for k in targets}
@@ -1095,6 +1129,75 @@ _, r = start_application(old_dec)
 check("the purged, declined person still sees the declined status page with the date (no new draft)",
       d(r).get("outcome") == "application" and d(r)["application"]["status"] == "declined" and d(r)["application"]["reapply_after"], r)
 check("…and the tombstone has done its job", sql(f'''select count(*) from "ApplicantTombstone" where "emailHash" = {lit(key)}''') == "0")
+
+print("== ENG-47: the back-office sign-in ==")
+LOCK_EMAIL = "e2e-lock@example.com"
+nobody = f"beta-notstaff-{RUN}@example.com"
+sql(f'''delete from "AuditEvent" where "eventType" in ('staff.setup_requested', 'staff.password_failed') and "resourceId" = {lit(email_key(ADMIN_EMAIL))}''')
+before_a, before_n = len(mails_to(ADMIN_EMAIL)), len(mails_to(nobody))
+t0 = time.time(); ra = C().call("/staff/auth/setup-request", {"email": ADMIN_EMAIL}); ta = time.time() - t0
+t0 = time.time(); rn = C().call("/staff/auth/setup-request", {"email": nobody}); tn = time.time() - t0
+time.sleep(1.5)
+check("setup-request: identical 200 for an allowlisted and an unknown address", strip(ra) == strip(rn) and ra[0] == 200, (ra[1], rn[1]))
+check("…in the same time (within 150 ms)", abs(ta - tn) < 0.15, f"{ta:.3f}/{tn:.3f}")
+check("…and only the allowlisted address gets the link", len(mails_to(ADMIN_EMAIL)) == before_a + 1 and len(mails_to(nobody)) == before_n)
+tok = staff_setup_link(ADMIN_EMAIL, after=before_a)
+r = C().call("/staff/auth/setup", {"token": tok, "password": "Password1234"})
+check("a very common password is refused (422), the link survives", r[0] == 422 and "password" in (r[1]["error"]["field_errors"] or {}), r)
+r = C().call("/staff/auth/setup", {"token": tok, "password": "too short"})
+check("a short password is refused", r[0] == 422, r)
+r = C().call("/staff/auth/setup", {"token": tok, "password": STAFF_PASSWORD})
+check("a good password is set, audited, and old staff sessions end", r[0] == 200 and audits("staff.password_set", f'and "subjectId" = {lit(admin_id)}') >= 1
+      and admin_c.call("/staff/me")[0] == 404, r)
+check("the stored hash is scrypt, never the password", sql(f'''select "passwordHash" like 'scrypt$32768$8$1$%' and "passwordHash" not like {lit('%' + STAFF_PASSWORD + '%')} from "StaffCredential" where "userId" = {lit(admin_id)}''') == "t")
+r = C().call("/staff/auth/setup", {"token": tok, "password": STAFF_PASSWORD + "!"})
+check("the link is single-use", r[0] == 422 and err(r) == "INVITE_INVALID", r)
+before_a = len(mails_to(ADMIN_EMAIL))
+C().call("/staff/auth/setup-request", {"email": ADMIN_EMAIL})
+tok2 = staff_setup_link(ADMIN_EMAIL, after=before_a)
+sql(f'''update "StaffSetupToken" set "expiresAt" = now() - interval '1 minute' where email = {lit(ADMIN_EMAIL)} and "usedAt" is null''')
+check("an expired link is refused", C().call("/staff/auth/setup", {"token": tok2, "password": STAFF_PASSWORD})[0] == 422)
+# Wrong password vs right password vs not staff: identical answers.
+cw, cr, cn = C(), C(), C()
+before_a = len(mails_to(ADMIN_EMAIL))
+t0 = time.time(); rw = cw.call("/staff/auth/password", {"email": ADMIN_EMAIL, "password": STAFF_PASSWORD + "x"}); tw = time.time() - t0
+t0 = time.time(); rn = cn.call("/staff/auth/password", {"email": nobody, "password": STAFF_PASSWORD}); tn = time.time() - t0
+t0 = time.time(); rr = cr.call("/staff/auth/password", {"email": ADMIN_EMAIL, "password": STAFF_PASSWORD}); tr = time.time() - t0
+check("password step: identical answer for a wrong password, a right one and a non-staff address",
+      strip(rw) == strip(rr) == strip(rn) and rr[0] == 200, (rw[1], rr[1], rn[1]))
+check("…in about the same time (within 200 ms)", max(tw, tr, tn) - min(tw, tr, tn) < 0.2, f"{tw:.3f}/{tr:.3f}/{tn:.3f}")
+good_code = staff_code(ADMIN_EMAIL, after=before_a)
+check("…and only the right password produces an email (one code)", good_code and len([m for m in mails_to(ADMIN_EMAIL)[before_a:] if "back-office code" in m["subject"]]) == 1)
+r = C().call("/staff/auth/verify", {"email": ADMIN_EMAIL, "code": good_code})
+check("the code without the password step on this browser: wrong-code answer", r[0] == 422 and err(r) == "INVALID_CODE", r)
+r = cw.call("/staff/auth/verify", {"email": ADMIN_EMAIL, "code": good_code})
+check("the code with a wrong-password step's cookie: wrong-code answer", r[0] == 422 and err(r) == "INVALID_CODE", r)
+r = cr.call("/staff/auth/verify", {"email": ADMIN_EMAIL, "code": good_code})
+check("password + code: a staff session, sent to /staff", r[0] == 200 and d(r).get("redirect") == "/staff" and d(r).get("role") == "admin", r)
+check("…stored with scope staff and a 12-hour expiry",
+      sql(f'''select count(*) from "Session" where "userId" = {lit(admin_id)} and scope = 'staff' and "expiresAt" < now() + interval '12 hours 1 minute' and "expiresAt" > now() + interval '11 hours' ''') == "1")
+st, loc = first_hop(cr, "/staff")
+check("…and the back office opens", st == 200, st)
+admin_c = cr
+check("a user session gets 404 on the staff APIs and a redirect on the page",
+      b.call("/staff/me")[0] == 404 and b.call("/staff/applications")[0] == 404 and (first_hop(b, "/staff")[1] or "").endswith("/staff/signin"))
+check("visitors see the sign-in and set-up pages (neutral, no staff list)",
+      C().raw("/staff/signin")[0] == 200 and "Back office" in C().raw("/staff/signin")[2] and C().raw("/staff/setup?token=x")[0] == 200)
+# Lockout: identical for a staff address and an unknown one.
+sql(f'''delete from "AuditEvent" where "eventType" = 'staff.password_failed' and "resourceId" in ({lit(email_key(LOCK_EMAIL))}, {lit(email_key(nobody))})''')
+lk = staff_client(LOCK_EMAIL)
+lasts = []
+for addr in (LOCK_EMAIL, nobody):
+    seq = [C().call("/staff/auth/password", {"email": addr, "password": "wrong password " + str(i)})[0] for i in range(5)]
+    last = C().call("/staff/auth/password", {"email": addr, "password": STAFF_PASSWORD})
+    lasts.append(strip(last))
+    check(f"lockout after 5 wrong passwords ({'staff' if addr == LOCK_EMAIL else 'unknown'} address): even the right one gets 429",
+          seq == [200] * 5 and last[0] == 429 and err(last) == "RATE_LIMITED", (seq, last[0]))
+check("…an identical 429 for both", lasts[0] == lasts[1], lasts)
+r = lk.call("/staff/auth/logout", {})
+check("sign-out ends the staff session", r[0] == 200 and lk.call("/staff/me")[0] == 404
+      and sql(f'''select count(*) from "Session" s join "User" u on u.id = s."userId" where u.email = {lit(LOCK_EMAIL)} and scope = 'staff' ''') == "0")
+check("staff-only accounts never appear in the product", sql(f'''select count(*) from "Profile" p join "User" u on u.id = p."userId" where u.email = {lit(LOCK_EMAIL)}''') == "0")
 
 print("== ENG-25: draft legal pages ==")
 for path, needle in (("/privacy", "privacy-v2"), ("/terms", "Terms of use")):

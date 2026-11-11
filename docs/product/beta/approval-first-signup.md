@@ -51,6 +51,7 @@ Later  ── "Sign in" (users) ─► email ─► code only if the account is 
 | **F1** | **Launch date.** This is about 3.5 engineer-days plus design. It can't pass Thursday's go/no-go | **Move the launch to Wed 18 Nov** (go/no-go Tue 17 Nov 18:00). Don't launch Friday on the old flow: real people would join through a flow we're about to replace, and we'd have to migrate them |
 | **F2** | **Is the video ID call part of the approval?** One review = profile check + ID call, then Approve | **Yes, one gate.** "Approved" then means "a person checked the profile and saw their ID". There's no second waiting state after sign-in |
 | **F3** | **Declined applicants:** reason shown? Reapply? | A kind, generic email, with no reason given ("we can't offer a place right now"). They can reapply after 30 days. One exception: "not open in your city yet" is said plainly, and those applications are **held** rather than declined |
+| **F5** | **Who may reveal an applicant's gender and housemate preference** | **Decided by the founder, 11 Nov: all staff roles (admin, verifier, moderator).** This is the current behaviour, so no code change. Every reveal stays audited |
 | **F4** | **London applications during the Lagos pilot** | **Accept and hold** (status `waitlisted`). Same application, with a clear "London opens later" message. No ID call until London opens |
 
 Everything else below is decided by PM as routine and reversible, and recorded as such.

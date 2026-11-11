@@ -83,11 +83,14 @@ export type VerifyOutcome =
 export function verifyOutcome(
   user: { accountStatus: string; role: string } | null,
   application: { status: string; reapplyAfter: Date | null } | null,
-  opts: { now?: Date; bootstrapAdmin?: boolean } = {}
+  opts: { now?: Date; staffListed?: boolean } = {}
 ): VerifyOutcome {
   const now = opts.now ?? new Date();
-  if (!user) return opts.bootstrapAdmin ? "unavailable" : "create";
-  if (user.role !== "member") return user.accountStatus === "active" ? "member" : "unavailable";
+  // Staff addresses never apply and never get a user session (ENG-47): the back office has its
+  // own sign-in. `user.role` is the effective role, so a stale stored role doesn't count.
+  if (opts.staffListed) return "unavailable";
+  if (!user) return "create";
+  if (user.role !== "member") return "unavailable";
   if (user.accountStatus === "active" || user.accountStatus === "restricted") return "member";
   if (user.accountStatus !== "applicant") return "unavailable";
   if (!application) return "reopen";

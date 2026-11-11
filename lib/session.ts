@@ -35,7 +35,8 @@ export async function getCurrentUser() {
   const token = jar.get(COOKIE)?.value;
   if (!token) return null;
   const session = await prisma.session.findUnique({ where: { token } });
-  if (!session || session.expiresAt < new Date()) return null;
+  // A staff session (ENG-47) is never a user session.
+  if (!session || session.expiresAt < new Date() || session.scope === "staff") return null;
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
     include: { profile: true, search: true },
