@@ -81,7 +81,7 @@ export default function HeroScene() {
 
   return (
     <div className="mx-auto w-full max-w-[400px]">
-    <div ref={ref} className="relative h-[262px] w-full sm:h-[340px]">
+    <div ref={ref} className="relative h-[210px] w-full sm:h-[340px]">
       {/* speech bubble */}
       <div className="absolute inset-x-0 top-0 z-20 flex justify-center px-6">
         <p
@@ -121,7 +121,7 @@ export default function HeroScene() {
               mood={moods[who]}
               look={look}
               blink
-              className="h-[118px] w-[118px] transition-transform duration-quick group-hover:-translate-y-1 group-active:scale-95 sm:h-[140px] sm:w-[140px]"
+              className="h-[92px] w-[92px] transition-transform duration-quick group-hover:-translate-y-1 group-active:scale-95 sm:h-[140px] sm:w-[140px]"
             />
           </button>
         ))}

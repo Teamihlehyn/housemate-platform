@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import { Plus_Jakarta_Sans, Inter } from "next/font/google";
 import "./globals.css";
-import { BANNER, CLARITY_ID } from "@/lib/env";
+import { BANNER, CLARITY_ID, IS_BETA } from "@/lib/env";
 import ResearchTools from "@/components/ResearchTools";
 import BannerHeight from "@/components/BannerHeight";
 
@@ -26,9 +26,13 @@ const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ||
   (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "http://localhost:3000");
 
-const TITLE = "Peabudy — find a housemate and agree the money stuff upfront";
-const DESCRIPTION =
-  "Match on move-in dates and living habits, see what's been checked, and agree rent split, bills and notice in writing before you move in. London & Lagos.";
+// Beta (real users, Lagos): lead with what it is. Demo modes keep the generic line.
+const TITLE = IS_BETA
+  ? "Peabudy — find flatmates in Lagos and agree the money stuff first"
+  : "Peabudy — find a housemate and agree the money stuff upfront";
+const DESCRIPTION = IS_BETA
+  ? "Find flatmates in Lagos whose move-in dates, budget, area and habits fit yours. Everyone meets our team on a 10-minute video call first, and you agree rent, bills and notice in writing before you move in."
+  : "Match on move-in dates and living habits, see what's been checked, and agree rent split, bills and notice in writing before you move in. London & Lagos.";
 
 export const viewport: Viewport = { themeColor: "#f6f4ef", width: "device-width", initialScale: 1, viewportFit: "cover" };
 

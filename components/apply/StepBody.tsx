@@ -4,13 +4,16 @@
 // (/join, /onboarding) shows one per page with a big heading; /profile's section editors
 // stack a few with `compact` headings. Same wording, same options, same values everywhere.
 
-import { RefObject } from "react";
+import { RefObject, useEffect, useRef } from "react";
 import { CITIES, GENDERS, GENDER_IDS, JOURNEYS, OWN_GENDER_OPTIONS, QUESTIONNAIRE, CityId } from "@/lib/constants";
 import { formatMoney, monthlyEquivalentMinor } from "@/lib/money";
-import { IconCheck } from "@/components/icons";
+import { IconCheck, IconX } from "@/components/icons";
 import { FieldError, HABIT_ASK, JourneyArt, MoneyInput, NameTag, OptionCard, Question, RadioRow, Reassure, Stepper } from "./fields";
 import CityCard from "./CityCard";
 import type { Draft, ScreenId } from "./useProfileDraft";
+
+// Bio minimum (D-R5: 40 characters, from 80; the server checks the same).
+const BIO_MIN = 40;
 
 export default function StepBody({
   screen,
@@ -33,6 +36,16 @@ export default function StepBody({
   /** True in the application, where the name is checked against photo ID on the call. */
   idCheck?: boolean;
 }) {
+  // ENG-55: when the earliest date moves past the latest, the draft clears latest and asks us to
+  // focus it (d.focusLatest changes); skip the first render.
+  const latestRef = useRef<HTMLInputElement>(null);
+  const seenFocus = useRef(d.focusLatest);
+  useEffect(() => {
+    if (d.focusLatest !== seenFocus.current) {
+      seenFocus.current = d.focusLatest;
+      latestRef.current?.focus();
+    }
+  }, [d.focusLatest]);
   const errors = d.errors;
   const cityCfg = d.city ? CITIES[d.city] : null;
   const id = (s: string) => `${idPrefix}${s}`;
@@ -114,6 +127,30 @@ export default function StepBody({
       <p className="text-sm text-ink-700">Choose a city first.</p>
     );
 
+  // ENG-57 / DES-30: city and areas on one screen. Areas appear once a city is chosen.
+  if (screen === "where")
+    return (
+      <div>
+        <StepBody screen="city" d={d} headingRef={headingRef} compact={compact} idPrefix={idPrefix} cityBadges={cityBadges} />
+        {d.city && (
+          <div className="mt-6">
+            <StepBody screen="areas" d={d} compact idPrefix={idPrefix} />
+          </div>
+        )}
+      </div>
+    );
+
+  // Gender and housemate preference on one screen; both private.
+  if (screen === "livingWith")
+    return (
+      <div>
+        <StepBody screen="gender" d={d} headingRef={headingRef} compact={compact} idPrefix={idPrefix} />
+        <div className="mt-6">
+          <StepBody screen="genderPref" d={d} compact idPrefix={idPrefix} />
+        </div>
+      </div>
+    );
+
   if (screen === "location")
     return (
       <>
@@ -185,7 +222,7 @@ export default function StepBody({
           {d.moveMode === "range" && (
             <div>
               <label className="label" htmlFor={id("l")}>Latest</label>
-              <input id={id("l")} type="date" className="input" value={d.latest} onChange={(e) => d.setLatest(e.target.value)} aria-invalid={!!errors.latestDate} />
+              <input ref={latestRef} id={id("l")} type="date" className="input" min={d.latestMin || undefined} value={d.latest} onChange={(e) => d.setLatest(e.target.value)} aria-invalid={!!errors.latestDate} />
               <FieldError msg={errors.latestDate} />
             </div>
           )}
@@ -256,8 +293,8 @@ export default function StepBody({
           placeholder="Your routine, what you're looking for, and what makes you easy to live with."
           data-clarity-mask="true"
         />
-        <p id={id("bio-count")} className={`num mt-1.5 text-sm font-medium ${d.bio.trim().length >= 80 ? "text-brand-700" : "text-ink-600"}`}>
-          {d.bio.trim().length < 80 ? `${80 - d.bio.trim().length} more characters to go` : `✓ ${d.bio.length} / 600`}
+        <p id={id("bio-count")} className={`num mt-1.5 text-sm font-medium ${d.bio.trim().length >= BIO_MIN ? "text-brand-700" : "text-ink-600"}`}>
+          {d.bio.trim().length < BIO_MIN ? `${BIO_MIN - d.bio.trim().length} more characters to go` : `✓ ${d.bio.length} / 600`}
         </p>
         <FieldError msg={errors.bio} />
         <Reassure id={id("bio-help")} icon="eye">Shown on your profile. Don&apos;t include your address or phone number.</Reassure>
@@ -268,6 +305,8 @@ export default function StepBody({
     const q = QUESTIONNAIRE.find((x) => `h:${x.id}` === screen)!;
     const p = d.prefs[q.id];
     const ruledOut = q.values.filter((v) => !p.accepted.includes(v.id));
+    // Answered = saved before, chose a deal-breaker, or chose "none" on this screen.
+    const answered = p.state !== "unanswered";
     return (
       <div>
         <fieldset>
@@ -279,21 +318,43 @@ export default function StepBody({
             ))}
           </div>
         </fieldset>
+        {/* DES-29 (D-R4): choose deal-breakers, or the exclusive "I have no deal-breakers".
+            Nothing is pre-selected until the person has answered (ENG-56 adds `state`; until then
+            an unanswered habit is one not yet saved). Storage is unchanged: accepted = all − chosen. */}
         <fieldset className={compact ? "mt-4" : "mt-6"}>
-          <legend className={compact ? "text-sm font-semibold text-ink" : "text-h3 text-ink"}>{HABIT_ASK[q.id].accept}</legend>
-          <p className="helper mt-0.5">Untick any answer that would be a dealbreaker.</p>
+          <legend className={compact ? "text-sm font-semibold text-ink" : "text-h3 text-ink"}>Which of these would rule out sharing a home for you?</legend>
+          <p className="helper mt-0.5">Choose any that apply, or say you have none. This works both ways.</p>
           <div className="mt-3 flex flex-wrap gap-2">
-            {q.values.map((v) => (
-              <button key={v.id} type="button" role="checkbox" aria-checked={p.accepted.includes(v.id)} onClick={() => d.toggleAccepted(q.id, v.id)} className="choice-chip">
-                {p.accepted.includes(v.id) ? <IconCheck size={16} strokeWidth={2.5} /> : <span aria-hidden="true" className="h-4 w-4 rounded-full border-2 border-ink-400" />}
-                {v.label}
-              </button>
-            ))}
+            {q.values.map((v) => {
+              const out = !p.accepted.includes(v.id);
+              return (
+                <button key={v.id} type="button" role="checkbox" aria-checked={out} onClick={() => d.toggleDealBreaker(q.id, v.id)}
+                  className="choice-chip aria-checked:border-apricot-800 aria-checked:bg-apricot-100 aria-checked:text-apricot-800 aria-checked:hover:bg-apricot-100">
+                  {out ? <IconX size={16} strokeWidth={2.5} /> : <span aria-hidden="true" className="h-4 w-4 rounded-md border-2 border-ink-400" />}
+                  {v.label}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-3 text-caption font-semibold uppercase tracking-wide text-ink-600" aria-hidden="true">or</p>
+          <div className="mt-2">
+            <button
+              type="button"
+              role="checkbox"
+              aria-checked={answered && ruledOut.length === 0}
+              onClick={() => d.setNoDealBreakers(q.id)}
+              className="choice-chip"
+            >
+              {answered && ruledOut.length === 0 ? <IconCheck size={16} strokeWidth={2.5} /> : <span aria-hidden="true" className="h-4 w-4 rounded-md border-2 border-ink-400" />}
+              I have no deal-breakers
+            </button>
           </div>
           <p className={`mt-3 rounded-field px-3 py-2 text-sm font-medium ${ruledOut.length ? "bg-apricot-100 text-apricot-800" : "bg-white text-ink-700 ring-1 ring-ink-100"}`} aria-live="polite">
             {ruledOut.length
-              ? `Dealbreaker: you won't be matched with people who say “${ruledOut.map((v) => v.label).join("” or “")}”.`
-              : "Flexible: any answer is fine with you."}
+              ? `You won't be matched with people who say “${ruledOut.map((v) => v.label).join("” or “")}”.`
+              : answered
+                ? "No deal-breakers: any answer is fine with you."
+                : "Choose your deal-breakers, or “I have no deal-breakers”."}
           </p>
         </fieldset>
         <FieldError msg={errors.preferences} />

@@ -32,7 +32,7 @@ export const POST = handler(async (req: NextRequest, { rid, params }) => {
       await tx.viewing.update({ where: { id: v.id }, data: { state: "confirmed", version: v.version + 1 } });
       await writeAudit(tx, { eventType: "viewing.confirmed", actorId: user.id, subjectId: otherId, resourceType: "viewing", resourceId: v.id, action: "confirm" }, rid);
       await writeOutbox(tx, "viewing_confirmed", { viewingId: v.id });
-      await notify(tx, otherId, "viewing_change", "Viewing confirmed", "Your viewing is confirmed.");
+      await notify(tx, otherId, "viewing_change", "Viewing confirmed", "Your viewing is confirmed.", { type: "household", id: v.householdId });
     });
     return ok({ state: "confirmed" }, rid);
   }
@@ -44,7 +44,7 @@ export const POST = handler(async (req: NextRequest, { rid, params }) => {
       await tx.viewing.update({ where: { id: v.id }, data: { state: "cancelled", version: v.version + 1 } });
       await writeAudit(tx, { eventType: "viewing.cancelled", actorId: user.id, resourceType: "viewing", resourceId: v.id, action: "cancel" }, rid);
       await writeOutbox(tx, "viewing_cancelled", { viewingId: v.id });
-      await notify(tx, otherId, "viewing_change", "Viewing cancelled", "A viewing was cancelled.");
+      await notify(tx, otherId, "viewing_change", "Viewing cancelled", "A viewing was cancelled.", { type: "household", id: v.householdId });
     });
     return ok({ state: "cancelled" }, rid);
   }

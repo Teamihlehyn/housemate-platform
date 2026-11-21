@@ -1,5 +1,7 @@
 import { NextRequest } from "next/server";
-import { handler, ok, fail } from "@/lib/api";
+import { handler, ok, fail, ApiError } from "@/lib/api";
+import { lockKey } from "@/lib/rateLimit";
+import { proposalBlocker } from "@/lib/household";
 import { requireUser } from "@/lib/guard";
 import { prisma } from "@/lib/db";
 import { writeAudit, writeOutbox, notify } from "@/lib/audit";
@@ -26,16 +28,11 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
   const otherId = intro.lowUserId === user.id ? intro.highUserId : intro.lowUserId;
   await assertNotBlocked(user.id, otherId); // HM-02: an old accepted intro can't bypass a block.
 
-  // One active/proposed household per user.
-  const busy = await prisma.membership.findFirst({
-    where: {
-      userId: { in: [user.id, otherId] },
-      state: "active",
-      household: { state: { in: ["proposed", "active"] } },
-    },
-  });
-  if (busy)
-    return fail("STATE_CONFLICT", "One of you already has an active household.", 409, rid);
+  // D-R2 (ENG-52, SEC-17): proposals don't block each other; only a formed household is
+  // exclusive. Every refusal talks about the proposer's own state, or says the other person
+  // "isn't available" and never why. Nothing reveals anyone else's proposals or pairings.
+  const blocked = await proposalBlocker(user.id, otherId);
+  if (blocked) return fail("STATE_CONFLICT", blocked.message, 409, rid, { field_errors: { blocker: blocked.code } });
 
   const [meSearch, otherSearch] = await Promise.all([
     prisma.search.findUnique({ where: { userId: user.id } }),
@@ -69,9 +66,14 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
   }
 
   const result = await prisma.$transaction(async (tx) => {
+    // Re-check under both people's locks, so two quick proposals can't slip past the limits.
+    for (const id of [user.id, otherId].sort()) await lockKey(tx, `household-proposals:${id}`);
+    const again = await proposalBlocker(user.id, otherId, tx);
+    if (again) throw new ApiError("STATE_CONFLICT", again.message, 409, { blocker: again.code });
     const hh = await tx.household.create({
       data: {
         state: "proposed",
+        proposedBy: user.id,
         introductionId: intro.id,
         memberships: {
           create: [{ userId: user.id }, { userId: otherId }],
@@ -96,7 +98,7 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
 
     await writeAudit(tx, { eventType: "household.proposed", actorId: user.id, subjectId: otherId, resourceType: "household", resourceId: hh.id, action: "propose" }, rid);
     await writeOutbox(tx, "household_proposed", { householdId: hh.id });
-    await notify(tx, otherId, "household_proposed", "Household proposal", `${user.displayName} proposed forming a household.`);
+    await notify(tx, otherId, "household_proposed", "Household proposal", `${user.displayName} proposed forming a household.`, { type: "household", id: hh.id });
     return { householdId: hh.id, planVersion: p.versionNo };
   });
 

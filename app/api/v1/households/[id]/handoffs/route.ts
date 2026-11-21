@@ -50,7 +50,7 @@ export const POST = handler(async (req: NextRequest, { rid, params }) => {
     await tx.household.update({ where: { id: hh.id }, data: { derivedStage: "application" } });
     await writeAudit(tx, { eventType: "handoff.started", actorId: user.id, subjectId: otherId, resourceType: "handoff", resourceId: h.id, action: "start" }, rid);
     await writeOutbox(tx, "handoff_started", { handoffId: h.id });
-    await notify(tx, otherId, "handoff_update", "Application started", `${user.displayName} started a rental application. Review and consent to share your details.`);
+    await notify(tx, otherId, "handoff_update", "Application started", `${user.displayName} started a rental application. Review and consent to share your details.`, { type: "household", id: hh.id });
     return h;
   });
 

@@ -13,6 +13,7 @@ import { claimCode, emailKey, invalidCode } from "@/lib/codes";
 import { verifyOutcome } from "@/lib/applications";
 import { applicationStatusFor } from "@/lib/applicationService";
 import { tombstoneReapplyAfter } from "@/lib/applicationPurge";
+import { recordApplicationEvent } from "@/lib/funnelServer";
 
 // POST /api/v1/applications/verify {email, code}   — /join step 2 (ENG-40)
 // The code proves the person owns the inbox. Then, by who the address belongs to:
@@ -212,5 +213,7 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
   });
 
   await createSession(userId, "application");
+  const startedApp = await prisma.application.findUnique({ where: { userId }, select: { id: true } });
+  if (startedApp) await recordApplicationEvent(startedApp.id, "join.email_confirmed");
   return ok({ outcome: "application", application: await applicationStatusFor(userId) }, rid);
 });

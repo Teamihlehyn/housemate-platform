@@ -48,6 +48,154 @@ export async function requirePlanAgreed(householdId: string) {
 }
 
 // Accept the latest plan version. Forms the household when it was a proposal.
+// ---- Proposals (D-R2: ENG-52, SEC-17) ----------------------------------------------------------
+export const MAX_OUTGOING_PROPOSALS = 3;
+type Db = Tx | typeof prisma;
+
+async function nameOf(db: Db, id: string): Promise<string> {
+  return (await db.user.findUnique({ where: { id }, select: { displayName: true } }))?.displayName || "This user";
+}
+
+// Why `meId` can't propose a household to `otherId` right now, or null. Every message is about
+// the proposer's own state, except "{name} isn't available", which never says why.
+export async function proposalBlocker(
+  meId: string,
+  otherId: string,
+  db: Db = prisma
+): Promise<{ code: "own_active" | "other_unavailable" | "own_pending_same" | "incoming_pending" | "own_pending_limit"; message: string } | null> {
+  const activeOf = (id: string) =>
+    db.membership.findFirst({ where: { userId: id, state: "active", household: { state: "active" } }, select: { householdId: true } });
+  const mine = await activeOf(meId);
+  if (mine) {
+    const mate = await db.membership.findFirst({ where: { householdId: mine.householdId, userId: { not: meId }, state: "active" }, select: { userId: true } });
+    return {
+      code: "own_active",
+      message: `You're already in a household${mate ? ` with ${await nameOf(db, mate.userId)}` : ""}. Leave it to propose a new one.`,
+    };
+  }
+  if (await activeOf(otherId)) {
+    return { code: "other_unavailable", message: `${await nameOf(db, otherId)} isn't available for a household right now.` };
+  }
+  const pair = await db.household.findFirst({
+    where: {
+      state: "proposed",
+      AND: [
+        { memberships: { some: { userId: meId, state: "active" } } },
+        { memberships: { some: { userId: otherId, state: "active" } } },
+      ],
+    },
+    select: { proposedBy: true },
+  });
+  if (pair) {
+    const name = await nameOf(db, otherId);
+    return pair.proposedBy === otherId
+      ? { code: "incoming_pending", message: `${name} has already proposed a household to you. Accept or decline it on your Household page.` }
+      : { code: "own_pending_same", message: `You've already proposed a household to ${name}. Wait for their answer, or withdraw it.` };
+  }
+  const outgoing = await db.household.count({ where: { state: "proposed", proposedBy: meId } });
+  if (outgoing >= MAX_OUTGOING_PROPOSALS) {
+    return { code: "own_pending_limit", message: `You've got ${MAX_OUTGOING_PROPOSALS} pending proposals. Withdraw one to propose to someone else.` };
+  }
+  return null;
+}
+
+// On formation: close the other pending proposals of both people, neutrally.
+async function closeOtherProposals(tx: Tx, formedId: string, memberIds: string[], rid?: string) {
+  const others = await tx.household.findMany({
+    where: { id: { not: formedId }, state: "proposed", memberships: { some: { userId: { in: memberIds }, state: "active" } } },
+    include: { memberships: true },
+  });
+  for (const o of others) {
+    await tx.household.update({ where: { id: o.id }, data: { state: "closed", closedAt: new Date(), version: o.version + 1 } });
+    await writeAudit(tx, {
+      eventType: "household.closed",
+      actorType: "service",
+      resourceType: "household",
+      resourceId: o.id,
+      action: "auto_close",
+      reasonCode: "formed_elsewhere",
+      versionBefore: o.version,
+      versionAfter: o.version + 1,
+    }, rid);
+    await writeOutbox(tx, "household_closed", { householdId: o.id });
+    const unavailable = o.memberships.find((m) => memberIds.includes(m.userId))?.userId;
+    const name = unavailable ? await nameOf(tx, unavailable) : "This user";
+    for (const m of o.memberships) {
+      if (memberIds.includes(m.userId)) continue;
+      await notify(tx, m.userId, "household_closed", "Proposal closed", `This proposal is closed. ${name} isn't available for a household right now.`, { type: "household", id: o.id });
+    }
+  }
+}
+
+// Withdraw (the proposer) or decline (the other person) a pending proposal.
+export async function closeProposal(opts: { householdId: string; userId: string; action: "withdraw" | "decline"; rid?: string }) {
+  const { householdId, userId, action, rid } = opts;
+  return prisma.$transaction(async (tx) => {
+    const hh = await tx.household.findUnique({ where: { id: householdId }, include: { memberships: true } });
+    if (!hh || !hh.memberships.some((m) => m.userId === userId && m.state === "active")) throw new ApiError("NOT_FOUND", "Household not found.", 404);
+    if (hh.state !== "proposed") throw new ApiError("STATE_CONFLICT", "This proposal isn't pending any more.", 409);
+    const proposer = hh.proposedBy;
+    if (action === "withdraw" && proposer !== userId) throw new ApiError("STATE_CONFLICT", "Only the person who proposed can withdraw. You can decline it.", 409);
+    if (action === "decline" && proposer === userId) throw new ApiError("STATE_CONFLICT", "You proposed this one. You can withdraw it.", 409);
+    await tx.household.update({
+      where: { id: hh.id },
+      data: { state: action === "decline" ? "declined" : "closed", closedAt: new Date(), version: hh.version + 1 },
+    });
+    const otherId = hh.memberships.find((m) => m.userId !== userId)?.userId;
+    await writeAudit(tx, {
+      eventType: action === "decline" ? "household.declined" : "household.withdrawn",
+      actorId: userId,
+      subjectId: otherId ?? null,
+      resourceType: "household",
+      resourceId: hh.id,
+      action,
+      versionBefore: hh.version,
+      versionAfter: hh.version + 1,
+    }, rid);
+    await writeOutbox(tx, "household_closed", { householdId: hh.id, reason: action });
+    if (otherId) {
+      const me = await nameOf(tx, userId);
+      await notify(
+        tx,
+        otherId,
+        "household_closed",
+        action === "decline" ? "Proposal declined" : "Proposal withdrawn",
+        action === "decline" ? `${me} declined your household proposal.` : `${me} withdrew their household proposal.`,
+        { type: "household", id: hh.id }
+      );
+    }
+    return { state: action === "decline" ? "declined" : "closed" };
+  });
+}
+
+// Your own pending proposals (sent and received), for the Household page. Nothing about anyone
+// else's pairings.
+export async function myProposals(userId: string) {
+  const rows = await prisma.household.findMany({
+    where: { state: "proposed", memberships: { some: { userId, state: "active" } } },
+    include: { memberships: true },
+    orderBy: { createdAt: "desc" },
+  });
+  const otherIds = rows.map((r) => r.memberships.find((m) => m.userId !== userId)?.userId).filter(Boolean) as string[];
+  const users = await prisma.user.findMany({ where: { id: { in: otherIds } }, select: { id: true, displayName: true } });
+  const names = new Map(users.map((u) => [u.id, u.displayName]));
+  return rows.map((r) => {
+    const other = r.memberships.find((m) => m.userId !== userId)?.userId ?? null;
+    const sent = r.proposedBy === userId;
+    return {
+      id: r.id,
+      version: r.version,
+      direction: sent ? "sent" : "received",
+      other_user_id: other,
+      other_name: other ? names.get(other) ?? "User" : "User",
+      created_at: r.createdAt,
+      can_withdraw: sent,
+      can_decline: !sent,
+      can_accept: !sent,
+    };
+  });
+}
+
 export async function acceptPlan(opts: {
   householdId: string;
   userId: string;
@@ -73,7 +221,17 @@ export async function acceptPlan(opts: {
       const busy = await tx.membership.findFirst({
         where: { userId: { in: memberIds }, householdId: { not: hh.id }, state: "active", household: { state: "active" } },
       });
-      if (busy) throw new ApiError("STATE_CONFLICT", "One of you is already in an active household.", 409);
+      if (busy) {
+        const otherMember = memberIds.find((id) => id !== userId);
+        const who = otherMember ? (await tx.user.findUnique({ where: { id: otherMember }, select: { displayName: true } }))?.displayName : null;
+        throw new ApiError(
+          "STATE_CONFLICT",
+          busy.userId === userId
+            ? "You're already in a household. Leave it to form a new one."
+            : `This proposal is closed. ${who ?? "They"} isn't available for a household right now.`,
+          409
+        );
+      }
     }
 
     await tx.planAcceptance.create({ data: { planId: plan.id, userId } });
@@ -90,6 +248,10 @@ export async function acceptPlan(opts: {
         where: { state: "pending", OR: [{ lowUserId: { in: memberIds } }, { highUserId: { in: memberIds } }] },
         data: { state: "expired", reasonCode: "household_formed" },
       });
+      // D-R2: forming is the exclusivity point. Every other pending proposal involving either
+      // person closes, and the other party gets a neutral notice (no reason, no names but the
+      // person they proposed with).
+      await closeOtherProposals(tx, hh.id, memberIds, rid);
       result = "formed";
     } else if (agreed) {
       await tx.household.update({
@@ -116,9 +278,9 @@ export async function acceptPlan(opts: {
     });
     for (const other of memberIds.filter((id) => id !== userId)) {
       if (result === "formed")
-        await notify(tx, other, "household_formed", "Household formed", `${actor?.displayName} accepted. Your household is active — start planning together.`);
+        await notify(tx, other, "household_formed", "Household formed", `${actor?.displayName} accepted. Your household is active — start planning together.`, { type: "household", id: hh.id });
       else if (result === "agreed")
-        await notify(tx, other, "household_change", "Agreement accepted", `${actor?.displayName} accepted agreement v${plan.versionNo}. You're both agreed.`);
+        await notify(tx, other, "household_change", "Agreement accepted", `${actor?.displayName} accepted agreement v${plan.versionNo}. You're both agreed.`, { type: "household", id: hh.id });
     }
     return result;
   });
@@ -228,7 +390,7 @@ export async function proposePlanChange(opts: {
     }, rid);
     await writeOutbox(tx, "household_changed", { householdId, planVersion: next.versionNo, changed });
     for (const other of memberIds.filter((id) => id !== userId))
-      await notify(tx, other, "household_change", "Agreement updated", `${actor?.displayName} proposed agreement v${next.versionNo}. Review and accept it.`);
+      await notify(tx, other, "household_change", "Agreement updated", `${actor?.displayName} proposed agreement v${next.versionNo}. Review and accept it.`, { type: "household", id: householdId });
     return next.versionNo;
   });
 }
@@ -303,11 +465,11 @@ export async function recordHandoffConsent(opts: {
       await tx.handoff.update({ where: { id: handoffId }, data: { state, decision, version: h.version + 1 } });
       await tx.household.update({ where: { id: h.householdId }, data: { derivedStage: "move_in_pending" } });
       for (const m of members)
-        await notify(tx, m, "handoff_update", "Application accepted", "Demo application accepted; no home is reserved. Confirm your move-in when ready.");
+        await notify(tx, m, "handoff_update", "Application accepted", "Demo application accepted; no home is reserved. Confirm your move-in when ready.", { type: "household", id: h.householdId });
     } else {
       await tx.handoff.update({ where: { id: handoffId }, data: { version: h.version + 1 } });
       for (const m of members.filter((id) => id !== userId))
-        await notify(tx, m, "handoff_update", "Consent needed", `${actor?.displayName} consented. Add your consent to submit the application.`);
+        await notify(tx, m, "handoff_update", "Consent needed", `${actor?.displayName} consented. Add your consent to submit the application.`, { type: "household", id: h.householdId });
     }
     await writeAudit(tx, { eventType: "handoff.consent", actorType, actorId: userId, resourceType: "handoff", resourceId: handoffId, action: "consent", safeAfter: { state } }, rid);
     await writeOutbox(tx, state === "accepted" ? "handoff_submitted" : "handoff_consent", { handoffId });
@@ -339,10 +501,10 @@ export async function recordMoveIn(opts: {
     if (members.every((id) => confs.find((c) => c.userId === id)?.response === "moved_in")) {
       state = "completed";
       await tx.household.update({ where: { id: householdId }, data: { state, closedAt: new Date(), version: hh.version + 1 } });
-      for (const m of members) await notify(tx, m, "move_in", "Move-in confirmed", "You've both confirmed your move-in. 🎉");
+      for (const m of members) await notify(tx, m, "move_in", "Move-in confirmed", "You've both confirmed your move-in. 🎉", { type: "household", id: householdId });
     } else {
       for (const m of members.filter((id) => id !== userId))
-        await notify(tx, m, "move_in", "Move-in update", `${actor?.displayName} recorded their move-in status.`);
+        await notify(tx, m, "move_in", "Move-in update", `${actor?.displayName} recorded their move-in status.`, { type: "household", id: householdId });
     }
     await writeAudit(tx, { eventType: "move_in.confirmed", actorType, actorId: userId, resourceType: "household", resourceId: householdId, action: "move_in_confirm", safeAfter: { response } }, rid);
     await writeOutbox(tx, "move_in_confirmed", { householdId, response });
@@ -396,6 +558,12 @@ export async function buildHouseholdView(householdId: string, userId: string) {
     state: hh.state,
     derivedStage: hh.derivedStage,
     version: hh.version,
+    // D-R2: who proposed it, and what you can do while it's pending.
+    proposed_by: hh.proposedBy,
+    proposal:
+      hh.state === "proposed"
+        ? { direction: hh.proposedBy === userId ? "sent" : "received", can_withdraw: hh.proposedBy === userId, can_decline: hh.proposedBy !== userId }
+        : null,
     members: hh.memberships.map((m) => {
       const u = userMap.get(m.userId);
       const s = u?.search;

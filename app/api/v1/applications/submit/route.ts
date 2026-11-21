@@ -10,6 +10,7 @@ import { applicationReceivedEmail, applicationWaitlistedEmail } from "@/lib/emai
 import { MISSING_LABELS, cityName, missingMessage, newStatusToken, submitStatus } from "@/lib/applications";
 import { applicationStatusFor, missingFor, sendApplicationEmail, statusUrl } from "@/lib/applicationService";
 import { lockKey } from "@/lib/rateLimit";
+import { recordApplicationEvent } from "@/lib/funnelServer";
 
 // POST /api/v1/applications/submit {survey_opt_in?: boolean}   — /join step 4 (ENG-40)
 // Checks completeness with the publish rules, then draft → submitted (or waitlisted when the
@@ -60,6 +61,7 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
     await writeOutbox(tx, "application_submitted", { applicationId: app.id, status, city });
   });
 
+  await recordApplicationEvent(app.id, "join.submitted", { city });
   const values = { first_name: firstName(full.displayName), status_url: statusUrl(token) };
   after(() =>
     sendApplicationEmail(

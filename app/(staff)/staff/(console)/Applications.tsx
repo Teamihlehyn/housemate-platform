@@ -52,6 +52,7 @@ interface Detail {
   stay: { min_months: number | null; max_months: number | null } | null;
   habits: { dimension: string; label: string; own: string; accepted: string[]; ruled_out: string[] }[];
   missing: string[]; activation: { state: string; expires_at: string } | null; can_act: boolean;
+  is_test_account?: boolean; test_approval_available?: boolean;
 }
 
 const cityName = (c: string | null) => (c === "lagos" ? "Lagos" : c === "london" ? "London" : "No city");
@@ -260,6 +261,7 @@ function ApplicationDetail({ id, onBack }: { id: string; onBack: () => void }) {
   const [idHint, setIdHint] = useState(false);
   const [reason, setReason] = useState("");
   const [confirmDecline, setConfirmDecline] = useState(false);
+  const [confirmTest, setConfirmTest] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -402,10 +404,32 @@ function ApplicationDetail({ id, onBack }: { id: string; onBack: () => void }) {
     </div>
   );
 
+  // ENG-67: test environments only (the server decides), admins only. Never in production.
+  const testApprove = d.test_approval_available ? (
+    <div className="space-y-2 rounded-lg border border-dashed border-caution-200 bg-caution-50 p-3">
+      <p className="text-sm font-semibold text-caution-800">Test environment only</p>
+      {!confirmTest ? (
+        <button className="btn-secondary min-h-[44px]" disabled={busy} onClick={() => setConfirmTest(true)}>Approve without call (test only)</button>
+      ) : (
+        <div className="space-y-2 text-sm">
+          <p>
+            Approve {d.display_name || "this applicant"} without a video ID call? Reason: testing. Their account is marked
+            &ldquo;Test account — ID not checked&rdquo; everywhere.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button className="btn-danger min-h-[44px]" disabled={busy}
+              onClick={() => act("approve_test", "Approved as a test account.", { confirm_test: true, reason: "testing" })}>Yes, approve for testing</button>
+            <button className="btn-ghost min-h-[44px]" onClick={() => setConfirmTest(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
+    </div>
+  ) : null;
+
   let actions: React.ReactNode = null;
-  if (s === "submitted") actions = <>{startReview}{bookCall}{decline}{waitlist}</>;
-  else if (s === "in_review") actions = <>{bookCall}{approve}{decline}{waitlist}</>;
-  else if (s === "call_booked") actions = <>{approve}{bookCall}{decline}{waitlist}</>;
+  if (s === "submitted") actions = <>{startReview}{bookCall}{decline}{waitlist}{testApprove}</>;
+  else if (s === "in_review") actions = <>{bookCall}{approve}{decline}{waitlist}{testApprove}</>;
+  else if (s === "call_booked") actions = <>{approve}{bookCall}{decline}{waitlist}{testApprove}</>;
   else if (s === "waitlisted") actions = <>{startReview}{decline}</>;
   else if (s === "approved") actions = <>{resend}{decline}</>;
   else if (s === "declined") actions = <p className="text-sm text-ink-600">Declined {when(d.reviewed_at)}. They can reapply from {d.reapply_after ? new Date(d.reapply_after).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "—"}.</p>;

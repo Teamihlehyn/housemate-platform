@@ -62,14 +62,20 @@ export async function writeOutbox(
 }
 
 // Create an in-app notification. Payload never includes messages, addresses or evidence.
+// What a notification opens (ENG-50). The page it links to re-checks access (SEC-16).
+export type NotifyTarget =
+  | { type: "conversation" | "introduction" | "household"; id: string }
+  | { type: "application" | "none" };
+
 export async function notify(
   tx: Tx,
   recipientId: string,
   eventName: string,
   title: string,
-  body: string
+  body: string,
+  target: NotifyTarget = { type: "none" }
 ) {
   return tx.notification.create({
-    data: { recipientId, eventName, title, body },
+    data: { recipientId, eventName, title, body, targetType: target.type, targetId: "id" in target ? target.id : null },
   });
 }

@@ -34,6 +34,28 @@
 | 11 | Review applications daily: contact within 24 h to book the video call, decide within 72 h. London applications stay waitlisted | From Wed 18 Nov |
 | 12 | After launch: F-21 (`updates.peabudy.com`), F-18 Didit account, F-19 counsel booking; the research database deletion only when you explicitly say so | From Wed 18 Nov |
 
+## Usability round 1 (21 Nov): your decisions and tasks
+
+- **D-R1…D-R5: approved by you on 21 Nov 2026** ("Please go ahead"), as recommended:
+  - verification-first, with easy booking;
+  - up to 3 pending proposals, exclusive only when both confirm;
+  - "Apply to join" primary;
+  - explicit deal-breakers;
+  - the 6-screen application.
+  - See [`usability-round-1.md`](usability-round-1.md) §5.
+- **F-26, booking tool: decided by you on 21 Nov.** The ID call runs on **Google Meet**, booked through a **Google Calendar "Appointment schedule"** page.
+  - **Set-up:** 10-minute slots, Lagos hours, a buffer between calls, a daily cap, Meet auto-attached.
+  - **Your action:** send the booking page link to the engineer, who sets it as `NEXT_PUBLIC_CALL_BOOKING_URL` (production + staging). **F-26 is done once the link is sent.**
+  - **v1 is link-out only.** Staff mark "Call booked" in the back office by hand. Syncing with the Calendar API comes later.
+  - **Don't record calls.** The privacy notice says calls aren't recorded unless we say so.
+- **Peabudy guide** (the AI-guided chat, [`ai-guided-chat.md`](ai-guided-chat.md)): **D-G1…D-G4 approved by you on 21 Nov**:
+  - v0 (no AI) in the pilot;
+  - explicit opt-in by both people before any AI reads messages;
+  - Anthropic Claude API, subject to the security review (SEC-22);
+  - the guide only suggests and never posts.
+- **Test approvals (ENG-67, 21 Nov):** on staging only, a "Approve without call (test only)" action. Those accounts are labelled "Test account — ID not checked". It's refused in production.
+- **Round 2:** recruit 5–6 new participants, including at least one with a low- or mid-range Android phone. Don't coordinate their answers.
+
 ## F-24: Domain cut-over (Wed 18 Nov, straight after `switch-to-beta.sh`; about 20 minutes)
 
 This replaces F-02 parts F and G: **don't** point `peabudy.com` at the project before launch day.

@@ -1,4 +1,5 @@
 import { prisma } from "./db";
+import { testApprovalsAllowed } from "./env";
 
 // Has the team checked this person's identity? (VerificationCheck, category "identity".)
 export async function identityVerified(userId: string): Promise<boolean> {
@@ -18,4 +19,13 @@ export function canSeeEachOther(opts: {
 }): boolean {
   if (!opts.verifiedOnly) return true;
   return opts.viewerVerified && opts.targetVerified;
+}
+
+// The beta browsing gate (ENG-02): a team-checked identity, or, only where test approvals are
+// allowed (never production, ENG-67), a test account so testers can match each other.
+export async function passesIdentityGate(userId: string): Promise<boolean> {
+  if (await identityVerified(userId)) return true;
+  if (!testApprovalsAllowed()) return false;
+  const u = await prisma.user.findUnique({ where: { id: userId }, select: { isTestAccount: true } });
+  return !!u?.isTestAccount;
 }

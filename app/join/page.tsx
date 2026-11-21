@@ -13,7 +13,8 @@ import { PeaSays, TextLink } from "@/components/PublicShell";
 import WaitingRoom, { formatCountdown, useCountdown } from "@/components/signin/WaitingRoom";
 import { AuthError, authPost, readWait, waitText, writeWait } from "@/components/signin/authPost";
 import QuestionFlow, { FinishResult } from "@/components/apply/QuestionFlow";
-import { resumeScreen, screenForMissing, ScreenId, useProfileDraft } from "@/components/apply/useProfileDraft";
+import { screenForMissing, ScreenId, useProfileDraft } from "@/components/apply/useProfileDraft";
+import { trackFunnel } from "@/lib/funnel";
 import { Application, CITY_NAME } from "@/components/apply/application";
 import { api, ApiClientError } from "@/lib/client";
 import { IconArrowRight, IconCheck, IconLock } from "@/components/icons";
@@ -71,13 +72,14 @@ function Join() {
       }
       hydrate(me);
       if ((me.preferences?.survey_opt_in ?? me.survey_opt_in) === true) setSurveyOptIn(true);
-      setResume(editing ? "review" : resumeScreen(me));
+      setResume(editing ? "review" : resumeApplication(me));
       setStage("questions");
     } catch {
       setStage("email");
     }
   }, [router, hydrate, editing]);
 
+  useEffect(() => { trackFunnel("join.viewed"); }, []);
   useEffect(() => {
     void enter();
     const w = readWait(WAIT_KEY);
@@ -313,7 +315,7 @@ function Join() {
         {[
           ["Confirm your email", "We send a 6-digit code, so your answers can save as you go."],
           ["Tell us your plans", "Dates, budget, areas, living habits and a short bio. One question at a time."],
-          ["A short video ID call", "About 10 minutes with our team, to see your photo ID. Then we email your invite."],
+          ["A 10-minute video call", "Someone from the Peabudy team meets every applicant on a 10-minute video call. We check your photo ID matches you, answer your questions, then decide within a day or two."],
         ].map(([t, s], i) => (
           <li key={t} className="flex gap-3">
             <span className="num grid h-7 w-7 shrink-0 place-items-center rounded-full bg-pea-100 text-sm font-bold text-ink" aria-hidden="true">{i + 1}</span>
@@ -500,4 +502,17 @@ function Received({ app, name, headingRef }: { app: Application; name: string; h
       </div>
     </Shell>
   );
+}
+
+/** Where a returning applicant picks up, on the six-screen application (D-R5). */
+function resumeApplication(me: any): ScreenId {
+  const s = me?.search ?? {};
+  const name = String(me?.displayName ?? "");
+  if (name.trim().length < 2 || name.includes("@")) return "name";
+  if (!s.cityId || !s.areas?.length) return "where";
+  if (s.rentMinMinor == null || s.rentMaxMinor == null) return "budget";
+  if (!s.earliestDate || !s.moveMode || s.moveMode === "undecided") return "dates";
+  if (!s.gender) return "livingWith";
+  if (!me?.profile?.bio || String(me.profile.bio).trim().length < 40) return "bio";
+  return "review";
 }

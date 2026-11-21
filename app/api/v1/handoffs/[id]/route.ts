@@ -46,7 +46,7 @@ export const POST = handler(async (req: NextRequest, { rid, params }) => {
       await tx.household.update({ where: { id: h.householdId }, data: { derivedStage: "planning" } });
       await writeAudit(tx, { eventType: "handoff.withdrawn", actorId: user.id, resourceType: "handoff", resourceId: h.id, action: "withdraw" }, rid);
       await writeOutbox(tx, "handoff_withdrawn", { handoffId: h.id });
-      await notify(tx, otherId, "handoff_update", "Application withdrawn", "The rental application was withdrawn.");
+      await notify(tx, otherId, "handoff_update", "Application withdrawn", "The rental application was withdrawn.", { type: "household", id: h.householdId });
     });
     return ok({ state: "withdrawn" }, rid);
   }

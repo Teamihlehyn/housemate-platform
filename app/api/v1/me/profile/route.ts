@@ -21,7 +21,7 @@ export const PATCH = handler(async (req: NextRequest, { rid }) => {
   }
   if (body.bio !== undefined) {
     const bio = String(body.bio).trim();
-    if (bio.length < 80 || bio.length > 600) fe.bio = "Bio must be 80–600 characters.";
+    if (bio.length < 40 || bio.length > 600) fe.bio = "Write 40 to 600 characters.";
     else profileData.bio = bio;
   }
   if (body.displayName !== undefined) {

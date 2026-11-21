@@ -89,7 +89,7 @@ export const POST = handler(async (_req: NextRequest, { rid }) => {
       await writeOutbox(tx, "household_closed", { householdId: hh.id });
       for (const m of hh.memberships) {
         if (m.userId !== user.id && m.state === "active")
-          await notify(tx, m.userId, "household_closed", "Household closed", "Your housemate left the household. You can return to search anytime.");
+          await notify(tx, m.userId, "household_closed", "Household closed", "Your housemate left the household. You can return to search anytime.", { type: "household", id: hh.id });
       }
     }
     await writeAudit(tx, {

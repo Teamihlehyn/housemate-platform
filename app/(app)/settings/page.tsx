@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, ApiClientError } from "@/lib/client";
+import { FeedbackLink } from "@/components/ResearchTools";
 
 export default function Settings() {
   const router = useRouter();
@@ -96,6 +97,9 @@ export default function Settings() {
       <div className="card divide-y divide-ink-100">
         <Row title="Your data" desc="Download everything we hold about you as a JSON file.">
           <button className="btn-secondary" disabled={busy === "export"} onClick={exportData}>{busy === "export" ? "Preparing…" : "Export my data"}</button>
+        </Row>
+        <Row title="Feedback" desc="Tell us what's confusing, broken or missing. We read everything.">
+          <FeedbackLink className="btn-secondary">Give feedback</FeedbackLink>
         </Row>
         <Row title="Privacy notice" desc="How we collect and use your data.">
           <Link href="/privacy" target="_blank" className="btn-secondary">View notice</Link>

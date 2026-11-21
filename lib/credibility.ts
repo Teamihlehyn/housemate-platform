@@ -87,6 +87,9 @@ export async function credibilityDto(
     select: { category: true, status: true, checkedAt: true },
   });
   const checks = toCheckList(rows, { verifiedOnly: opts.verifiedOnly });
+  // ENG-67: a test account says so wherever checks appear; it has no identity check.
+  const u = await db.user.findUnique({ where: { id: userId }, select: { isTestAccount: true } });
+  if (u?.isTestAccount) checks.unshift({ category: "test_account", status: "not_provided", checkedMonth: null } as unknown as CheckSummary);
   if (opts.beta) return { checks };
   return { ...(await computeScore(db, userId)), checks };
 }

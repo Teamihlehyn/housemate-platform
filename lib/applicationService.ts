@@ -5,7 +5,7 @@ import { emailConfigured, sendEmail } from "./email";
 import { IS_BETA, isCityOpen, siteUrl } from "./env";
 import { ApiError } from "./api";
 import { applicationDto, canEdit, missingFields } from "./applications";
-import { findInvite, inviteUsable } from "./invites";
+import { findInvite, inviteUsable, maskEmail } from "./invites";
 
 const STAFF_ROLE_NAMES = ["verifier", "moderator", "admin"];
 
@@ -51,15 +51,22 @@ export async function missingFor(db: Db, userId: string) {
 export async function applicationStatusFor(userId: string, readOnly = false) {
   const [app, search, user] = await Promise.all([
     prisma.application.findUnique({ where: { userId } }),
-    prisma.search.findUnique({ where: { userId }, select: { cityId: true } }),
-    prisma.user.findUnique({ where: { id: userId }, select: { accountStatus: true } }),
+    prisma.search.findUnique({
+      where: { userId },
+      select: { cityId: true, stayMinMonths: true, preferences: { select: { ownAnswer: true } } },
+    }),
+    prisma.user.findUnique({ where: { id: userId }, select: { accountStatus: true, email: true } }),
   ]);
   if (!app) return null;
   const city = search?.cityId ?? null;
+  const answered = (search?.preferences.filter((p) => p.ownAnswer).length ?? 0) + (search?.stayMinMonths != null ? 1 : 0);
   return applicationDto(app, city, {
     readOnly,
     cityOpen: city ? isCityOpen(city) : true,
     applicant: user?.accountStatus === "applicant",
+    emailHint: user ? maskEmail(user.email) : null,
+    resendsLeft: app.status === "approved" ? await resendsLeft(app.id) : null,
+    betterMatchesAnswered: answered,
   });
 }
 
@@ -118,12 +125,15 @@ export async function activationTarget(rawCode: unknown) {
 
 // Applicants may change their answers only while nobody is reviewing them (draft, submitted).
 // Members are unaffected. Throws 409 otherwise.
-export async function assertAnswersEditable(user: { id: string; accountStatus: string; role: string }) {
+// "Better first matches" answers (habits, stay length: D-R5) can be given at any open stage,
+// including while the ID call is pending: they aren't what staff approve.
+export async function assertAnswersEditable(user: { id: string; accountStatus: string; role: string }, opts: { deferredOnly?: boolean } = {}) {
   // Staff accounts are back-office only: they have no product profile to edit.
   if (STAFF_ROLE_NAMES.includes(user.role)) throw new ApiError("NOT_FOUND", "Not found.", 404);
   if (user.accountStatus !== "applicant") return;
   const app = await prisma.application.findUnique({ where: { userId: user.id }, select: { status: true } });
-  if (!app || !canEdit(app.status)) {
+  const deferredOk = opts.deferredOnly && app && !["declined", "withdrawn"].includes(app.status);
+  if (!app || (!canEdit(app.status) && !deferredOk)) {
     throw new ApiError(
       "STATE_CONFLICT",
       "Your application is being reviewed, so your answers are locked. Email hello@peabudy.com if something needs changing.",
@@ -148,4 +158,13 @@ export async function isNameLocked(userId: string): Promise<boolean> {
 export async function clearApprovalClaims(tx: Prisma.TransactionClient, userId: string) {
   await tx.verificationCheck.deleteMany({ where: { userId, category: "identity" } });
   await tx.user.update({ where: { id: userId }, data: { adultEligible: false } });
+}
+
+// ENG-54 / SEC-18: self-serve invitation resends, 3 per 24 hours per application.
+export const SELF_RESENDS_PER_DAY = 3;
+export async function resendsLeft(applicationId: string): Promise<number> {
+  const used = await prisma.auditEvent.count({
+    where: { eventType: "application.activation_resent_self", resourceId: applicationId, occurredAt: { gt: new Date(Date.now() - 86_400_000) } },
+  });
+  return Math.max(0, SELF_RESENDS_PER_DAY - used);
 }

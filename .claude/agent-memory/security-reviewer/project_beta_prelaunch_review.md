@@ -77,6 +77,16 @@ Update 2026-11-11 (ENG-47 back-office password + emailed-code sign-in, WT on top
 - HM-48 NEW Low: staff-only account removed from allowlist becomes a member without approval
 - Info: set-up token left in URL; code in email subject; staff session tokens plaintext; lockedUntil/failedCount unused
 
+Update 2026-11-21 (usability round 1, SEC-16/17/18 + ENG-67, uncommitted WT on top of 99d3817; verdict OK for staging, fix HM-49/HM-50 before production):
+- HM-49 NEW Medium, before production: household formation/withdraw not serialised per person (lib/household.ts acceptPlan, closeProposal) now that up to 3 proposals can be pending
+- HM-50 NEW Medium, before production: POST /funnel (unauthenticated) has no per-IP cap; client-chosen funnel id; site-wide cap only
+- HM-51 NEW Low: GET /households/[id] serves closed/declined/blocked households with live member data
+- HM-52 NEW Low (legal flag): funnel events are pseudonymous personal data (keyed hash of app id); not in privacy notice, not removed on delete
+- HM-53 NEW Low: switch-to-beta.sh ALLOW_TEST_APPROVALS check fails open if the vercel CLI errors (app gate still holds)
+- Info: approve_test allowed from submitted and doesn't revoke earlier unused invites; migration backfill assumes every acceptedValues is a JSON array
+- Reviewed clean: notification hrefs (server-built, SAFE_ID), POST notifications/[id]/read ownership, read state private (no API exposes another's lastReadAt), thread open re-checks block/status/world, proposal error codes, resend-activation (session or 256-bit token, 3/24h under lock, old code revoked, email to app address only, masked hint), test approvals gated (admin + flag + not VERCEL_ENV production), no identity row for test accounts, matchRules unanswered handling conservative, deferred edits limited to habits/stay
+- 11/21 checks: npm audit 0; next 16.4.6; effect 3.22.5 under prisma; tsc clean; unit tests pass; prisma validate ok
+
 Clean at re-review: npm audit 0; tsc clean; unit tests pass; no secrets/personal emails in commit candidates; docs/security/ ignored; Vercel overwrites x-forwarded-for (not spoofable on Vercel).
 
 Related: [[recurring-weak-spots]]

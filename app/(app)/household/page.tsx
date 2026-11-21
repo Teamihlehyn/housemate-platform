@@ -37,12 +37,23 @@ export default function HouseholdPage() {
   const [tab, setTab] = useState("overview");
   const [msg, setMsg] = useState<string | null>(null);
 
+  // ENG-52 (D-R2): you can have several pending proposals; one is shown in full at a time.
+  const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [selected, setSelected] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     const [me, cur] = await Promise.all([api<any>("/me"), api<any>("/households/current")]);
     setMeId(me.id);
-    setHh(cur.household);
+    const list: Proposal[] = cur.proposals ?? [];
+    setProposals(list);
+    let shown = cur.household;
+    // Show the chosen proposal if it's still open; a formed household always wins.
+    if (selected && (!shown || shown.state === "proposed") && list.some((x) => x.id === selected)) {
+      shown = (await api<any>(`/households/${selected}`).catch(() => ({ household: shown }))).household;
+    }
+    setHh(shown);
     setLoading(false);
-  }, []);
+  }, [selected]);
   useEffect(() => { load(); }, [load]);
 
   async function call(fn: () => Promise<any>, okMsg?: string): Promise<boolean> {
@@ -54,11 +65,14 @@ export default function HouseholdPage() {
   if (loading) return <div className="skeleton mx-auto h-64 max-w-3xl" />;
 
   if (!hh) return (
-    <div className="card mx-auto max-w-lg p-6 text-center sm:p-8">
+    <div className="mx-auto max-w-lg">
+    <ProposalList proposals={proposals} currentId={null} onOpen={setSelected} onAction={call} />
+    <div className="card p-6 text-center sm:p-8">
       <div className="flex justify-center gap-0.5" aria-hidden="true"><Pea size={56} mood="awake" blink /><Pea size={56} mood="sleep" tone="fresh" dim /></div>
       <h1 className="mt-3 text-h2 text-ink">No household yet</h1>
       <p className="mt-2 text-sm text-ink-600">Once someone accepts your introduction, use &quot;Form household&quot; in your chat with them. Then you&apos;ll agree rent split, bills and notice here.</p>
       <Link href="/messages" className="btn-primary mt-5">Go to messages</Link>
+    </div>
     </div>
   );
 
@@ -67,21 +81,42 @@ export default function HouseholdPage() {
   const iAcceptedPlan = plan?.acceptedBy?.includes(meId);
   const acceptPlan = () =>
     call(() => api(`/households/${hh.id}`, { body: { action: hh.state === "proposed" ? "accept" : "accept_plan", plan_version_id: plan.versionNo } }),
-      hh.state === "proposed" ? "Household formed!" : "Agreement accepted.");
+      hh.state === "proposed" ? "Household formed. You're now planning together: check the agreement, then the next step below." : "Agreement accepted.");
 
-  // ---------- Proposed state ----------
+  // ---------- Proposed state (DES-26): pending from both sides, never called a household ----------
   if (hh.state === "proposed") {
+    // The server says which side you're on (ENG-52); older responses fall back to who proposed.
+    const sentByMe = hh.proposal?.direction ? hh.proposal.direction === "sent" : hh.proposed_by ? hh.proposed_by === meId : !!iAcceptedPlan;
+    const canWithdraw = hh.proposal ? !!hh.proposal.can_withdraw : sentByMe;
+    const canDecline = hh.proposal ? !!hh.proposal.can_decline : !sentByMe;
     return (
       <div className="mx-auto max-w-2xl">
         <StatusMsg msg={msg} />
         <div className="mb-4">
-          <span className="chip bg-caution-50 text-caution-800">Proposal</span>
-          <h1 className="mt-2 font-display text-h1 text-ink">Household with {other?.name} <SampleChip member={other} /></h1>
+          <span className="chip bg-caution-50 text-caution-800">{sentByMe ? "Proposal sent · pending" : "Proposal received · your answer"}</span>
+          <h1 className="mt-2 font-display text-h1 text-ink">
+            {sentByMe ? <>You proposed a household to {other?.name}</> : <>{other?.name} proposed a household</>} <SampleChip member={other} />
+          </h1>
+          <p className="mt-2 text-sm text-ink-700">
+            {sentByMe
+              ? `It's pending until ${other?.name} accepts the agreement below. You can withdraw it any time before then.`
+              : `Read the agreement below. Accept to form the household together, or decline. If you decline, ${other?.name} just sees that the proposal is closed.`}
+          </p>
         </div>
+        <ol className="mb-4 grid grid-cols-3 gap-2 text-center text-xs font-semibold" aria-label="Proposal progress">
+          {["Proposed", "Both accept", "Household formed"].map((t, i) => (
+            <li key={t} className={`rounded-field px-2 py-2 ${i === 0 ? "bg-ink text-cream" : "bg-ink-50 text-ink-700"}`}>
+              {t}<span className="sr-only">{i === 0 ? " (done)" : " (to come)"}</span>
+            </li>
+          ))}
+        </ol>
         <AgreementCard hh={hh} meId={meId} onAction={call} onAccept={acceptPlan} />
-        {!iAcceptedPlan && (
-          <button className="btn-ghost mt-3 w-full text-danger-600 hover:bg-danger-50" onClick={() => confirm("Decline this household proposal? You can keep chatting.") && call(() => api(`/households/${hh.id}`, { body: { action: "leave" } }))}>Decline proposal</button>
-        )}
+        {(sentByMe ? canWithdraw : canDecline) && <ConfirmButton
+          label={sentByMe ? "Withdraw proposal" : "Decline proposal"}
+          question={sentByMe ? `Withdraw your proposal to ${other?.name}? You can keep chatting.` : `Decline ${other?.name}'s proposal? You can keep chatting.`}
+          onConfirm={() => call(() => api(`/households/${hh.id}`, { body: { action: sentByMe ? "withdraw" : "decline" } }), sentByMe ? "Proposal withdrawn." : "Proposal declined.")}
+        />}
+        <div className="mt-6"><ProposalList proposals={proposals} currentId={hh.id} onOpen={setSelected} onAction={call} /></div>
       </div>
     );
   }
@@ -103,8 +138,8 @@ export default function HouseholdPage() {
   if (hh.state === "closed") {
     return (
       <div className="card mx-auto max-w-lg p-8 text-center">
-        <h1 className="text-xl font-bold text-ink">This household is closed</h1>
-        <p className="mt-2 text-sm text-ink-600">You can return to searching from your profile.</p>
+        <h1 className="font-display text-h1 text-ink">This is closed</h1>
+        <p className="mt-2 text-sm text-ink-600">This proposal or household has ended. You can keep searching, and propose again from a chat.</p>
         <Link href="/profile" className="btn-secondary mt-4">Go to profile</Link>
       </div>
     );
@@ -623,5 +658,81 @@ function MoveInTab({ hh, meId, onAction }: { hh: any; meId: string; onAction: an
         </div>
       )}
     </div>
+  );
+}
+
+/** Destructive actions confirm inline with real text (no window.confirm). */
+function ConfirmButton({ label, question, onConfirm }: { label: string; question: string; onConfirm: () => Promise<boolean> | void }) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  if (!open)
+    return (
+      <button type="button" className="btn-ghost mt-3 w-full text-danger-600 hover:bg-danger-50" onClick={() => setOpen(true)}>{label}</button>
+    );
+  return (
+    <div className="mt-3 rounded-card bg-cream p-4" role="group" aria-label={label}>
+      <p className="font-medium text-ink" tabIndex={-1} ref={(el) => el?.focus()}>{question}</p>
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+        <button type="button" className="btn-danger" aria-busy={busy} onClick={async () => { setBusy(true); await onConfirm(); setBusy(false); setOpen(false); }}>
+          {busy ? "Working…" : `Yes, ${label.toLowerCase()}`}
+        </button>
+        <button type="button" className="btn-ghost" onClick={() => setOpen(false)}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+type Proposal = {
+  id: string; version: number; direction: "sent" | "received"; other_user_id: string; other_name: string;
+  created_at: string; can_withdraw: boolean; can_decline: boolean; can_accept: boolean;
+};
+
+/** All your own pending proposals (D-R2). Only your own: never anyone else's pairings. */
+function ProposalList({ proposals, currentId, onOpen, onAction }: {
+  proposals: Proposal[]; currentId: string | null; onOpen: (id: string) => void; onAction: (fn: () => Promise<any>, ok?: string) => Promise<boolean>;
+}) {
+  const others = proposals.filter((p) => p.id !== currentId);
+  if (!others.length) return null;
+  const sent = others.filter((p) => p.direction === "sent");
+  const received = others.filter((p) => p.direction === "received");
+  const Group = ({ title, items }: { title: string; items: Proposal[] }) =>
+    items.length ? (
+      <div className="mt-3">
+        <h3 className="text-caption font-semibold uppercase tracking-wide text-ink-600">{title}</h3>
+        <ul className="mt-2 divide-y divide-ink-100 rounded-card bg-white ring-1 ring-ink-100">
+          {items.map((p) => (
+            <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+              <div className="min-w-0">
+                <p className="font-semibold text-ink">{p.other_name}</p>
+                <p className="text-xs text-ink-600">
+                  {p.direction === "sent" ? "You proposed" : "Proposed to you"} · pending · {new Date(p.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button type="button" className="btn-secondary px-4" onClick={() => onOpen(p.id)}>
+                  {p.direction === "received" ? "Review" : "Open"}<span className="sr-only"> proposal with {p.other_name}</span>
+                </button>
+              </div>
+              {p.direction === "sent" && p.can_withdraw && (
+                <div className="w-full">
+                  <ConfirmButton
+                    label="Withdraw proposal"
+                    question={`Withdraw your proposal to ${p.other_name}? You can keep chatting.`}
+                    onConfirm={() => onAction(() => api(`/households/${p.id}`, { body: { action: "withdraw", expected_version: p.version } }), "Proposal withdrawn.")}
+                  />
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
+    ) : null;
+  return (
+    <section aria-labelledby="pp-title" className="mb-6">
+      <h2 id="pp-title" className="text-h3 text-ink">{currentId ? "Your other proposals" : "Your proposals"}</h2>
+      <p className="text-sm text-ink-600">Pending until both of you accept. When you form a household, your other proposals close.</p>
+      <Group title="Waiting for your answer" items={received} />
+      <Group title="Sent by you" items={sent} />
+    </section>
   );
 }

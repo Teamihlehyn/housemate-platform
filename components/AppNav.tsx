@@ -6,7 +6,8 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/client";
 import { FeedbackLink } from "@/components/ResearchTools";
 import { PodMark, Wordmark } from "@/components/brand/Logo";
-import { IconBell, IconChat, IconDiscover, IconFeedback, IconHome, IconUser } from "@/components/icons";
+import { IconBell, IconChat, IconDiscover, IconHome, IconUser } from "@/components/icons";
+import { newLabel, useInbox } from "@/components/inbox";
 
 const NAV = [
   { href: "/discover", label: "Discover", Icon: IconDiscover },
@@ -25,6 +26,8 @@ export default function AppNav({
   const pathname = usePathname();
   const router = useRouter();
   const [unread, setUnread] = useState(0);
+  // DES-25: one count for Messages (unread messages + introductions waiting for you).
+  const inbox = useInbox(pathname);
 
   useEffect(() => {
     let active = true;
@@ -77,16 +80,23 @@ export default function AppNav({
                 }`}
               >
                 {n.label}
+                {n.href === "/messages" && inbox.total > 0 && <CountBadge n={inbox.total} inline />}
               </Link>
             ))}
           </nav>
 
           <div className="flex items-center gap-1">
             <FeedbackLink className="hidden min-h-[44px] items-center rounded-full px-3 text-sm font-semibold text-ink-700 hover:bg-ink-50 sm:inline-flex">Feedback</FeedbackLink>
-            <FeedbackLink className="btn-icon sm:hidden">
-              <span className="sr-only">Give feedback</span>
-              <IconFeedback size={22} />
-            </FeedbackLink>
+            {/* Phones: the chat icon is Messages, never Feedback (round 1, F1). Feedback stays in
+                the floating pill and in Settings. */}
+            <Link
+              href="/messages"
+              className="btn-icon relative md:hidden"
+              aria-label={inbox.total > 0 ? `Messages, ${newLabel(inbox.total)}` : "Messages"}
+            >
+              <IconChat size={22} />
+              {inbox.total > 0 && <CountBadge n={inbox.total} />}
+            </Link>
             <Link href="/notifications" className="btn-icon relative" aria-label={unread > 0 ? `Notifications, ${unread} unread` : "Notifications"}>
               <IconBell size={22} />
               {unread > 0 && (
@@ -122,15 +132,34 @@ export default function AppNav({
                 aria-current={on ? "page" : undefined}
                 className={`flex min-h-[60px] flex-col items-center justify-center gap-0.5 text-xs font-semibold ${on ? "text-ink" : "text-ink-600"}`}
               >
-                <span className={`grid h-8 w-14 place-items-center rounded-full transition duration-quick ${on ? "bg-pea-100" : ""}`}>
+                <span className={`relative grid h-8 w-14 place-items-center rounded-full transition duration-quick ${on ? "bg-pea-100" : ""}`}>
                   <n.Icon size={22} strokeWidth={on ? 2.1 : 1.75} />
+                  {n.href === "/messages" && inbox.total > 0 && <CountBadge n={inbox.total} />}
                 </span>
                 {n.label}
+                {n.href === "/messages" && inbox.total > 0 && <span className="sr-only">, {newLabel(inbox.total)}</span>}
               </Link>
             );
           })}
         </nav>
       )}
     </>
+  );
+}
+
+/** A count with a text equivalent. Decorative dot colour never carries the meaning alone. */
+function CountBadge({ n, inline = false }: { n: number; inline?: boolean }) {
+  const text = n > 99 ? "99+" : String(n);
+  if (inline)
+    return (
+      <span className="ml-1.5 inline-grid h-5 min-w-[20px] place-items-center rounded-full bg-danger-600 px-1 text-[11px] font-bold text-white">
+        <span aria-hidden="true">{text}</span>
+        <span className="sr-only">{newLabel(n)}</span>
+      </span>
+    );
+  return (
+    <span aria-hidden="true" className="absolute -right-0.5 -top-0.5 grid h-5 min-w-[20px] place-items-center rounded-full bg-danger-600 px-1 text-[11px] font-bold text-white ring-2 ring-white">
+      {text}
+    </span>
   );
 }

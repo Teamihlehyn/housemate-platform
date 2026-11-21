@@ -3,7 +3,7 @@ import { handler, ok, fail, ApiError } from "@/lib/api";
 import { requireStaff } from "@/lib/guard";
 import { prisma } from "@/lib/db";
 import { writeAudit, writeOutbox, notify } from "@/lib/audit";
-import { isCityOpen } from "@/lib/env";
+import { isCityOpen, testApprovalsAllowed } from "@/lib/env";
 import { RUBRIC } from "@/lib/constants";
 import { createInvite, inviteUrl } from "@/lib/invites";
 import { lockKey } from "@/lib/rateLimit";
@@ -24,6 +24,7 @@ import {
 } from "@/lib/applications";
 import { EmailStatus, clearApprovalClaims, missingFor, sendApplicationEmail } from "@/lib/applicationService";
 import { applicationDetail, requireActingRole, staffApplication } from "@/lib/staffApplications";
+import { recordApplicationEvent } from "@/lib/funnelServer";
 
 // GET /api/v1/staff/applications/[id] — the review view (any staff role). Audited.
 export const GET = handler(async (_req: NextRequest, { rid, params }) => {
@@ -60,7 +61,16 @@ export const POST = handler(async (req: NextRequest, { rid, params }) => {
     return fail("VALIDATION", "Unknown action.", 422, rid, { field_errors: { action: "Unknown action." } });
   }
   // HM-36: approve and decline must name the version the reviewer looked at.
-  if ((action === "approve" || action === "decline") && !Number.isInteger(body.expected_version)) {
+  // ENG-67: approving without the video call exists only where test approvals are allowed
+  // (never production) and only for admins; everywhere else it's 404, as if it didn't exist.
+  const isTest = action === "approve_test";
+  if (isTest) {
+    if (!testApprovalsAllowed() || staff.role !== "admin") return fail("NOT_FOUND", "Not found.", 404, rid);
+    if (body.confirm_test !== true || body.reason !== "testing") {
+      return fail("VALIDATION", "Confirm this is a test approval (reason: testing).", 422, rid, { field_errors: { confirm_test: "Required." } });
+    }
+  }
+  if ((action === "approve" || action === "decline" || isTest) && !Number.isInteger(body.expected_version)) {
     return fail("VALIDATION", "Reload the application and try again.", 422, rid, { field_errors: { expected_version: "Required." } });
   }
   if (body.expected_version !== undefined && body.expected_version !== existing.version) {
@@ -103,7 +113,7 @@ export const POST = handler(async (req: NextRequest, { rid, params }) => {
   if (subject.accountStatus !== "applicant") {
     return fail("STATE_CONFLICT", "This person isn't an applicant any more.", 409, rid);
   }
-  if (action === "approve") {
+  if (action === "approve" || isTest) {
     const { missing, undecided } = await missingFor(prisma, existing.userId);
     if (missing.length) {
       return fail("INCOMPLETE", missingMessage(missing, "approve"), 422, rid, {
@@ -163,7 +173,12 @@ export const POST = handler(async (req: NextRequest, { rid, params }) => {
         ownAccount: body.own_account === true, relationshipNote: note || null,
       });
     }
-    if (action === "approve" || action === "resend_activation") {
+    if (isTest) {
+      // No identity check row, no adultEligible: nobody saw an ID. The account is a test account.
+      await tx.user.update({ where: { id: app.userId }, data: { isTestAccount: true } });
+      Object.assign(data, { reviewedBy: staff.id, reviewedAt: now, idCheckMethod: "skipped_test", idCheckAt: now, declineReason: null, reapplyAfter: null });
+    }
+    if (action === "approve" || action === "resend_activation" || isTest) {
       invite = await createInvite(tx, { email: subject.email, applicationId: app.id, createdBy: staff.id });
       data.activationInviteId = invite.id;
     }
@@ -172,6 +187,7 @@ export const POST = handler(async (req: NextRequest, { rid, params }) => {
     const eventType =
       action === "resend_activation" ? "application.activation_resent"
       : action === "start_review" ? "application.review_started"
+      : isTest ? "application.approved_test_skip_call"
       : `application.${next}`;
     await writeAudit(tx, {
       eventType,
@@ -181,7 +197,7 @@ export const POST = handler(async (req: NextRequest, { rid, params }) => {
       resourceType: "application",
       resourceId: app.id,
       action,
-      reasonCode: action === "decline" ? body.reason : action === "approve" ? (body.own_account === true ? "own_account_declared" : "id_check_video") : null,
+      reasonCode: isTest ? "testing" : action === "decline" ? body.reason : action === "approve" ? (body.own_account === true ? "own_account_declared" : "id_check_video") : null,
       safeBefore: { status: app.status },
       // Free text never goes in the audit log: a flag and the note's length only.
       safeAfter:
@@ -192,12 +208,20 @@ export const POST = handler(async (req: NextRequest, { rid, params }) => {
       versionAfter: app.version + 1,
     }, rid);
     await writeOutbox(tx, `application_${action}`, { applicationId: app.id, status: next });
-    if (action === "approve") {
-      await notify(tx, app.userId, "check_result", "Identity checked", "Your application is approved. Check your email to activate your account.");
+    if (action === "approve" || isTest) {
+      await notify(tx, app.userId, "check_result", isTest ? "Application approved" : "Identity checked", "Your application is approved. Check your email to activate your account.", { type: "application" });
     }
     return { invite };
   });
 
+  // Funnel (ENG-58): lifecycle steps, anonymous.
+  if (action === "call_booked" || action === "approve") {
+    const cityRow = await prisma.search.findUnique({ where: { userId: existing.userId }, select: { cityId: true } });
+    await recordApplicationEvent(existing.id, action === "approve" ? "application.approved" : "application.call_booked", {
+      city: cityRow?.cityId ?? null,
+      submittedAt: existing.submittedAt,
+    });
+  }
   // Emails go after the commit; staff see whether they were sent.
   let email_status: EmailStatus = "not_requested";
   const first = firstName(subject.displayName);

@@ -10,6 +10,7 @@ import { PRIVACY_VERSION } from "@/lib/constants";
 import { contactHint, isReconsent, needsConsent } from "@/lib/auth";
 import { claimCode, invalidCode } from "@/lib/codes";
 import { lockKey } from "@/lib/rateLimit";
+import { recordApplicationEvent } from "@/lib/funnelServer";
 import { countActivationCheck } from "@/lib/activationLimits";
 import { snapshotScore } from "@/lib/credibility";
 import { ensureSandboxWorld } from "@/lib/sandbox";
@@ -225,6 +226,8 @@ async function activate(activationCode: string, code: unknown, acceptPrivacy: bo
   if (acceptPrivacy && person.privacyConsentVersion !== PRIVACY_VERSION) await recordConsent(person.id, person.privacyConsentVersion, rid);
 
   await replaceSessions(person.id, "member");
+  const cityRow = await prisma.search.findUnique({ where: { userId: person.id }, select: { cityId: true } });
+  await recordApplicationEvent(app.id, "application.activated", { city: cityRow?.cityId ?? null, submittedAt: app.submittedAt });
   await prisma.$transaction((tx) =>
     writeAudit(tx, {
       eventType: "auth.session_created",

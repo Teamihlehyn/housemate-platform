@@ -13,7 +13,23 @@ import { formatMoney } from "@/lib/money";
 import { formatDateRange } from "@/lib/dates";
 import StepBody from "./StepBody";
 import { HabitPod, SaveStatus } from "./fields";
-import { Draft, HABIT_IDS, SCREENS, SECTIONS, ScreenId } from "./useProfileDraft";
+import { APPLICATION_SCREENS, Draft, HABIT_IDS, SCREENS, SECTIONS, ScreenId } from "./useProfileDraft";
+import { trackFunnel } from "@/lib/funnel";
+
+// DES-30: one plain line under each essential question.
+const WHY: Partial<Record<ScreenId, string>> = {
+  name: "So people know what to call you, and our team knows who to expect on your call.",
+  city: "We're open in Lagos first. Other cities are held until they open.",
+  areas: "You'll only see people who want at least one of the same areas.",
+  where: "We're open in Lagos first. You'll only see people who want at least one of the same areas.",
+  livingWith: "Private. Only used so nobody is shown to someone they wouldn't live with, both ways.",
+  budget: "We only match people whose ranges overlap. You can change it any time.",
+  dates: "Timing matters most: we only match people whose move-in dates overlap.",
+  stay: "We only match people whose stay lengths overlap.",
+  gender: "Private. Only used so nobody is shown to someone they wouldn't live with.",
+  genderPref: "Private, and it works both ways.",
+  bio: "Our team reads it during review, and people read it before saying hello.",
+};
 
 export type FinishResult = { ok: true } | { ok: false; screen?: ScreenId; message?: string };
 
@@ -30,6 +46,9 @@ export default function QuestionFlow({
   cityNote,
   minHeightClass = "min-h-[calc(100dvh-92px)]",
   editing = false,
+  screens,
+  flowLabel,
+  skipAll = false,
 }: {
   d: Draft;
   mode: "join" | "onboarding";
@@ -44,14 +63,29 @@ export default function QuestionFlow({
   minHeightClass?: string;
   /** Changing an application that's already sent (it stays in the queue). */
   editing?: boolean;
+  /** A custom run of screens (e.g. "Better first matches"). The last one finishes the flow. */
+  screens?: ScreenId[];
+  /** Label for a custom run, shown before "Step n of N". */
+  flowLabel?: string;
+  /** Every screen can be skipped (optional questions). */
+  skipAll?: boolean;
 }) {
-  const [idx, setIdx] = useState(() => Math.max(0, initialScreen ? SCREENS.indexOf(initialScreen) : 0));
+  // /join is the six-screen application (D-R5); demo onboarding keeps its own list.
+  const LIST = screens ?? (mode === "join" ? APPLICATION_SCREENS : SCREENS);
+  /** Old single-question ids map onto the combined screens when the list has them. */
+  const place = (s: ScreenId): ScreenId => {
+    if (LIST.includes(s)) return s;
+    const alias: Partial<Record<ScreenId, ScreenId>> = { city: "where", areas: "where", location: "where", gender: "livingWith", genderPref: "livingWith" };
+    return alias[s] && LIST.includes(alias[s]!) ? alias[s]! : s;
+  };
+  const custom = !!screens;
+  const [idx, setIdx] = useState(() => Math.max(0, initialScreen ? LIST.indexOf(place(initialScreen)) : 0));
   const [busy, setBusy] = useState(false);
   const [topError, setTopError] = useState<string | null>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const firstRender = useRef(true);
 
-  const screen = SCREENS[idx];
+  const screen = LIST[idx];
   const cityCfg = d.city ? CITIES[d.city] : null;
   const firstName = d.displayName.trim().split(/\s+/)[0] || "";
   const section = SECTIONS.findIndex((sec) => sec.screens.includes(screen));
@@ -60,7 +94,7 @@ export default function QuestionFlow({
 
   // A late resume (GET /me arrives after first paint) can move us to where they left off.
   useEffect(() => {
-    if (initialScreen) setIdx(Math.max(0, SCREENS.indexOf(initialScreen)));
+    if (initialScreen) setIdx(Math.max(0, LIST.indexOf(place(initialScreen))));
   }, [initialScreen]);
 
   // Move focus to the new question so screen readers announce it.
@@ -69,6 +103,11 @@ export default function QuestionFlow({
     headingRef.current?.focus();
     window.scrollTo({ top: 0 });
   }, [idx]);
+
+  // ENG-58: anonymous step funnel for the application (screen id and position only).
+  useEffect(() => {
+    if (mode === "join" && !custom && !editing) trackFunnel("join.step_viewed", { step: screen, index: idx });
+  }, [mode, custom, editing, screen, idx]);
 
   // Leaving the tab (phone locked, app switched): quietly save what's on screen if it's valid.
   const latest = useRef({ screen, d });
@@ -84,7 +123,8 @@ export default function QuestionFlow({
   }, []);
 
   function go(target: ScreenId | undefined) {
-    if (target && SCREENS.includes(target)) setIdx(SCREENS.indexOf(target));
+    const t = target && place(target);
+    if (t && LIST.includes(t)) setIdx(LIST.indexOf(t));
   }
 
   async function next(e?: FormEvent) {
@@ -102,7 +142,12 @@ export default function QuestionFlow({
         return;
       }
       const r = await d.save([screen]);
-      if (r.ok) setIdx((i) => Math.min(SCREENS.length - 1, i + 1));
+      if (r.ok && custom && idx === LIST.length - 1) {
+        const f = await onFinish();
+        if (!f.ok && f.message) setTopError(f.message);
+        return;
+      }
+      if (r.ok) setIdx((i) => Math.min(LIST.length - 1, i + 1));
       else {
         if (r.message) setTopError(r.message);
         if (r.screen && r.screen !== screen) go(r.screen);
@@ -120,7 +165,20 @@ export default function QuestionFlow({
     setIdx((i) => Math.max(0, i - 1));
   }
 
-  const canSkip =
+  async function skip() {
+    if (mode === "join") trackFunnel("join.step_skipped", { step: screen });
+    if (!skipAll) return next();
+    d.setErrors({});
+    setTopError(null);
+    if (idx === LIST.length - 1) {
+      setBusy(true);
+      try { const f = await onFinish(); if (!f.ok && f.message) setTopError(f.message); } finally { setBusy(false); }
+      return;
+    }
+    setIdx((i) => i + 1);
+  }
+
+  const canSkip = skipAll ||
     (screen === "location" && !d.locationDetail.trim()) ||
     (screen === "genderPref" && d.genderAccepts.length === GENDER_IDS.length);
 
@@ -130,10 +188,12 @@ export default function QuestionFlow({
     switch (screen) {
       case "name":
         return join
-          ? { line: `Hi, I'm Pea. Let's put your application together: ${SCREENS.length - 1} short questions, and every answer saves as you go.`, mood: "awake" }
+          ? { line: `Hi, I'm Pea. Let's put your application together: ${LIST.length - 1} short questions, and every answer saves as you go.`, mood: "awake" }
           : { line: "Hi, I'm Pea. I'll help you find someone whose plans fit yours.", mood: "awake" };
       case "journey": return { line: `Lovely to meet you${hi}. Let's start with the big picture.`, mood: "happy" };
       case "city": return { line: "Where are you planning to live?", mood: "awake" };
+      case "where": return { line: `Nice to meet you${hi}. Where are you planning to live?`, mood: "happy" };
+      case "livingWith": return { line: "Two private questions. Only the matching uses these, and it works both ways.", mood: "awake" };
       case "areas": return { line: `${cityCfg ? cityCfg.label.replace(/ pilot$/, "") : "Nice"}. Let's narrow it down.`, mood: "happy" };
       case "location": return { line: "Got a street or postcode in mind? Totally optional.", mood: "awake" };
       case "budget": return { line: "Now the money bit. No judgement, just numbers.", mood: "awake" };
@@ -158,7 +218,8 @@ export default function QuestionFlow({
     }
   }, [screen, firstName, cityCfg, habitIdx, d.answered.length, join, editing]);
 
-  const ctaLabel = screen === "review" ? (busy ? finishBusyLabel : finishLabel) : busy ? "Saving…" : "Continue";
+  const finishing = screen === "review" || (custom && idx === LIST.length - 1);
+  const ctaLabel = finishing ? (busy ? finishBusyLabel : finishLabel) : busy ? "Saving…" : "Continue";
 
   // Review rows: label, value, the screen that edits it.
   const money = (v: string) => (cityCfg && v ? formatMoney(Math.round(parseFloat(v) * 100), cityCfg.currency) : "");
@@ -166,14 +227,14 @@ export default function QuestionFlow({
   const rows: [string, string, ScreenId, boolean?][] = [
     ["Name", d.displayName, "name"],
     ["Looking to", JOURNEYS.find((j) => j.id === d.journey)?.label ?? "", "journey"],
-    ["Areas", d.city ? `${d.city === "london" ? "London" : "Lagos"} · ${d.areas.map((a) => cityCfg?.areas.find((x) => x.id === a)?.label).join(", ")}` : "", "areas"],
+    ["Areas", d.city ? `${d.city === "london" ? "London" : "Lagos"} · ${d.areas.map((a) => cityCfg?.areas.find((x) => x.id === a)?.label).join(", ")}` : "", place("areas")],
     ["Budget", d.rentMin && d.rentMax ? `${money(d.rentMin)}–${money(d.rentMax)} per ${d.period}` : "", "budget"],
     ["Move-in", d.earliest ? formatDateRange(d.earliest, d.moveMode === "range" && d.latest ? d.latest : d.earliest) : "", "dates"],
     ["Stay", d.stayMin && d.stayMax ? `${d.stayMin}–${d.stayMax} months` : "", "stay"],
     ["Living habits", d.answered.length === 6 ? habitsLine : `${d.answered.length} of 6 answered`, "h:cleaning"],
     ["About you", d.bio.trim() ? d.bio.trim() : "", "bio"],
-    ["Your gender (private)", OWN_GENDER_OPTIONS.find((o) => o.id === d.gender)?.label ?? "", "gender", true],
-    ["Open to living with (private)", d.genderAccepts.length === GENDER_IDS.length ? "Anyone" : GENDERS.filter((g) => d.genderAccepts.includes(g.id)).map((g) => g.plural).join(", "), "genderPref", true],
+    ["Your gender (private)", OWN_GENDER_OPTIONS.find((o) => o.id === d.gender)?.label ?? "", place("gender"), true],
+    ["Open to living with (private)", d.genderAccepts.length === GENDER_IDS.length ? "Anyone" : GENDERS.filter((g) => d.genderAccepts.includes(g.id)).map((g) => g.plural).join(", "), place("genderPref"), true],
   ];
 
   return (
@@ -184,17 +245,25 @@ export default function QuestionFlow({
           <IconBack size={20} /> Back
         </button>
         <p className="num text-center text-caption text-ink-600" aria-live="polite">
-          {SECTIONS[section]?.label} · {idx + 1} of {SCREENS.length}
+          {custom ? flowLabel : SECTIONS[section]?.label} · Step {idx + 1} of {LIST.length}
         </p>
-        <button type="button" onClick={() => next()} className={`btn-ghost -mr-2 px-3 ${canSkip ? "" : "invisible"}`} tabIndex={canSkip ? 0 : -1} aria-hidden={!canSkip}>
+        <button type="button" onClick={() => skip()} className={`btn-ghost -mr-2 px-3 ${canSkip ? "" : "invisible"}`} tabIndex={canSkip ? 0 : -1} aria-hidden={!canSkip}>
           Skip
         </button>
       </div>
-      <div className="mt-1 grid grid-cols-5 gap-1.5" aria-hidden="true">
-        {SECTIONS.map((sec, i) => (
-          <span key={sec.label} className={`h-1.5 rounded-full ${i < section ? "bg-ink" : i === section ? "bg-pea-500" : "bg-ink-100"}`} />
-        ))}
-      </div>
+      {custom ? (
+        <div className="mt-1 flex gap-1" aria-hidden="true">
+          {LIST.map((sc, i) => (
+            <span key={sc} className={`h-1.5 flex-1 rounded-full ${i < idx ? "bg-ink" : i === idx ? "bg-pea-500" : "bg-ink-100"}`} />
+          ))}
+        </div>
+      ) : (
+        <div className="mt-1 grid gap-1.5" style={{ gridTemplateColumns: `repeat(${SECTIONS.length}, minmax(0, 1fr))` }} aria-hidden="true">
+          {SECTIONS.map((sec, i) => (
+            <span key={sec.label} className={`h-1.5 rounded-full ${i < section ? "bg-ink" : i === section ? "bg-pea-500" : "bg-ink-100"}`} />
+          ))}
+        </div>
+      )}
       <div className="mt-1.5 flex justify-end">
         <SaveStatus state={d.saveState} />
       </div>
@@ -221,6 +290,11 @@ export default function QuestionFlow({
             <>
               <StepBody screen={screen} d={d} headingRef={headingRef} cityBadges={cityBadges} idCheck={join} />
               {screen === "city" && cityNote?.(d.city)}
+              {WHY[screen] && (
+                <p className="mt-4 border-l-2 border-pea-400 pl-3 text-sm text-ink-700">
+                  <span className="font-semibold text-ink">Why we ask: </span>{WHY[screen]}
+                </p>
+              )}
             </>
           ) : (
             <>
@@ -228,7 +302,8 @@ export default function QuestionFlow({
                 {editing ? "Your application" : join ? "Check your application" : "Ready to go live?"}
               </h1>
               <dl className="mt-4 divide-y divide-ink-100 rounded-card bg-white px-4 ring-1 ring-ink-100">
-                {rows.filter((r) => join || !r[3]).map(([k, val, target]) => (
+                {/* The application only asks the six essentials; habits, stay and journey come later. */}
+                {rows.filter((r) => (join || !r[3]) && (!join || custom || LIST.includes(r[2]))).map(([k, val, target]) => (
                   <div key={k} className="flex items-center justify-between gap-3 py-2.5">
                     <div className="min-w-0">
                       <dt className="text-caption text-ink-600">{k}</dt>

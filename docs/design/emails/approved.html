@@ -8,7 +8,7 @@
 <meta name="supported-color-schemes" content="light dark">
 <title>You’re approved: activate your Peabudy account</title>
 <!--
-  E2 (DES-22): sent on approve and on "Resend activation" (the old link stops working).
+  E2 (DES-22; stripped to one action for DES-28 / ENG-54, to stay out of Promotions): sent on approve and on "Resend activation" (the old link stops working).
   Placeholders: {{first_name}} {{activation_url}} {{code}} {{expires_on}}.
   Email-safe like invite.html: tables, inline CSS, 600 px max, web-safe fonts, no JS. The
   <style> block only adds dark-mode and small-screen tweaks. Footer keeps [POSTAL ADDRESS].
@@ -60,12 +60,7 @@
             <td class="pb-card" style="background-color:#ffffff;border:1px solid #e4e0d6;border-radius:24px;">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                 <tr>
-                  <td align="center" style="padding:32px 32px 0;" class="pb-pad">
-                    <img src="https://peabudy.com/email/pea-invite.png" width="200" height="100" alt="Pea, a Peabudy mascot, beside an envelope" style="display:block;border:0;width:200px;height:100px;">
-                  </td>
-                </tr>
-                <tr>
-                  <td class="pb-pad" style="padding:20px 40px 0;font-family:'Plus Jakarta Sans','Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+                  <td class="pb-pad" style="padding:32px 40px 0;font-family:'Plus Jakarta Sans','Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
                     <h1 class="pb-h1 pb-text" style="margin:0;font-size:30px;line-height:36px;font-weight:800;letter-spacing:-0.5px;color:#23221e;text-align:center;">
                       You&rsquo;re approved, {{first_name}}
                     </h1>
@@ -95,17 +90,6 @@
                 <tr>
                   <td align="center" class="pb-pad pb-muted" style="padding:6px 40px 0;font-family:Inter,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:20px;color:#5f5b52;">
                     Button not working? Open <a href="{{activation_url}}" class="pb-link" style="color:#28554a;word-break:break-all;">{{activation_url}}</a><br>Or go to peabudy.com/signin, choose &ldquo;Have an activation code?&rdquo; and type: <strong class="pb-text" style="font-family:'Courier New',Courier,monospace;font-size:15px;letter-spacing:1px;color:#23221e;">{{code}}</strong>
-                  </td>
-                </tr>
-                <tr>
-                  <td class="pb-pad" style="padding:28px 32px 0;">
-                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-                      <tr>
-                        <td class="pb-soft" style="background-color:#f0f7f4;border-radius:16px;padding:18px 20px;font-family:Inter,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:23px;color:#4a4740;">
-                          <p class="pb-text" style="margin:0 0 6px;font-weight:700;color:#23221e;">When you activate</p><p class="pb-text" style="margin:0 0 6px;color:#4a4740;">1. We email you a 6-digit code to confirm it&rsquo;s you.</p><p class="pb-text" style="margin:0 0 6px;color:#4a4740;">2. Your profile goes live, and you see who fits: shared dates, areas and habits.</p><p class="pb-text" style="margin:0 0 0px;color:#4a4740;">3. Your profile shows that our team checked your ID. Checks completed &mdash; not a guarantee of safety.</p>
-                        </td>
-                      </tr>
-                    </table>
                   </td>
                 </tr>
                 <tr>

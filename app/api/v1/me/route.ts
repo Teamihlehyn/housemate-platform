@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { credibilityDto } from "@/lib/credibility";
 import { IS_BETA } from "@/lib/env";
 import { parseGenderPreference } from "@/lib/constants";
+import { dealBreakersOf } from "@/lib/matchRules";
 import { applicationStatusFor, isNameLocked } from "@/lib/applicationService";
 
 // GET /api/v1/me — private own account, progress, credibility.
@@ -44,11 +45,17 @@ export const GET = handler(async (_req: NextRequest, { rid }) => {
             ...full!.search,
             areas: full!.search.areas.map((a) => a.areaId),
             genderPreference: parseGenderPreference(full!.search.genderPreference),
-            preferences: full!.search.preferences.map((p) => ({
-              dimension: p.dimension,
-              ownAnswer: p.ownAnswer,
-              acceptedValues: JSON.parse(p.acceptedValues),
-            })),
+            // D-R4: ownAnswer may be null (not answered yet); state none|some|unanswered.
+            preferences: full!.search.preferences.map((p) => {
+              const accepted: string[] = JSON.parse(p.acceptedValues);
+              return {
+                dimension: p.dimension,
+                ownAnswer: p.ownAnswer,
+                acceptedValues: accepted,
+                state: p.state,
+                dealBreakers: dealBreakersOf(p.dimension, accepted, p.state),
+              };
+            }),
           }
         : null,
       credibility,

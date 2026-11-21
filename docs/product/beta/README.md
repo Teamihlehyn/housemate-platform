@@ -20,6 +20,25 @@
 
 **This supersedes:** the Option A/B/C framing, the 11 Nov fast-track and its go/no-go, the Tally waitlist as the public entry point, the public announcement (DES-08), and anything that assumes a rollback to research mode.
 
+### Usability round 1 (21 Nov): fixes and decisions
+
+The findings, benchmarks and tickets from the first moderated test are in [`usability-round-1.md`](usability-round-1.md). It covers ENG-50–60, DES-25–33 and SEC-16–19, plus decisions D-R1…D-R5.
+
+**Recommended order of work.** These streams run in parallel; file ownership is in §7 of that doc.
+
+| Order | Engineer | Designer | Security |
+|---|---|---|---|
+| 0 (now, small) | ENG-67: staging-only "Approve without call (test only)" (for test runs and round 2 seeds) | DES-27 copy direction (founder, 21 Nov): the headline includes "find flatmates" | — |
+| 1 (now) | E1: ENG-50 notification links → ENG-51 read state and badges | D1: DES-27 hero layout + DES-33 Lagos example | SEC-16 |
+| 2 (now) | E2: ENG-55 date guard → ENG-54 resend invitation → ENG-58 funnel events (baseline before any flow change) | D2: DES-25 nav and indicators → DES-31 Discover chips | SEC-18 |
+| 3 (now) | E3: ENG-52 copy and privacy fix → ENG-59 Discover chips → ENG-60 booking (after F-26) | D3: DES-28 received/approved → DES-32 call explanation | SEC-17 |
+| 4 (D-R2/4/5 approved 21 Nov, so this starts once orders 1–3 land) | ENG-52 rule → ENG-56 deal-breakers → ENG-57 short application | DES-26 proposal states → DES-29 → DES-30 | SEC-19 not needed (D-R1 = A) |
+| 5 | Round 2 test (§6 of the doc) once orders 1–3 and the D-R4 work are on staging | Five-second test assets | — |
+| 6 (after the Fix-first items; D-G1…D-G4 approved 21 Nov) | **Peabudy guide v0** ([`ai-guided-chat.md`](ai-guided-chat.md)): ENG-61 → ENG-62 → ENG-63 (after ENG-52) → ENG-66 | DES-34 → DES-35 | — |
+| 7 (only if v0 shows pull, and after D-G2/D-G3) | Guide v1: ENG-64 → ENG-65 | DES-36 | SEC-20, 21, 22 (the gate) |
+
+**Engineer lands data and API changes first; the designer's visual pass follows on shared pages.**
+
 ### Approval-first sign-up (10 Nov, late): **approved, build started**
 
 Sign-up is now an **application** that staff approve before anyone can sign in. The spec is in [`approval-first-signup.md`](approval-first-signup.md).

@@ -85,6 +85,7 @@ The legal bases are those in the UK GDPR (Article 6) and the Nigeria Data Protec
 | Neon (Databricks, Inc.) [CONFIRM ENTITY] | Database | [NEON REGION] |
 | Resend (Plus Five Five, Inc.) [CONFIRM ENTITY] | Sending emails | United States (company); emails sent from [RESEND SENDING REGION, e.g. EU (Ireland) if chosen in F-02] |
 | Tally BV | Survey forms | Belgium (EU) |
+| Google (Google Calendar appointment booking and Google Meet) [CONFIRM ENTITY] | Booking and running your 10-minute ID video call: the name and email you give when booking, the time, and the call itself. **We don't record the call or keep a copy of your ID, unless we tell you beforehand and ask** | [GOOGLE REGION / United States, CONFIRM] |
 | [MAILBOX PROVIDER, e.g. Google or Zoho] | Our `hello@peabudy.com` mailbox: booking ID calls, replying to you, sending surveys to people who asked for them | [MAILBOX REGION] |
 | [FROM DIDIT GO-LIVE] Didit [CONFIRM ENTITY] | Automated ID document, liveness and face-match check. No national ID (NIN) or bank (BVN) database lookups | [DIDIT REGION, e.g. EU]; kept by Didit for [DIDIT RETENTION] |
 | Microsoft (Clarity) | Usage recordings, **only with your consent** [and currently switched off] | United States [CONFIRM] |

@@ -93,10 +93,11 @@ async function loadSearchShape(tx: Tx, userId: string): Promise<SearchShape | nu
   const s = await tx.search.findUnique({ where: { userId }, include: { areas: true, preferences: true } });
   if (
     !s || !s.cityId || !s.currency || s.rentMinMinor == null || s.rentMaxMinor == null || !s.rentPeriod ||
-    !s.earliestDate || !s.latestDate || s.stayMinMonths == null || s.stayMaxMonths == null
+    !s.earliestDate || !s.latestDate
   ) return null;
   const prefs: SearchShape["prefs"] = {};
-  for (const p of s.preferences) prefs[p.dimension] = { own: p.ownAnswer, accepted: JSON.parse(p.acceptedValues) };
+  // Unanswered own answers (ENG-56/57) give the generator nothing to copy: skip them.
+  for (const p of s.preferences) if (p.ownAnswer) prefs[p.dimension] = { own: p.ownAnswer, accepted: JSON.parse(p.acceptedValues) };
   return {
     cityId: s.cityId as CityId,
     currency: s.currency,
@@ -105,8 +106,8 @@ async function loadSearchShape(tx: Tx, userId: string): Promise<SearchShape | nu
     rentPeriod: s.rentPeriod,
     earliestDate: s.earliestDate,
     latestDate: s.latestDate,
-    stayMinMonths: s.stayMinMonths,
-    stayMaxMonths: s.stayMaxMonths,
+    stayMinMonths: s.stayMinMonths ?? 1,
+    stayMaxMonths: s.stayMaxMonths ?? 36,
     areas: s.areas.map((a) => a.areaId),
     prefs,
     genderAccepts: parseGenderPreference(s.genderPreference),

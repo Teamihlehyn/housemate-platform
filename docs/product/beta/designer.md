@@ -37,6 +37,16 @@
 | **DES-19** | Full responsive pass, with results in `docs/design/responsive-qa.md` | M | **Launch** (in progress) | — |
 | **DES-24** | Photo city cards on "Which city?" (`/join` and the onboarding/profile flow), part of DES-20 | S | **Launch** | Founder confirms photo rights (F-23) |
 
+## Usability round 1 and Peabudy guide (21 Nov): pointer
+
+- **Approved tickets:** DES-25–33 in [`usability-round-1.md`](usability-round-1.md) §3; DES-34–36 in [`ai-guided-chat.md`](ai-guided-chat.md) §7 (v0 first).
+- **DES-27 landing copy direction (founder, 21 Nov):**
+  - the **headline includes "find flatmates"**;
+  - **much less text**; visuals and animation carry the story;
+  - **CTA above the fold** at every listed width;
+  - reduced motion respected.
+- **ENG-67 test approvals:** design the "Test account — ID not checked" label (staging only). It must never look like the identity-checked badge.
+
 ## DES-24: Photo city cards (founder request, 10 Nov)
 
 - **What:** replace the £/₦ symbol cards with photo cards using the founder's own photos: London (Big Ben and Westminster), Lagos (Civic Centre and the lagoon skyline). Static assets in `public/cities/`, a card component, and a handoff at `docs/design/city-cards.md`.

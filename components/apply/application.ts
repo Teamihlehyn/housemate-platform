@@ -13,6 +13,10 @@ export interface Application {
   can_edit: boolean;
   can_withdraw: boolean;
   read_only: boolean;
+  /** Masked address the invitation went to, e.g. "t•••@gmail.com" (ENG-54; absent until it ships). */
+  email_hint?: string | null;
+  /** ENG-54: invitations left today (0–3; approved, session only). */
+  resends_left?: number;
 }
 
 export const CITY_NAME: Record<string, string> = { lagos: "Lagos", london: "London" };

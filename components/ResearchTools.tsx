@@ -74,7 +74,10 @@ export default function ResearchTools() {
   // On chat threads and onboarding the pill would cover the composer / Continue button; the
   // top bar has a Feedback button there.
   // /join's questions have the same sticky Continue as onboarding.
-  const hidePill = /^\/messages\/.+/.test(pathname) || pathname.startsWith("/staff") || pathname.startsWith("/onboarding") || pathname === "/join";
+  // On the landing page it waits until the hero has scrolled away, so it never covers the hero's
+  // call line or CTA on a phone (DES-27b). The footer still has "Give feedback".
+  const pastHero = useScrolledPast(pathname === "/" ? 480 : 0);
+  const hidePill = /^\/messages\/.+/.test(pathname) || pathname.startsWith("/staff") || pathname.startsWith("/onboarding") || (pathname === "/join" || pathname === "/join/better") || (pathname === "/" && !pastHero);
   // Public pages have no bottom nav, so the pill sits lower there. Both positions clear the
   // home bar (safe-area inset); signed-in pages clear the 60 px bottom nav on phones.
   const PUBLIC = ["/", "/signin", "/privacy", "/terms", "/safety"];
@@ -174,4 +177,17 @@ export function FeedbackLink({ className = "", children }: { className?: string;
       {children}
     </button>
   );
+}
+
+/** True once the page has scrolled past `y` px (always true when y is 0). */
+function useScrolledPast(y: number) {
+  const [past, setPast] = useState(y === 0);
+  useEffect(() => {
+    if (y === 0) { setPast(true); return; }
+    const on = () => setPast(window.scrollY > y);
+    on();
+    window.addEventListener("scroll", on, { passive: true });
+    return () => window.removeEventListener("scroll", on);
+  }, [y]);
+  return past;
 }

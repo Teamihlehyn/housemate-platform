@@ -67,6 +67,11 @@ where everyone is real); sample people are labelled.
 8. **Never fake verification outside demo modes.** In `beta`, identity is only ever granted by
    staff approval of the application (`POST /staff/applications/[id] {action:"approve"}`), after a
    video ID call; it grants identity only (never phone), and no ID documents are stored, ever.
+   The one exception is **test approvals** (ENG-67): with `ALLOW_TEST_APPROVALS=true`, honoured
+   only outside production (`VERCEL_ENV !== "production"`), an admin can "Approve without call
+   (test only)". That never creates an identity check: the account is `User.isTestAccount` and
+   is labelled "Test account — ID not checked" everywhere. `switch-to-beta.sh` refuses to run if
+   the flag is set for production.
 9. **Staff come only from the allowlist, sign in only at `/staff/signin`, and are back-office
    only.** `ADMIN_EMAILS` / `STAFF_EMAILS` decide staff roles; a stored role alone counts for
    nothing (`lib/staff.ts`, HM-10). The back office needs a **staff session** (cookie
@@ -158,6 +163,7 @@ Connection strings: `neon connection-string <branch>` (direct, for migrations) a
 | `RESEND_API_KEY`, `EMAIL_FROM` | Real login email. `onboarding@resend.dev` only reaches the Resend account owner |
 | `ADMIN_EMAILS` | Comma-separated; these accounts are `admin` (and the only admins) and always get emailed codes |
 | `EMAIL_HASH_SECRET` | 32+ chars, **stable, never rotate**: keys the email hashes for per-address code limits and declined-application tombstones (HM-40). Unset in a deployment → email codes and tombstones refuse to run (503). `switch-to-beta.sh` creates it (and `IP_HASH_SALT`) only if missing |
+| `ALLOW_TEST_APPROVALS` | `"true"` on staging/previews only: admins may approve without the ID call; accounts become labelled test accounts (ENG-67). Ignored (with a startup warning) in production |
 | `STAFF_EMAILS` | `email:verifier,email:moderator` (comma list); the only verifiers/moderators. ADMIN_EMAILS wins on overlap |
 | `NEXT_PUBLIC_SITE_URL` | Absolute base for OG/link previews (falls back to `VERCEL_PROJECT_PRODUCTION_URL`) |
 | `NEXT_PUBLIC_CLARITY_ID` | Loads Microsoft Clarity (validated alphanumeric) |
@@ -320,6 +326,10 @@ Hard constraints (all two-way): same city · ≥1 common area · overlapping mon
 bands · overlapping stay ranges · each person's habit answer is in the other's accepted set ·
 gender compatibility (`gendersCompatible`) · overlapping move-in windows (`undecided` never
 matches) · not blocked · not in an active household · same sandbox world.
+**Unanswered (D-R4/D-R5, `lib/matchRules.ts`, `match-v2`):** stay length not given = open
+(1–36 months). An unanswered own habit answer can't satisfy someone with deal-breakers on that
+question; your own unanswered deal-breakers accept all. `PreferenceAnswer.state` =
+`none | some | unanswered`; `ownAnswer` may be null; nothing is ever pre-selected.
 Score 0–60 = 6 per identical habit (≤36) + 2 per common area (≤10) + 1 per overlapping day (≤14).
 Sort: score desc, then userId asc. Up to 3 reasons; differing-but-accepted habits become
 "Discuss" topics. **Credibility does not affect ranking.** Never show the score as a percentage.
@@ -344,7 +354,13 @@ Never displayed publicly; edited on Profile and in onboarding's Living habits st
   progress stage once every active housemate accepts the latest version.
 - Viewings and the application call `requirePlanAgreed()` → `409 NEEDS_REAGREEMENT`.
 - Notice options: 2/4/6/8/12 weeks. Bills: `equal` | `same_as_rent`. Notes ≤ 500 chars.
-- One active household per person; forming one pauses both searches and expires pending intros.
+- **Proposals (D-R2, ENG-52):** several pending at once (up to 3 outgoing per person, one per
+  pair); only a **formed** household is exclusive. Forming one pauses both searches, expires
+  pending intros and closes each person's other pending proposals with a neutral notice
+  ("This proposal is closed. {name} isn't available…", `reasonCode: "formed_elsewhere"`).
+  Withdraw (proposer) and decline (recipient) while pending. Errors only ever describe your own
+  state, or say "{name} isn't available for a household right now", never why. Pending
+  proposals don't hide anyone from Discover; a formed household does.
 - Viewing outcome: all `completed` → completed; all identical → that state; else `disputed`.
 - Handoff becomes `accepted` only when every housemate consents ("Demo application accepted; no
   home is reserved"). Move-in completes only when every housemate confirms `moved_in` — never by time.
@@ -391,6 +407,9 @@ notice is checked **before** the code is consumed (so a missing tick doesn't bur
 - `request-code` gives **every** address the identical 200 and timing (floor + send after the
   response); a code goes only to active users and allowlisted staff. Rate limits count the
   same for every address. Don't add a branch that answers differently (HM-28).
+- The application asks only name, city + areas, budget, dates, gender + preference and bio
+  (40+ characters) (D-R5). Journey, stay and the six habits are "better first matches", asked
+  after submitting and answerable while the review is under way (they don't move the version).
 - Applications: draft → submitted (or waitlisted outside `OPEN_CITIES`) → in_review →
   call_booked → approved → activated at `/invite/[code]` (14-day bound code); declined (reapply
   after 30 days) and withdrawn reopen as a draft. Verifiers/admins act, moderators view, nobody

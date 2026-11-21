@@ -981,6 +981,17 @@
   - Given 5 bad TOTPs, then a lock-out and an admin alert (ENG-48).
 - **Target:** within 2–3 weeks of launch (by about Tue 8 Dec). Passkeys (Option C) later.
 
+## Usability round 1 and Peabudy guide (21 Nov): pointer
+
+- **Approved tickets:**
+  - ENG-50–60 in [`usability-round-1.md`](usability-round-1.md) §3 (D-R1…D-R5 approved);
+  - ENG-61–66 in [`ai-guided-chat.md`](ai-guided-chat.md) §7 (D-G1…D-G4 approved; v0 first, v1 gated).
+- **ENG-67 (new, start now):** a staging-only "Approve without call (test only)" action.
+  - `ALLOW_TEST_APPROVALS=true` and not production; it's refused (404) in production.
+  - Accounts are labelled "Test account — ID not checked"; the identity check is never marked verified.
+  - Audited. The switch script refuses the variable in production.
+  - Full acceptance criteria: `usability-round-1.md` §3.9b.
+
 ## Note: DES-24 photo city cards: config impact
 
 *Fact:* `next.config.ts` has no `images` block today. Local images in `public/` work with `next/image` without config, and Vercel caches the optimised images. **No change is needed by default.**

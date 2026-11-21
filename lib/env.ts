@@ -109,3 +109,14 @@ export function siteUrl(env: Record<string, string | undefined> = process.env): 
     "http://localhost:3000";
   return raw.replace(/\/+$/, "");
 }
+
+// Test approvals (ENG-67): staff may approve an application without the video ID call, for
+// testing only. Honoured only outside production (VERCEL_ENV !== "production"): on staging,
+// previews and locally. Accounts approved this way are marked as test accounts, never get a
+// verified identity check, and are labelled "Test account — ID not checked" everywhere.
+export function testApprovalsAllowed(env: Record<string, string | undefined> = process.env): boolean {
+  return env.ALLOW_TEST_APPROVALS === "true" && env.VERCEL_ENV !== "production";
+}
+if (process.env.ALLOW_TEST_APPROVALS === "true" && process.env.VERCEL_ENV === "production") {
+  console.warn("ALLOW_TEST_APPROVALS is set in production and is IGNORED. Remove it.");
+}

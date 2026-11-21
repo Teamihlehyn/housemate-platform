@@ -4,14 +4,15 @@ opt-in/send/unsubscribe, export and deletion.
 
 Usage:
   python3 tests/e2e_beta.py http://localhost:3100 "postgresql://<you>@localhost:5432/<beta_test_db>"
-  E2E_PAUSED=1 python3 tests/e2e_beta.py …   # case 16 only, against a server with SIGNUPS_PAUSED=true
+  E2E_PAUSED=1 python3 tests/e2e_beta.py …   # case 16 (+ ENG-67 flag off), against a server with
+                                             # SIGNUPS_PAUSED=true and ALLOW_TEST_APPROVALS unset
 
 Needs a LOCAL beta-mode server and a psql connection string for the same database. The
 script runs a fake Resend on 127.0.0.1:$MAIL_PORT (default 8025) and reads the emails the
 app sends, so start the server with:
   APP_ENV=beta NEXT_PUBLIC_APP_ENV=beta OPEN_CITIES=lagos \
   RESEND_API_KEY=test-key EMAIL_FROM="Peabudy <test@example.com>" EMAIL_API_URL=http://127.0.0.1:8025 \
-  ADMIN_EMAILS=e2e-admin@example.com,e2e-bounce@example.com \
+  ADMIN_EMAILS=e2e-admin@example.com,e2e-bounce@example.com ALLOW_TEST_APPROVALS=true \
   STAFF_EMAILS=e2e-verifier@example.com:verifier,e2e-moderator@example.com:moderator,e2e-lock@example.com:moderator \
   DATABASE_URL=… DIRECT_URL=… next dev -p 3100
 (EMAIL_API_URL is honoured only outside Vercel.) Some setup goes straight to the database:
@@ -333,6 +334,15 @@ if os.environ.get("E2E_PAUSED"):
     check("existing members still get a sign-in code", r[0] == 200 and bool(code), r)
     r = C().call("/auth/verify-code", {"email": pm, "code": code, "accept_privacy": True})
     check("…and sign in normally", r[0] == 200, r)
+    print("== ENG-67 with ALLOW_TEST_APPROVALS off (this server) ==")
+    ap_email = f"beta-pausedapp-{RUN}@example.com"
+    ap_uid = sql_account(ap_email, status="applicant", name="Pat")
+    ap_id = "e2eapp" + RUN
+    sql(f'''insert into "Application"(id, "userId", status, "submittedAt", "updatedAt") values ({lit(ap_id)}, {lit(ap_uid)}, 'submitted', now(), now())''')
+    adm = staff_client(ADMIN_EMAIL)
+    check("the admin isn't offered the test-only action", d(adm.call(f"/staff/applications/{ap_id}"))["application"].get("test_approval_available") is False)
+    r = adm.call(f"/staff/applications/{ap_id}", {"action": "approve_test", "expected_version": 1, "confirm_test": True, "reason": "testing"})
+    check("flag off → approve without call is 404", r[0] == 404 and err(r) == "NOT_FOUND", r)
     print()
     print(f"{fails} FAILED" if fails else "ALL PASSED")
     sys.exit(1 if fails else 0)
@@ -673,7 +683,7 @@ check("the member pages send an applicant back to /join", st in (303, 307, 308) 
 print("== Case 15: incomplete application ==")
 r = ada_c.call("/applications/submit", {})
 check("submit an empty draft: 422 INCOMPLETE listing the missing fields",
-      r[0] == 422 and err(r) == "INCOMPLETE" and {"journey", "displayName", "bio", "cityId", "areaIds", "preferences"} <= set(r[1]["error"]["field_errors"] or {}), r)
+      r[0] == 422 and err(r) == "INCOMPLETE" and {"displayName", "bio", "cityId", "areaIds"} <= set(r[1]["error"]["field_errors"] or {}), r)
 check("…and the draft is kept", sql(f'select status from "Application" where "userId" = {lit(ada_id)}') == "draft")
 ada_c.call("/me/profile", {"journey": "find_together", "displayName": "Ada", "bio": BIO}, method="PATCH")
 ada_c.call("/me/search", {"cityId": "lagos", "areaIds": ["yaba"], **LAGOS_MONEY, "moveMode": "undecided", "stayMinMonths": 6, "stayMaxMonths": 12}, method="PATCH")
@@ -1298,6 +1308,255 @@ check("…with a coarse device hint, no code and no IP",
 check("the admin Audit tab lists recent back-office sign-ins",
       any(x["email"] == LOCK_EMAIL and x.get("device") for x in d(admin_c.call("/staff/audit")).get("recent_staff_signins", [])))
 check("…and only admins see it", staff_c.call("/staff/audit")[0] == 404)
+
+print("== ENG-50/51: notifications open the thing; one private read state ==")
+
+
+def intro_accept(sender_c, target_c, target_id):
+    r = sender_c.call("/introductions", {"target_user_id": target_id, "text": INTRO})
+    assert r[0] == 200, r
+    i = [x for x in d(target_c.call("/introductions?direction=incoming"))["introductions"] if x["state"] == "pending"][0]
+    r = target_c.call(f"/introductions/{i['id']}", {"action": "accept"})
+    assert r[0] == 200, r
+    return i["id"], d(r)["conversationId"]
+
+
+pp_c, _, pp_id = verified_member("pip")
+qq_c, _, qq_id = verified_member("quinn")
+r = pp_c.call("/introductions", {"target_user_id": qq_id, "text": INTRO})
+intro_pq = d(r).get("id")
+n = d(qq_c.call("/notifications"))["notifications"]
+ni = next((x for x in n if x["eventName"] == "introduction_received"), {})
+check("an introduction notification opens that introduction in the inbox", ni.get("href") == f"/messages?intro={intro_pq}" and ni.get("target_type") == "introduction", ni)
+cands = {c["userId"]: c for c in d(qq_c.call("/recommendations")).get("candidates", [])}
+check("Discover shows 'introduced themselves' on their card, opening the introduction",
+      (cands.get(pp_id, {}).get("activity") or {}).get("kind") == "introduced" and cands[pp_id]["activity"]["href"] == f"/messages?intro={intro_pq}", cands.get(pp_id, {}).get("activity"))
+st, _ = first_hop(qq_c, f"/messages?intro={intro_pq}")
+check("…and that link opens", st == 200, st)
+r = qq_c.call(f"/introductions/{intro_pq}", {"action": "accept"})
+conv_pq = d(r).get("conversationId")
+na = next((x for x in d(pp_c.call("/notifications"))["notifications"] if x["eventName"] == "introduction_accepted"), {})
+check("an accepted introduction opens the new thread", na.get("href") == f"/messages/{conv_pq}", na)
+pp_c.call(f"/conversations/{conv_pq}/messages", {"client_message_id": "r1-1", "body": "Hi Quinn, are you still looking for Hackney?"})
+pp_c.call(f"/conversations/{conv_pq}/messages", {"client_message_id": "r1-2", "body": "My dates are flexible."})
+nm = next((x for x in d(qq_c.call("/notifications"))["notifications"] if x["eventName"] == "message_received"), {})
+check("A messages B → B's notification opens A's thread in one tap", nm.get("href") == f"/messages/{conv_pq}" and nm.get("readAt") is None, nm)
+u = d(qq_c.call("/conversations/unread"))
+check("the nav badge counts it", u.get("unread_messages") == 2 and u.get("unread_threads") == 1, u)
+cv = d(qq_c.call("/conversations"))
+first = (cv.get("conversations") or [{}])[0]
+check("the inbox shows it first, waiting for a reply, with an unread count", first.get("id") == conv_pq and first.get("waiting_for_you") is True and first.get("unread") == 2 and cv.get("unread_total") == 2, first)
+act = {c["userId"]: c for c in d(qq_c.call("/recommendations"))["candidates"]}.get(pp_id, {}).get("activity") or {}
+check("the Discover card says 'new message' and opens the thread", act.get("kind") == "new_message" and act.get("href") == f"/messages/{conv_pq}" and act.get("count") == 2, act)
+r = qq_c.call(f"/conversations/{conv_pq}/messages")
+check("opening the thread works", r[0] == 200 and len(d(r)["messages"]) == 2)
+u = d(qq_c.call("/conversations/unread"))
+nm2 = next((x for x in d(qq_c.call("/notifications"))["notifications"] if x["id"] == nm.get("id")), {})
+act2 = {c["userId"]: c for c in d(qq_c.call("/recommendations"))["candidates"]}.get(pp_id, {}).get("activity")
+check("after reading: the notification, the badge, the inbox and the Discover card all show read",
+      u.get("unread_messages") == 0 and nm2.get("readAt") and d(qq_c.call("/conversations"))["conversations"][0]["unread"] == 0 and act2 is None, (u, nm2.get("readAt"), act2))
+pv = json.dumps(d(pp_c.call("/conversations"))) + json.dumps(d(pp_c.call(f"/conversations/{conv_pq}/messages")))
+check("no read receipts: nothing tells the sender whether it was read", not re.search(r"read_?at|lastRead|seen|read_by", pv, re.I))
+other_note = d(pp_c.call("/notifications"))["notifications"][0]["id"]
+check("marking someone else's notification read: 404", qq_c.call(f"/notifications/{other_note}/read", {})[0] == 404)
+check("marking your own: 200", pp_c.call(f"/notifications/{other_note}/read", {})[0] == 200)
+qq_c.call("/blocks", {"target_user_id": pp_id})
+r1, r2 = qq_c.call(f"/conversations/{conv_pq}/messages"), pp_c.call(f"/conversations/{conv_pq}/messages")
+check("after a block, the thread link is the normal 404 for both", r1[0] == r2[0] == 404 and err(r1) == "NOT_FOUND" and r1[1]["error"]["message"] == "This user is not available.", (r1[0], r2[0]))
+
+print("== ENG-52 (D-R2): several pending proposals; exclusive only when both accept ==")
+hx_c, _, hx_id = verified_member("hex")
+peers = {}
+for nm_ in ("hy", "hz", "hw", "hv"):
+    c_, _, id_ = verified_member(nm_)
+    peers[nm_] = (c_, id_)
+intro_of = {}
+for nm_, (c_, id_) in peers.items():
+    intro_of[nm_] = intro_accept(hx_c, c_, id_)[0]
+r_y = hx_c.call("/households", {"introduction_id": intro_of["hy"], "plan": {}})
+r_z = hx_c.call("/households", {"introduction_id": intro_of["hz"], "plan": {}})
+r_w = hx_c.call("/households", {"introduction_id": intro_of["hw"], "plan": {}})
+check("one person can have several pending proposals (3)", r_y[0] == r_z[0] == r_w[0] == 200, (r_y[0], r_z[0], r_w[0]))
+r = hx_c.call("/households", {"introduction_id": intro_of["hv"], "plan": {}})
+check("a 4th outgoing proposal: 409, about your own state only",
+      r[0] == 409 and (r[1]["error"]["field_errors"] or {}).get("blocker") == "own_pending_limit" and "Withdraw one" in r[1]["error"]["message"], r)
+r = hx_c.call("/households", {"introduction_id": intro_of["hy"], "plan": {}})
+check("proposing again to the same person: 409 'already proposed', naming them", r[0] == 409 and "Hy" in r[1]["error"]["message"] and (r[1]["error"]["field_errors"] or {}).get("blocker") == "own_pending_same", r)
+r = peers["hy"][0].call("/households", {"introduction_id": intro_of["hy"], "plan": {}})
+check("they can't counter-propose: 409 'has already proposed to you'", r[0] == 409 and (r[1]["error"]["field_errors"] or {}).get("blocker") == "incoming_pending", r)
+cur_x = d(hx_c.call("/households/current"))
+cur_y = d(peers["hy"][0].call("/households/current"))
+check("the proposer sees 3 sent proposals; each recipient sees exactly one received, with decline",
+      len(cur_x["proposals"]) == 3 and all(p["direction"] == "sent" and p["can_withdraw"] for p in cur_x["proposals"])
+      and len(cur_y["proposals"]) == 1 and cur_y["proposals"][0]["direction"] == "received" and cur_y["proposals"][0]["can_decline"], cur_y.get("proposals"))
+check("proposed_by is in the household view", cur_y["household"]["proposed_by"] == hx_id and cur_y["household"]["proposal"]["direction"] == "received")
+check("a recipient never learns about the proposer's other proposals",
+      "Hz" not in json.dumps(cur_y) and "Hw" not in json.dumps(cur_y) and peers["hy"][0].call(f"/households/{d(r_z)['id']}")[0] == 404)
+r = peers["hz"][0].call(f"/households/{d(r_w)['id']}", {"action": "withdraw"})
+check("someone outside a proposal can't touch it (404)", r[0] == 404)
+r = peers["hw"][0].call(f"/households/{d(r_w)['id']}", {"action": "withdraw"})
+check("only the proposer can withdraw (the recipient gets 409 and the decline hint)", r[0] == 409, r)
+r = hx_c.call(f"/households/{d(r_w)['id']}", {"action": "withdraw"})
+nw = d(peers["hw"][0].call("/notifications"))["notifications"][0]
+check("the proposer withdraws; the other person gets a neutral notice", r[0] == 200 and d(r)["state"] == "closed" and "withdrew" in nw["body"], (r, nw["body"]))
+r_v = peers["hv"][0].call("/households", {"introduction_id": intro_of["hv"], "plan": {}})
+check("someone else can propose to a person who has pending proposals of their own", r_v[0] == 200, r_v)
+r = hx_c.call(f"/households/{d(r_v)['id']}", {"action": "decline"})
+nv = d(peers["hv"][0].call("/notifications"))["notifications"][0]
+check("the recipient declines; the proposer is told it was declined, nothing more", r[0] == 200 and d(r)["state"] == "declined" and "declined" in nv["body"], (r, nv["body"]))
+hh_z = d(peers["hz"][0].call("/households/current"))["household"]
+r = peers["hz"][0].call(f"/households/{hh_z['id']}", {"action": "accept", "expected_version": hh_z["version"]})
+check("both confirm → the household forms", r[0] == 200 and d(r)["state"] == "active", r)
+check("…both accounts show the same outcome", d(hx_c.call("/households/current"))["household"]["state"] == d(peers["hz"][0].call("/households/current"))["household"]["state"] == "active")
+ny = d(peers["hy"][0].call("/notifications"))["notifications"][0]
+check("the other pending proposal closed with the neutral notice (no reason, no third party)",
+      sql(f'select state from "Household" where id = {lit(d(r_y)["id"])}') == "closed"
+      and ny["body"] == "This proposal is closed. Hex isn't available for a household right now." and "Hz" not in json.dumps(ny), ny)
+check("…and it's audited as closed because a household formed elsewhere",
+      audits("household.closed", f'''and "resourceId" = {lit(d(r_y)["id"])} and "reasonCode" = 'formed_elsewhere' ''') == 1)
+r = hx_c.call("/households", {"introduction_id": intro_of["hv"], "plan": {}})
+check("in a household: proposing again says so, about yourself", r[0] == 409 and (r[1]["error"]["field_errors"] or {}).get("blocker") == "own_active" and "Hz" in r[1]["error"]["message"], r)
+r = peers["hy"][0].call("/households", {"introduction_id": intro_of["hy"], "plan": {}})
+check("proposing to someone now in a household: '{name} isn't available', never why",
+      r[0] == 409 and r[1]["error"]["message"] == "Hex isn't available for a household right now." and "Hz" not in json.dumps(r[1]), r)
+check("withdraw and decline are audited", audits("household.withdrawn", f'and "resourceId" = {lit(d(r_w)["id"])}') == 1 and audits("household.declined", f'and "resourceId" = {lit(d(r_v)["id"])}') == 1)
+check("a pending proposal doesn't hide anyone from Discover; a formed household does",
+      peers["hy"][1] in [c["userId"] for c in d(peers["hw"][0].call("/recommendations"))["candidates"]]
+      and hx_id not in [c["userId"] for c in d(peers["hw"][0].call("/recommendations"))["candidates"]])
+
+print("== ENG-54: resend the invitation yourself ==")
+rs_email = f"beta-resend-{RUN}@example.com"
+rs_c, _ = start_application(rs_email)
+fill_application(rs_c, "Remi")
+rs_c.call("/applications/submit", {})
+rs_aid = application_id(rs_email)
+r = rs_c.call("/applications/resend-activation", {})
+check("not approved yet: 409", r[0] == 409, r)
+staff_act(admin_c, rs_aid, "start_review")
+r = staff_act(admin_c, rs_aid, "approve", id_check_confirmed=True, id_check_method="video")
+code1 = d(r).get("activation_code")
+st_ = d(rs_c.call("/applications/status"))["application"]
+check("the approved status shows the masked address and 3 resends", st_["email_hint"] == "be•••@example.com" and st_["resends_left"] == 3, st_)
+before = len(mails_to(rs_email))
+r = rs_c.call("/applications/resend-activation", {})
+code2 = re.search(r"type: ([A-Z0-9]{8})|code is ([A-Z0-9]{8})|\b([A-HJ-NP-TW-Z2-9]{8})\b", (wait_mail(rs_email, lambda m: "approved" in m.get("subject", "").lower(), after=before) or {}).get("text", ""))
+check("resend: 200, a new invitation emailed, the old code stops working",
+      r[0] == 200 and d(r)["email_status"] == "sent" and d(r)["application"]["resends_left"] == 2
+      and d(C().call(f"/invites/{code1}")) == {"valid": False} and code2 is not None, r)
+link = re.search(r"/join/status\?t=([A-Za-z0-9_-]+)", (wait_mail(rs_email, lambda m: "got your" in m.get("subject", "").lower()) or {}).get("text", ""))
+r = C().call("/applications/resend-activation", {"t": link.group(1) if link else "x"})
+check("…also from the confirmation email's link, signed out", r[0] == 200 and d(r)["application"]["read_only"] is True, r)
+r = rs_c.call("/applications/resend-activation", {})
+r4 = rs_c.call("/applications/resend-activation", {})
+check("a 4th in 24 hours is refused with a clear message", r[0] == 200 and r4[0] == 429 and "3 invitations today" in r4[1]["error"]["message"], (r[0], r4))
+check("resending never creates a second application", sql(f'select count(*) from "Application" where "userId" = {lit(user_id(rs_email))}') == "1")
+check("signed out without the link: 401; a bad link: 404", C().call("/applications/resend-activation", {})[0] == 401 and C().call("/applications/resend-activation", {"t": "x" * 43})[0] == 404)
+check("each resend is audited", audits("application.activation_resent_self", f'and "resourceId" = {lit(rs_aid)}') == 3)
+
+print("== ENG-55: the server refuses a backwards date range ==")
+r = pp_c.call("/me/search", {"moveMode": "range", "earliestDate": (today + datetime.timedelta(days=30)).isoformat(), "latestDate": (today + datetime.timedelta(days=29)).isoformat()}, method="PATCH")
+check("latest before earliest: 422 on latestDate", r[0] == 422 and "latestDate" in (r[1]["error"]["field_errors"] or {}), r)
+r = pp_c.call("/me/search", {"moveMode": "range", "earliestDate": (today + datetime.timedelta(days=30)).isoformat(), "latestDate": (today + datetime.timedelta(days=30)).isoformat()}, method="PATCH")
+check("the same day is fine", r[0] == 200, r)
+
+print("== ENG-56 (D-R4): explicit deal-breakers ==")
+db1_c, _, db1_id = verified_member("dbone")
+db2_c, _, db2_id = verified_member("dbtwo")
+r = db1_c.call("/me/search", {"preferences": [{"dimension": "smoking", "ownAnswer": "no", "noDealBreakers": True, "dealBreakers": ["yes"]}]}, method="PATCH")
+check("'no deal-breakers' with specific ones: 422", r[0] == 422, r)
+db1_c.call("/me/search", {"preferences": [{"dimension": "smoking", "ownAnswer": None, "dealBreakers": []}]}, method="PATCH")
+db2_c.call("/me/search", {"preferences": [{"dimension": "smoking", "ownAnswer": "no", "dealBreakers": ["yes"]}]}, method="PATCH")
+p1 = next(p for p in d(db1_c.call("/me"))["search"]["preferences"] if p["dimension"] == "smoking")
+p2 = next(p for p in d(db2_c.call("/me"))["search"]["preferences"] if p["dimension"] == "smoking")
+check("a skipped question stays distinguishable: own answer null, state unanswered", p1["ownAnswer"] is None and p1["state"] == "unanswered", p1)
+check("chosen deal-breakers come back as such", p2["state"] == "some" and p2["dealBreakers"] == ["yes"], p2)
+check("unanswered vs someone with a deal-breaker on it: not matched (both ways)",
+      db1_id not in [c["userId"] for c in d(db2_c.call("/recommendations"))["candidates"]] and db2_id not in [c["userId"] for c in d(db1_c.call("/recommendations"))["candidates"]])
+db1_c.call("/me/search", {"preferences": [{"dimension": "smoking", "ownAnswer": "no", "noDealBreakers": True}]}, method="PATCH")
+p1 = next(p for p in d(db1_c.call("/me"))["search"]["preferences"] if p["dimension"] == "smoking")
+check("answering 'no' with no deal-breakers: state none, and now they match", p1["state"] == "none" and db1_id in [c["userId"] for c in d(db2_c.call("/recommendations"))["candidates"]], p1)
+db1_c.call("/me/search", {"preferences": [{"dimension": "smoking", "ownAnswer": "no", "dealBreakers": ["yes"]}]}, method="PATCH")
+p1 = next(p for p in d(db1_c.call("/me"))["search"]["preferences"] if p["dimension"] == "smoking")
+check("choosing a deal-breaker clears 'none' (and vice versa)", p1["state"] == "some")
+
+print("== ENG-57 (D-R5): the short application, then better first matches ==")
+sh_email = f"beta-short-{RUN}@example.com"
+sh_c, _ = start_application(sh_email)
+sh_c.call("/me/profile", {"displayName": "Shade", "bio": "Quiet nurse, early riser, tidy and friendly."}, method="PATCH")
+sh_c.call("/me/search", {"cityId": "lagos", "areaIds": ["yaba"], **LAGOS_MONEY, "moveMode": "range", "earliestDate": DATES["earliestDate"], "latestDate": DATES["latestDate"]}, method="PATCH")
+sh_c.call("/me/search", {"gender": "woman", "genderPreference": ["woman"]}, method="PATCH")
+r = sh_c.call("/applications/submit", {})
+check("six essentials (no journey, stay or habits, a 40+ character bio) are enough to submit", r[0] == 200 and d(r)["application"]["status"] == "submitted", r)
+sh_aid = application_id(sh_email)
+check("no address field was collected", sql(f'select coalesce("locationDetail", \'\') from "Search" where "userId" = {lit(user_id(sh_email))}') == "")
+staff_act(admin_c, sh_aid, "start_review")
+v_before = app_version(sh_aid)
+r = sh_c.call("/me/search", {"preferences": [{"dimension": "quiet", "ownAnswer": "before_00", "noDealBreakers": True}], "stayMinMonths": 6, "stayMaxMonths": 12}, method="PATCH")
+check("better first matches can be answered while the review is under way", r[0] == 200, r)
+check("…without moving the application version (staff still approve what they reviewed)", app_version(sh_aid) == v_before)
+check("…and the status shows progress out of 7", d(sh_c.call("/applications/status"))["application"]["better_matches"] == {"answered": 2, "total": 7})
+check("other answers stay locked during review", sh_c.call("/me/profile", {"bio": "Changed while in review, which isn't allowed now."}, method="PATCH")[0] == 409)
+check("funnel: a deferred answer is recorded (step only)", int(sql(f'''select count(*) from "FunnelEvent" where event = 'prefs.deferred_answered' and step = 'h:quiet' ''')) >= 1)
+nostay_c, nostay_email, nostay_id = verified_member("nostay")
+sql(f'update "Search" set "stayMinMonths" = null, "stayMaxMonths" = null where "userId" = {lit(nostay_id)}')
+check("someone without a stay length is still matched (treated as open)", nostay_id in [c["userId"] for c in d(db2_c.call("/recommendations"))["candidates"]])
+
+print("== ENG-58: step funnel, no personal data ==")
+fid = str(uuid.uuid4())
+r = C().call("/funnel", {"event": "join.step_viewed", "step": "budget", "index": 3, "funnel_id": fid, "ms_on_step": 12000, "source": "WhatsApp"})
+check("a step event is recorded with buckets, not raw values", r[0] == 200 and sql(f'''select step || '/' || "msBucket" || '/' || source from "FunnelEvent" where "funnelId" = {lit("b-" + fid)}''') == "budget/5-15s/whatsapp")
+C().call("/funnel", {"event": "join.step_viewed", "step": "ada@example.com", "funnel_id": fid})
+C().call("/funnel", {"event": "user.email", "funnel_id": fid})
+check("unknown steps and events are dropped", sql(f'select count(*) from "FunnelEvent" where "funnelId" = {lit("b-" + fid)}') == "1")
+check("submitting records join.submitted under an anonymous id (not the user or application id)",
+      int(sql(f'''select count(*) from "FunnelEvent" where event = 'join.submitted' and "funnelId" not like '%{user_id(sh_email)}%' and "funnelId" not like '%{sh_aid}%' ''')) >= 1)
+check("nothing personal in the funnel table", sql(f'''select count(*) from "FunnelEvent" where "funnelId" like '%@%' or coalesce(source, '') like '%@%' or coalesce(step, '') like '%@%' ''') == "0")
+r = admin_c.call("/staff/funnel?days=30")
+check("admins see the funnel table; other staff don't", r[0] == 200 and any(x["event"] == "join.submitted" for x in d(r)["rows"]) and staff_c.call("/staff/funnel")[0] == 404)
+
+print("== ENG-59: area and budget from Discover ==")
+r = pp_c.call("/me/search")
+check("GET /me/search: chips, areas within the city, budget", r[0] == 200 and d(r)["chips"]["areas"] and d(r)["area_options"] and d(r)["budget"]["currency"] == "GBP", d(r).get("chips"))
+r = pp_c.call("/me/search", {"areaIds": ["hackney", "camden"], "rentMinMinor": 90000, "rentMaxMinor": 130000}, method="PATCH")
+r2 = pp_c.call("/me/search")
+check("saving area and budget updates the chips and writes a search version",
+      r[0] == 200 and d(r2)["chips"]["areas"] == "Hackney, Camden" and d(r2)["chips"]["budget"] == "£900–£1,300/mo", d(r2).get("chips"))
+check("Discover re-runs with the new values", pp_c.call("/recommendations")[0] == 200)
+
+print("== ENG-67: approve without the call, test environments only ==")
+tst_email = f"beta-testapprove-{RUN}@example.com"
+tst_c, _ = start_application(tst_email)
+fill_application(tst_c, "Tess")
+tst_c.call("/applications/submit", {})
+tst_aid = application_id(tst_email)
+check("a verifier can't (404)", staff_act(staff_c, tst_aid, "approve_test", confirm_test=True, reason="testing")[0] == 404)
+check("without the confirmation: 422", staff_act(admin_c, tst_aid, "approve_test")[0] == 422)
+d_ = d(admin_c.call(f"/staff/applications/{tst_aid}"))["application"]
+check("the admin sees the test-only action", d_.get("test_approval_available") is True)
+r = staff_act(admin_c, tst_aid, "approve_test", confirm_test=True, reason="testing")
+tst_id = user_id(tst_email)
+check("flag on (not production): approved, marked as a test account, method skipped_test",
+      r[0] == 200 and d(r)["application"]["status"] == "approved"
+      and sql(f'select "idCheckMethod" from "Application" where id = {lit(tst_aid)}') == "skipped_test"
+      and sql(f'select "isTestAccount" from "User" where id = {lit(tst_id)}') == "t", r)
+check("…with no verified identity check, ever", sql(f'''select count(*) from "VerificationCheck" where "userId" = {lit(tst_id)} and category = 'identity' and status = 'verified' ''') == "0")
+check("…audited", audits("application.approved_test_skip_call", f'and "resourceId" = {lit(tst_aid)}') == 1)
+code_t = d(r)["activation_code"]
+ct = C()
+b0 = len(mails_to(tst_email))
+ct.call(f"/invites/{code_t}", {})
+r = ct.call("/auth/verify-code", {"activation_code": code_t, "code": login_code(tst_email, after=b0)})
+check("the test account activates", r[0] == 200, r)
+mine = d(ct.call("/me"))["credibility"]["checks"]
+check("its own checks say 'test account', never an ID check", any(c["category"] == "test_account" for c in mine) and not any(c["category"] == "identity" and c["status"] == "verified" for c in mine), mine)
+cands_t = [c["userId"] for c in d(ct.call("/recommendations"))["candidates"]]
+check("it can match on staging (the test gate) and sees others", kemi_id in cands_t, cands_t)
+seen = {c["userId"]: c for c in d(kemi_c.call("/recommendations"))["candidates"]}.get(tst_id)
+check("other users on staging see it, labelled: testAccount true, idChecked false", seen is not None and seen.get("testAccount") is True and seen.get("idChecked") is False, seen)
+prof = kemi_c.call(f"/users/{tst_id}")
+check("its public profile shows 'test account' and no identity check",
+      prof[0] == 200 and any(c["category"] == "test_account" for c in d(prof)["credibility"]["checks"]) and not any(c["category"] == "identity" for c in d(prof)["credibility"]["checks"]), prof[0])
+
 
 print("== ENG-25: draft legal pages ==")
 for path, needle in (("/privacy", "privacy-v2"), ("/terms", "Terms of use")):

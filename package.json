@@ -7,7 +7,7 @@
     "build": "prisma migrate deploy && next build",
     "start": "next start -p 3000",
     "typecheck": "tsc --noEmit",
-    "test:unit": "APP_ENV=beta tsx tests/staff.unit.ts && tsx tests/gender.unit.ts && tsx tests/auth.unit.ts && tsx tests/checks.unit.ts && tsx tests/signup.unit.ts && tsx tests/applications.unit.ts && tsx tests/staffAuth.unit.ts && tsx tests/staffAlerts.unit.ts && APP_ENV=beta tsx tests/beta.unit.ts && APP_ENV=research tsx tests/beta.unit.ts",
+    "test:unit": "APP_ENV=beta tsx tests/staff.unit.ts && tsx tests/gender.unit.ts && tsx tests/auth.unit.ts && tsx tests/checks.unit.ts && tsx tests/signup.unit.ts && tsx tests/applications.unit.ts && tsx tests/staffAuth.unit.ts && tsx tests/staffAlerts.unit.ts && tsx tests/round1.unit.ts && APP_ENV=beta tsx tests/beta.unit.ts && APP_ENV=research tsx tests/beta.unit.ts",
     "postinstall": "prisma generate",
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
@@ -21,7 +21,7 @@
   },
   "dependencies": {
     "@prisma/client": "^6.2.1",
-    "next": "^16.4.3",
+    "next": "^16.4.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
@@ -37,6 +37,7 @@
     "typescript": "^5.7.3"
   },
   "overrides": {
-    "deepmerge-ts": "^8.0.2"
+    "deepmerge-ts": "^8.0.2",
+    "effect": "^3.22.5"
   }
 }

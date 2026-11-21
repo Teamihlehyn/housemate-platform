@@ -4,8 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import { api, ApiClientError } from "@/lib/client";
 import Applications from "./Applications";
 import SurveyPanel from "./SurveyPanel";
+import FunnelPanel from "./FunnelPanel";
 
-type Tab = "applications" | "verification" | "reports" | "feedback" | "survey" | "audit";
+type Tab = "applications" | "verification" | "reports" | "feedback" | "survey" | "funnel" | "audit";
 
 interface VCase { userId: string; displayName: string; email: string | null; phone: string | null; city: string | null; submittedAt: string; }
 
@@ -69,7 +70,7 @@ export default function Staff() {
     ["reports", `Reports${research?.reports?.length ? ` (${research.reports.length})` : ""}`],
     ["feedback", "Feedback"],
     ...(role === "admin" && research?.mode === "beta" ? ([["survey", "Survey"]] as [Tab, string][]) : []),
-    ...(role === "admin" ? ([["audit", "Audit"]] as [Tab, string][]) : []),
+    ...(role === "admin" ? ([["funnel", "Funnel"], ["audit", "Audit"]] as [Tab, string][]) : []),
   ];
 
   if (denied) return <div className="card p-8 text-center text-ink-600">Staff access required.</div>;
@@ -120,6 +121,7 @@ export default function Staff() {
 
       {tab === "applications" && <Applications isAdmin={role === "admin"} />}
       {tab === "survey" && role === "admin" && <SurveyPanel />}
+      {tab === "funnel" && role === "admin" && <FunnelPanel />}
 
       {/* Feedback and reports (beta) / user research */}
       {tab === "feedback" && research && (

@@ -2,20 +2,18 @@ import { NextRequest } from "next/server";
 import { handler, ok } from "@/lib/api";
 import { requireUser } from "@/lib/guard";
 import { prisma } from "@/lib/db";
-import { buildHouseholdView } from "@/lib/household";
+import { buildHouseholdView, myProposals } from "@/lib/household";
 
-// GET /api/v1/households/current — the user's active or proposed household, or null.
+// GET /api/v1/households/current — your household: the active (or completed) one if any, else
+// your newest pending proposal; plus `proposals`, all your own pending proposals, sent and
+// received (D-R2). Never anything about other people's proposals.
 export const GET = handler(async (_req: NextRequest, { rid }) => {
   const user = await requireUser();
-  const membership = await prisma.membership.findFirst({
-    where: {
-      userId: user.id,
-      state: "active",
-      household: { state: { in: ["proposed", "active", "completed"] } },
-    },
+  const formed = await prisma.membership.findFirst({
+    where: { userId: user.id, state: "active", household: { state: { in: ["active", "completed"] } } },
     orderBy: { joinedAt: "desc" },
   });
-  if (!membership) return ok({ household: null }, rid);
-  const view = await buildHouseholdView(membership.householdId, user.id);
-  return ok({ household: view }, rid);
+  const proposals = await myProposals(user.id);
+  const id = formed?.householdId ?? proposals[0]?.id ?? null;
+  return ok({ household: id ? await buildHouseholdView(id, user.id) : null, proposals }, rid);
 });

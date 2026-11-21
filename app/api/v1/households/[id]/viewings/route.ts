@@ -64,7 +64,7 @@ export const POST = handler(async (req: NextRequest, { rid, params }) => {
     await tx.household.update({ where: { id: hh.id }, data: { derivedStage: "viewing" } });
     await writeAudit(tx, { eventType: "viewing.requested", actorId: user.id, subjectId: otherId, resourceType: "viewing", resourceId: v.id, action: "propose" }, rid);
     await writeOutbox(tx, "viewing_requested", { viewingId: v.id });
-    await notify(tx, otherId, "viewing_change", "Viewing proposed", `${user.displayName} proposed a viewing time.`);
+    await notify(tx, otherId, "viewing_change", "Viewing proposed", `${user.displayName} proposed a viewing time.`, { type: "household", id: hh.id });
     return v;
   });
 

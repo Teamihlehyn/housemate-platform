@@ -73,7 +73,7 @@ export async function afterIntroduction(introId: string) {
       });
       await writeAudit(tx, { eventType: "introduction.accepted", actorType: "service", actorId: bot.id, subjectId: intro.senderId, resourceType: "introduction", resourceId: intro.id, action: "accept" });
       await writeOutbox(tx, "introduction_accepted", { id: intro.id, conversationId: convo.id });
-      await notify(tx, intro.senderId, "introduction_accepted", "Introduction accepted", `${bot.displayName} accepted your introduction.`);
+      await notify(tx, intro.senderId, "introduction_accepted", "Introduction accepted", `${bot.displayName} accepted your introduction.`, { type: "conversation", id: convo.id });
     });
   });
 }
@@ -103,7 +103,7 @@ export async function afterMessage(conversationId: string, senderId: string) {
           body: replies[Math.max(0, sent - 1) % replies.length],
         },
       });
-      await notify(tx, senderId, "message_received", "New message", `${bot.displayName} sent you a message.`);
+      await notify(tx, senderId, "message_received", "New message", `${bot.displayName} sent you a message.`, { type: "conversation", id: conversationId });
     });
   });
 }
@@ -132,7 +132,7 @@ export async function afterShortlistAdded(itemId: string) {
         update: { decision: "interested" },
       });
       await writeAudit(tx, { eventType: "shortlist.voted", actorType: "service", actorId: bot.id, resourceType: "shortlist_item", resourceId: itemId, action: "vote", safeAfter: { decision: "interested" } });
-      if (human) await notify(tx, human.id, "shortlist_added", "Your housemate likes it", `${bot.displayName} is interested in "${item.title}".`);
+      if (human) await notify(tx, human.id, "shortlist_added", "Your housemate likes it", `${bot.displayName} is interested in "${item.title}".`, { type: "household", id: item.householdId });
     });
   });
 }
@@ -147,7 +147,7 @@ export async function afterViewingProposed(viewingId: string) {
       await tx.viewing.update({ where: { id: v.id }, data: { state: "confirmed", version: v.version + 1 } });
       await writeAudit(tx, { eventType: "viewing.confirmed", actorType: "service", actorId: bot.id, resourceType: "viewing", resourceId: v.id, action: "confirm" });
       await writeOutbox(tx, "viewing_confirmed", { viewingId: v.id });
-      await notify(tx, v.proposedBy, "viewing_change", "Viewing confirmed", `${bot.displayName} confirmed the viewing time.`);
+      await notify(tx, v.proposedBy, "viewing_change", "Viewing confirmed", `${bot.displayName} confirmed the viewing time.`, { type: "household", id: v.householdId });
     });
   });
 }

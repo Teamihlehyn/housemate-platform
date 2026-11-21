@@ -3,10 +3,8 @@ import { BANNER, IS_BETA } from "@/lib/env";
 import { FeedbackLink } from "@/components/ResearchTools";
 import Logo from "@/components/brand/Logo";
 import Pea from "@/components/brand/Pea";
-import HeroScene from "@/components/landing/HeroScene";
-import HowItWorks from "@/components/landing/HowItWorks";
-import WakeThePod from "@/components/landing/WakeThePod";
-import CitySwitch from "@/components/landing/CitySwitch";
+import HeroCities from "@/components/landing/HeroCities";
+import { AgreementCard, MatchCard, StepCards } from "@/components/landing/StoryCards";
 import { IconArrowRight, IconCheck, IconLock, IconShield, IconWallet } from "@/components/icons";
 
 /* ---------------------------------- bits ---------------------------------- */
@@ -64,31 +62,12 @@ function ChecksMock({ isBeta }: { isBeta: boolean }) {
 /* ---------------------------------- page ---------------------------------- */
 
 export default function Landing() {
+  // Short on purpose: a title and one line each (founder, 21 Nov: let the visuals talk).
   const trust = [
-    {
-      Icon: IconShield,
-      t: "Evidence, never guarantees",
-      d: IS_BETA
-        ? "We show which checks someone has completed. It's never a promise that they're safe."
-        : "Profiles show which checks are complete. In this test every check is a demo, and it's never a promise that someone is safe.",
-    },
-    {
-      Icon: IconLock,
-      t: "Private by default",
-      d: "Your gender, email, phone and exact address never appear on your profile. People you match with see your areas and budget range.",
-    },
-    {
-      Icon: IconWallet,
-      t: "No money through Peabudy",
-      d: IS_BETA
-        ? "We never take payments or deposits, and your agreement isn't a tenancy. Never pay anyone before you've seen a home in person."
-        : "No payments, deposits or real bookings. Your agreement isn't a tenancy, and the rental step is a demo: no home is reserved.",
-    },
-    {
-      Icon: IconCheck,
-      t: "Report and block, one tap away",
-      d: "Blocking is instant and the other person isn't told. Reports never change anyone's checks.",
-    },
+    { Icon: IconShield, t: "Checked, never guaranteed", d: "We show what was checked. Never a promise of safety." },
+    { Icon: IconLock, t: "Private by default", d: "Gender, contact details and address stay hidden." },
+    { Icon: IconWallet, t: "No money through us", d: IS_BETA ? "Never pay before seeing a home." : "No payments or real bookings." },
+    { Icon: IconCheck, t: "Report and block", d: "One tap, and they aren't told." },
   ];
 
   return (
@@ -97,10 +76,9 @@ export default function Landing() {
       <header className="sticky top-[var(--banner-h,33px)] z-40 border-b border-ink-100/70 bg-paper">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-2">
           <Logo size="sm" />
-          <nav className="hidden items-center gap-1 text-sm font-semibold text-ink-700 md:flex" aria-label="Sections">
+          <nav className="hidden items-center gap-1 text-sm font-semibold text-ink-700 lg:flex" aria-label="Sections">
             <a href="#how" className="inline-flex min-h-[44px] items-center rounded-full px-3 hover:bg-ink-50">How it works</a>
             <a href="#habits" className="inline-flex min-h-[44px] items-center rounded-full px-3 hover:bg-ink-50">What we match on</a>
-            <a href="#cities" className="inline-flex min-h-[44px] items-center rounded-full px-3 hover:bg-ink-50">London &amp; Lagos</a>
             <Link href="/safety" className="inline-flex min-h-[44px] items-center rounded-full px-3 hover:bg-ink-50">Safety</Link>
           </nav>
           <div className="flex items-center gap-1">
@@ -114,124 +92,64 @@ export default function Landing() {
         </div>
       </header>
 
-      {/* Hero */}
-      <section className="bg-pastel">
-        <div className="mx-auto grid max-w-6xl items-center gap-8 px-4 pb-14 pt-6 md:grid-cols-[1.05fr_1fr] md:gap-12 md:pb-20 md:pt-16">
-          <div className="text-center md:text-left">
-            <span className="inline-flex items-center gap-2 rounded-full border border-ink-100 bg-white px-3.5 py-1.5 text-sm font-semibold text-ink">
-              <span className="h-2 w-2 rounded-full bg-pea-500" aria-hidden="true" />
-              {IS_BETA ? "Now opening in Lagos, by application" : "Testing now in London and Lagos"}
-            </span>
-            <h1 className="mt-5 font-display text-display-xl text-ink md:text-display-xl-md">
-              Two peas.
-              <br />
-              One home.
-            </h1>
-            <p className="mx-auto mt-4 max-w-xl text-body-lg text-ink-700 md:mx-0">
-              Peabudy finds people whose move-in dates, budget, areas and living habits fit yours. Then it helps
-              you both agree rent, bills and notice in writing, before anyone moves in.
-            </p>
-            <div className="mt-7 flex flex-col items-stretch gap-3 sm:flex-row sm:justify-center md:justify-start">
-              <Link href={IS_BETA ? "/join" : "/signin"} className="btn-primary btn-lg">
-                {IS_BETA ? "Apply to join" : "Get started"} <IconArrowRight size={18} />
-              </Link>
-              <a href="#how" className="btn-secondary btn-lg">See how it works</a>
-            </div>
-            {IS_BETA && (
-              <p className="mt-3 text-sm text-ink-700">
-                Every application is reviewed by a person, with a short video ID call. Already approved?{" "}
-                <Link href="/signin" className="inline-flex min-h-[44px] items-center font-semibold text-brand-700 underline underline-offset-4 hover:text-brand-800">
-                  sign in
-                </Link>
-              </p>
-            )}
-            <p className="mt-4 text-sm text-ink-600">No swiping. No compatibility scores. Just plans that fit.</p>
-          </div>
-          <div className="order-first md:order-last"><HeroScene /></div>
+      {/* Hero (DES-27b): "Find flatmates in [Lagos → London → every city]" with the photo in step. */}
+      <HeroCities isBeta={IS_BETA} />
+
+      {/* How it works: illustrated steps, no paragraphs */}
+      <section id="how" className="mx-auto max-w-6xl scroll-mt-28 px-4 py-12 md:py-16">
+        <SectionHead eyebrow="How it works" title="Four steps to a flatmate" />
+        <div className="mt-6">
+          <StepCards callStep={IS_BETA} />
         </div>
       </section>
 
-      {/* How it works */}
-      <section id="how" className="mx-auto max-w-6xl scroll-mt-28 px-4 py-14 md:py-20">
-        <SectionHead
-          eyebrow="How it works"
-          title={IS_BETA ? "From first hello to a written agreement" : "From first hello to moving day"}
-          body="One journey, and both of you agree at every step that matters."
-        />
-        <div className="mt-8">
-          <HowItWorks isBeta={IS_BETA} />
-        </div>
-      </section>
-
-      {/* What we match on */}
-      <section id="habits" className="scroll-mt-28 bg-pastel-soft py-14 md:py-20">
-        <div className="mx-auto max-w-6xl px-4">
-          <SectionHead
-            center
-            eyebrow="What we match on"
-            title="Matched on how you actually live"
-            body="Dates, budget, areas and stay length first. Then six living habits. Every rule works both ways, and every match tells you why."
-          />
-          <div className="mt-8">
-            <WakeThePod />
-          </div>
-        </div>
-      </section>
-
-      {/* Cities */}
-      <section id="cities" className="mx-auto max-w-6xl scroll-mt-28 px-4 py-14 md:py-20">
-        <SectionHead
-          eyebrow="London & Lagos"
-          title="Built for how each city rents"
-          body="Pounds and monthly rent in London. Naira and yearly rent in Lagos, with a fair monthly equivalent."
-        />
-        <div className="mt-8">
-          <CitySwitch />
-        </div>
-      </section>
-
-      {/* Trust */}
-      <section className="mx-auto max-w-6xl px-4 pb-14 md:pb-20">
-        <div className="grid items-start gap-8 rounded-sheet bg-white p-5 ring-1 ring-ink-100 sm:p-10 md:grid-cols-[1fr_1.1fr]">
+      {/* Matching and the money, shown not told */}
+      <section id="habits" className="scroll-mt-28 bg-pastel-soft py-12 md:py-16">
+        <div className="mx-auto grid max-w-6xl gap-8 px-4 md:grid-cols-2">
           <div>
-            <SectionHead eyebrow="Trust, shown honestly" title="See what's been checked. Decide for yourself." />
-            <div className="mt-6">
-              <ChecksMock isBeta={IS_BETA} />
-            </div>
+            <SectionHead eyebrow="What we match on" title="Every match says why" body="Dates, area, budget and six living habits." />
+            <div className="mt-5"><MatchCard /></div>
+          </div>
+          <div>
+            <SectionHead eyebrow="Before anyone moves in" title="Agree the rent split" body="In writing, in naira, both of you." />
+            <div className="mt-5"><AgreementCard /></div>
+          </div>
+        </div>
+      </section>
+
+      {/* Trust: one visual and four short tiles */}
+      <section className="mx-auto max-w-6xl px-4 pb-12 md:pb-16">
+        <div className="grid items-start gap-6 rounded-sheet bg-white p-5 ring-1 ring-ink-100 sm:p-8 md:grid-cols-[1fr_1.1fr] md:gap-8">
+          <div>
+            <SectionHead eyebrow="Trust" title="See what's been checked" />
+            <div className="mt-5"><ChecksMock isBeta={IS_BETA} /></div>
           </div>
           <ul className="grid gap-3 sm:grid-cols-2">
             {trust.map(({ Icon, t, d }) => (
-              <li key={t} className="rounded-card bg-cream p-5">
-                <span className="grid h-10 w-10 place-items-center rounded-full bg-pea-100 text-ink" aria-hidden="true">
-                  <Icon size={20} />
-                </span>
-                <h3 className="mt-3 text-h3 text-ink">{t}</h3>
-                <p className="mt-1.5 text-sm text-ink-700">{d}</p>
+              <li key={t} className="rounded-card bg-cream p-4">
+                <span className="grid h-10 w-10 place-items-center rounded-full bg-pea-100 text-ink" aria-hidden="true"><Icon size={20} /></span>
+                <h3 className="mt-2 text-h3 text-ink">{t}</h3>
+                <p className="mt-0.5 text-sm text-ink-700">{d}</p>
               </li>
             ))}
           </ul>
         </div>
-        <p className="mt-5 text-center">
+        <p className="mt-4 text-center">
           <Link href="/safety" className="inline-flex min-h-[44px] items-center gap-1.5 text-sm font-semibold text-brand-700 underline underline-offset-4 hover:text-brand-800">
-            Read how we approach safety <IconArrowRight size={16} />
+            How we approach safety <IconArrowRight size={16} />
           </Link>
         </p>
       </section>
 
       {/* Final CTA */}
       <section className="mx-auto max-w-6xl px-4 pb-16 md:pb-20">
-        <div className="relative overflow-hidden rounded-sheet bg-ink px-6 pb-12 pt-10 text-center text-cream sm:py-16">
+        <div className="relative overflow-hidden rounded-sheet bg-ink px-6 pb-10 pt-8 text-center text-cream sm:py-14">
           <div className="flex justify-center gap-1" aria-hidden="true">
             <Pea size={64} mood="happy" className="animate-bob" />
             <Pea size={64} mood="wink" tone="fresh" className="animate-bob-slow" />
           </div>
-          <h2 className="mx-auto mt-5 max-w-2xl font-display text-display text-cream md:text-display-md">Find your other pea</h2>
-          <p className="mx-auto mt-3 max-w-lg text-cream/80">
-            {IS_BETA
-              ? "We're starting small in Lagos. Apply with your plans and living habits, have a short video ID call with our team, and we'll email your invite once you're approved."
-              : "Enter any email and your code appears on screen, or try a demo persona in one click."}
-          </p>
-          <Link href={IS_BETA ? "/join" : "/signin"} className="btn btn-lg mt-7 bg-cream text-ink hover:bg-white focus-visible:ring-cream focus-visible:ring-offset-ink">
+          <h2 className="mx-auto mt-4 max-w-2xl font-display text-display text-cream md:text-display-md">Find your flatmate</h2>
+          <Link href={IS_BETA ? "/join" : "/signin"} className="btn btn-lg mt-6 bg-cream text-ink hover:bg-white focus-visible:ring-cream focus-visible:ring-offset-ink">
             {IS_BETA ? "Apply to join" : "Get started"} <IconArrowRight size={18} />
           </Link>
           {IS_BETA && (
