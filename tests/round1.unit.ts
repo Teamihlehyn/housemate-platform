@@ -5,7 +5,10 @@ import { CLIENT_EVENTS, cleanSource, countBucket, daysBucket, isClientEvent, isS
 import { allValues, dealBreakersOf, habitCompatible, preferenceRow, stayRange, unanswered } from "../lib/matchRules";
 import { areasChip, budgetChip, datesChip } from "../lib/searchChips";
 import { inboxOrder } from "../lib/reads";
-import { testApprovalsAllowed } from "../lib/env";
+import { callBookingUrl, testApprovalsAllowed } from "../lib/env";
+import { fill } from "../lib/emails/render";
+import { applicationReceivedEmail } from "../lib/emails";
+import { applicationDto } from "../lib/applications";
 import { canStaffAct } from "../lib/applications";
 import { checkRows } from "../lib/checks";
 import { QUESTIONNAIRE } from "../lib/constants";
@@ -42,7 +45,8 @@ check("day labels", dayLabel("2027-03-05") === "5 March 2027");
 check("only the listed client events", isClientEvent("join.step_viewed") && !isClientEvent("join.submitted") && !isClientEvent("anything") && CLIENT_EVENTS.length === 6);
 check("only known screen ids", isStep("bio") && isStep("h:cleaning") && !isStep("ada@example.com") && !isStep("<script>"));
 check("funnel ids: random-looking only", plausibleFunnelId("3f2b9c1e-1111-4a2b-9c3d-0123456789ab") && !plausibleFunnelId("ada@example.com") && !plausibleFunnelId("x"));
-check("sources: short slugs only", cleanSource("WhatsApp-Lagos") === "whatsapp-lagos" && cleanSource("ada@example.com") === null && cleanSource("a".repeat(100))?.length === 64);
+check("sources: a fixed list only, no free text (HM-52)", cleanSource("WhatsApp") === "whatsapp" && cleanSource("twitter") === "x"
+  && cleanSource("whatsapp-lagos") === null && cleanSource("ada@example.com") === null && cleanSource("a".repeat(100)) === null);
 check("buckets", msBucket(3000) === "<5s" && msBucket(200000) === "3m+" && msBucket(-1) === null && countBucket(0) === "0" && countBucket(4) === "3-5" && daysBucket(0.5) === "0" && daysBucket(9) === "8+");
 
 // ENG-56 (D-R4): explicit deal-breakers.
@@ -96,6 +100,21 @@ check("test approval from submitted, in review or call booked only", canStaffAct
 const testRows = checkRows([{ category: "test_account", status: "not_provided", checkedMonth: null }, { category: "email", status: "verified", checkedMonth: "2026-11" }], { own: true });
 check("a test account says 'Test account — ID not checked' and never claims an ID check",
   testRows.some((r) => r.text === "Test account — ID not checked") && !testRows.some((r) => /Identity checked/.test(r.text)) && !testRows.some((r) => r.key === "identity"));
+
+// ENG-60: the booking link.
+check("booking link: https only, else none", callBookingUrl({ NEXT_PUBLIC_CALL_BOOKING_URL: "https://cal.com/peabudy/id-call" }) === "https://cal.com/peabudy/id-call"
+  && callBookingUrl({ NEXT_PUBLIC_CALL_BOOKING_URL: "http://cal.com/x" }) === null && callBookingUrl({}) === null && callBookingUrl({ NEXT_PUBLIC_CALL_BOOKING_URL: "javascript:alert(1)" }) === null);
+check("optional email sections are kept only with a value", fill("a{{#b}} [{{b}}]{{/b}} c", { b: "x" }, "text") === "a [x] c" && fill("a{{#b}} [{{b}}]{{/b}} c", { b: "" }, "text") === "a c");
+const withLink = applicationReceivedEmail({ first_name: "Ada", status_url: "https://x.test/s", booking_url: "https://cal.com/peabudy/id-call" });
+const without = applicationReceivedEmail({ first_name: "Ada", status_url: "https://x.test/s" });
+check("E1 has the booking line when set, and leaves it out when not",
+  withLink.text.includes("Book your 10-minute video call") && withLink.html.includes("https://cal.com/peabudy/id-call")
+  && !without.text.includes("Book your") && !without.html.includes("Book your") && !/\{\{/.test(without.html + without.text));
+const appB = { status: "submitted", submittedAt: new Date(), callAt: null, reapplyAfter: null };
+check("the status object offers booking only while submitted or in review",
+  applicationDto(appB, "lagos", { readOnly: false, cityOpen: true, bookingUrl: "https://cal.com/x" }).booking_url === "https://cal.com/x"
+  && applicationDto({ ...appB, status: "call_booked" }, "lagos", { readOnly: false, cityOpen: true, bookingUrl: "https://cal.com/x" }).booking_url === null
+  && applicationDto(appB, "lagos", { readOnly: false, cityOpen: true, bookingUrl: null }).booking_url === null);
 
 let failed = 0;
 for (const [name, pass] of cases) {

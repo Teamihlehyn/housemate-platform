@@ -190,6 +190,7 @@ export function applicationDto(
     emailHint?: string | null;
     resendsLeft?: number | null;
     betterMatchesAnswered?: number | null;
+    bookingUrl?: string | null;
   }
 ) {
   const actionable = !opts.readOnly && opts.applicant !== false;
@@ -209,6 +210,8 @@ export function applicationDto(
     resends_left: approved && actionable ? opts.resendsLeft ?? null : null,
     // D-R5: the "better first matches" questions answered so far (habits + stay length).
     better_matches: opts.readOnly ? null : { answered: opts.betterMatchesAnswered ?? 0, total: BETTER_MATCHES_TOTAL },
+    // ENG-60: "Book your 10-minute video call", while waiting for the call.
+    booking_url: a.status === "submitted" || a.status === "in_review" ? opts.bookingUrl ?? null : null,
   };
 }
 

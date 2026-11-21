@@ -34,11 +34,15 @@ export function isStep(s: unknown): s is string {
 export function plausibleFunnelId(s: unknown): s is string {
   return typeof s === "string" && /^[A-Za-z0-9-]{8,40}$/.test(s);
 }
-// utm/ref label: a short slug only.
+// Where someone came from: one of a fixed list of channels, never free text (HM-52). Anything
+// else is dropped.
+export const SOURCES = ["whatsapp", "instagram", "x", "facebook", "tiktok", "linkedin", "email", "friend", "flyer", "google", "direct"] as const;
 export function cleanSource(s: unknown): string | null {
   if (typeof s !== "string") return null;
-  const v = s.trim().toLowerCase().slice(0, 64);
-  return /^[a-z0-9._-]+$/.test(v) ? v : null;
+  const v = s.trim().toLowerCase();
+  const alias: Record<string, string> = { twitter: "x", wa: "whatsapp", ig: "instagram", fb: "facebook" };
+  const k = alias[v] ?? v;
+  return (SOURCES as readonly string[]).includes(k) ? k : null;
 }
 
 export function msBucket(ms: unknown): string | null {

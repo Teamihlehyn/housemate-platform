@@ -108,7 +108,10 @@ neon connection-string beta >/dev/null || die "couldn't read the Neon beta branc
 if [ -n "${ALLOW_TEST_APPROVALS:-}" ]; then
   die "ALLOW_TEST_APPROVALS is set in this shell. Unset it: test approvals are never allowed in production."
 fi
-if vercel env ls production 2>/dev/null | awk '{print $1}' | grep -qx ALLOW_TEST_APPROVALS; then
+# HM-53: if the listing itself fails we can't tell what's set, so stop rather than pass silently.
+PROD_VARS=$(vercel env ls production 2>/dev/null) || die "couldn't list production's variables in Vercel (run 'vercel login'?)."
+prod_has() { printf '%s\n' "$PROD_VARS" | awk '{print $1}' | grep -qx "$1"; }
+if prod_has ALLOW_TEST_APPROVALS; then
   die "ALLOW_TEST_APPROVALS is set on production in Vercel. Remove it in the Vercel dashboard (Production) first."
 fi
 
@@ -163,7 +166,8 @@ if printenv EMAIL_LINK_SECRET >/dev/null; then put_env EMAIL_LINK_SECRET; fi
 #                      application tombstones (R7). Rotating it would let a purged, declined
 #                      person reapply early, so it is never rotated here.
 ensure_secret() { # ensure_secret NAME — create it only if production doesn't have it yet
-  if vercel env ls production 2>/dev/null | awk '{print $1}' | grep -qx "$1"; then
+  # The listing was read (and checked) before anything changed (HM-53).
+  if prod_has "$1"; then
     echo "  kept    $1 (already set)"
   else
     openssl rand -hex 32 | tr -d '\n' | put "$1"

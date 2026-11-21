@@ -45,7 +45,8 @@
   - See [`usability-round-1.md`](usability-round-1.md) §5.
 - **F-26, booking tool: decided by you on 21 Nov.** The ID call runs on **Google Meet**, booked through a **Google Calendar "Appointment schedule"** page.
   - **Set-up:** 10-minute slots, Lagos hours, a buffer between calls, a daily cap, Meet auto-attached.
-  - **Your action:** send the booking page link to the engineer, who sets it as `NEXT_PUBLIC_CALL_BOOKING_URL` (production + staging). **F-26 is done once the link is sent.**
+  - **Your action:** send the booking page link to the engineer, who sets it as `NEXT_PUBLIC_CALL_BOOKING_URL` (production + staging). **ENG-60 is built; the "Book your 10-minute video call" button stays hidden until this is set.** It's a build-time variable, so redeploy after setting it. **F-26 is done once the link is set.**
+- **For your legal reviewer (HM-52):** the privacy notice now includes "application step analytics": pseudonymous data, legitimate interests (improving the application), 12 months, and a DPIA row (R12). Please ask them to confirm the lawful basis.
   - **v1 is link-out only.** Staff mark "Call booked" in the back office by hand. Syncing with the Calendar API comes later.
   - **Don't record calls.** The privacy notice says calls aren't recorded unless we say so.
 - **Peabudy guide** (the AI-guided chat, [`ai-guided-chat.md`](ai-guided-chat.md)): **D-G1…D-G4 approved by you on 21 Nov**:

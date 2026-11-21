@@ -120,3 +120,16 @@ export function testApprovalsAllowed(env: Record<string, string | undefined> = p
 if (process.env.ALLOW_TEST_APPROVALS === "true" && process.env.VERCEL_ENV === "production") {
   console.warn("ALLOW_TEST_APPROVALS is set in production and is IGNORED. Remove it.");
 }
+
+// Self-serve ID-call booking (ENG-60): the founder's scheduling link (e.g. a Google Calendar
+// appointment page or Cal.com). Only an https URL counts; unset or anything else = no button and
+// no line in the email. Staff still mark "Call booked" by hand.
+export function callBookingUrl(env: Record<string, string | undefined> = process.env): string | null {
+  const raw = (env.NEXT_PUBLIC_CALL_BOOKING_URL || "").trim();
+  try {
+    const u = new URL(raw);
+    return u.protocol === "https:" && raw.length <= 500 ? u.toString() : null;
+  } catch {
+    return null;
+  }
+}

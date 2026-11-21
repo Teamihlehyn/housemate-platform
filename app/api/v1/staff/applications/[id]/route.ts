@@ -144,7 +144,7 @@ export const POST = handler(async (req: NextRequest, { rid, params }) => {
     if (action === "start_review") Object.assign(data, { reviewedBy: staff.id });
     if (action === "call_booked") Object.assign(data, { callAt, reviewedBy: staff.id });
     if (action === "waitlist") Object.assign(data, { reviewedBy: staff.id, reviewedAt: now });
-    if (action === "decline" || action === "approve" || action === "resend_activation") {
+    if (action === "decline" || action === "approve" || action === "resend_activation" || isTest) {
       // Any earlier unused activation code stops working.
       await tx.invite.updateMany({ where: { applicationId: app.id, usedAt: null, revokedAt: null }, data: { revokedAt: now } });
     }

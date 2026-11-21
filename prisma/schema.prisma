@@ -649,6 +649,7 @@ model FunnelEvent {
 
   @@index([event, createdAt])
   @@index([funnelId, event])
+  @@index([createdAt]) // HM-50: the site-wide hourly cap
 }
 
 model AuditEvent {

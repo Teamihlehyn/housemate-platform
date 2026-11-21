@@ -4,13 +4,17 @@ import { requireUser } from "@/lib/guard";
 import { prisma } from "@/lib/db";
 import { writeAudit, writeOutbox, notify } from "@/lib/audit";
 import { acceptPlan, buildHouseholdView, closeProposal } from "@/lib/household";
+import { assertNotBlocked } from "@/lib/blocks";
 
 // GET /api/v1/households/[id] — one of your households (e.g. a pending proposal) in full.
 // Not a member → 404.
 export const GET = handler(async (_req: NextRequest, { rid, params }) => {
   const user = await requireUser();
-  const m = await prisma.membership.findFirst({ where: { householdId: params.id, userId: user.id } });
-  if (!m) return fail("NOT_FOUND", "Household not found.", 404, rid);
+  // HM-51: only live households you're still in, and never across a block.
+  const hh = await prisma.household.findUnique({ where: { id: params.id }, include: { memberships: true } });
+  const mine = hh?.memberships.find((x) => x.userId === user.id && x.state === "active");
+  if (!hh || !mine || !["proposed", "active", "completed"].includes(hh.state)) return fail("NOT_FOUND", "Household not found.", 404, rid);
+  for (const other of hh.memberships.filter((x) => x.userId !== user.id)) await assertNotBlocked(user.id, other.userId);
   return ok({ household: await buildHouseholdView(params.id, user.id) }, rid);
 });
 

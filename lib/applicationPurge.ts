@@ -2,6 +2,7 @@ import { prisma } from "./db";
 import { writeAudit } from "./audit";
 import { emailKey } from "./codes";
 import { lockKey } from "./rateLimit";
+import { funnelIdForApplication } from "./funnelServer";
 import { purgeKind, PurgeKind } from "./applications";
 
 // Application retention (R7). Deletes the answers and the applicant account for stale drafts,
@@ -78,6 +79,9 @@ export async function purgeApplications(opts: { dryRun: boolean; staffId: string
     // checks, sessions, score snapshots).
     await tx.invite.deleteMany({ where: { applicationId: { in: confirmed.map((r) => r.appId) } } });
     await tx.application.deleteMany({ where: { id: { in: confirmed.map((r) => r.appId) } } });
+    // HM-52: their anonymous funnel rows go too.
+    const funnelIds = confirmed.map((r) => funnelIdForApplication(r.appId)).filter(Boolean) as string[];
+    if (funnelIds.length) await tx.funnelEvent.deleteMany({ where: { funnelId: { in: funnelIds } } });
     await tx.authCode.deleteMany({ where: { email: { in: emails } } });
     await tx.notification.deleteMany({ where: { recipientId: { in: userIds } } });
     await tx.testerFeedback.deleteMany({ where: { userId: { in: userIds } } });

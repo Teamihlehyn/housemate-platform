@@ -6,6 +6,7 @@ import { destroySession } from "@/lib/session";
 import { writeAudit, writeOutbox, notify } from "@/lib/audit";
 import { OPEN_INTRO_STATES } from "@/lib/blocks";
 import { clearApprovalClaims } from "@/lib/applicationService";
+import { funnelIdForApplication } from "@/lib/funnelServer";
 
 // POST /api/v1/me/delete — account deletion request.
 // Immediately hides the profile, stops interactions and revokes sessions; a purge
@@ -36,6 +37,9 @@ export const POST = handler(async (_req: NextRequest, { rid }) => {
     // An open application is withdrawn ("Delete my application"), and its activation code
     // stops working before the address is removed from it.
     const app = await tx.application.findUnique({ where: { userId: user.id } });
+    // HM-52: the anonymous funnel rows tied to this application go with the account.
+    const fid = app ? funnelIdForApplication(app.id) : null;
+    if (fid) await tx.funnelEvent.deleteMany({ where: { funnelId: fid } });
     if (app && !["withdrawn", "declined"].includes(app.status) && user.accountStatus === "applicant") {
       await tx.application.update({ where: { id: app.id }, data: { status: "withdrawn", version: { increment: 1 } } });
       if (app.status === "approved") await clearApprovalClaims(tx, user.id);

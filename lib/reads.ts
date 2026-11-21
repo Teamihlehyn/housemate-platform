@@ -30,8 +30,7 @@ export async function threadStates(
   convos: { id: string; createdAt: Date }[]
 ): Promise<Map<string, ThreadState>> {
   const ids = convos.map((c) => c.id);
-  const [reads, latest] = await Promise.all([
-    prisma.conversationRead.findMany({ where: { userId, conversationId: { in: ids } } }),
+  const [latest] = await Promise.all([
     prisma.message.findMany({
       where: { conversationId: { in: ids } },
       orderBy: { serverSequence: "desc" },
@@ -39,12 +38,21 @@ export async function threadStates(
       select: { conversationId: true, senderId: true, sentAt: true },
     }),
   ]);
-  const readAt = new Map(reads.map((r) => [r.conversationId, r.lastReadAt]));
   const last = new Map(latest.map((m) => [m.conversationId, m]));
+  // One grouped query for every thread's unread count (the inbox polls).
+  const counts = ids.length
+    ? await prisma.$queryRaw<{ conversation_id: string; n: number }[]>`
+        SELECT m."conversationId" AS conversation_id, count(*)::int AS n
+        FROM "Message" m
+        LEFT JOIN "ConversationRead" r ON r."conversationId" = m."conversationId" AND r."userId" = ${userId}
+        WHERE m."conversationId" = ANY(${ids}) AND m."senderId" <> ${userId}
+          AND m."sentAt" > COALESCE(r."lastReadAt", to_timestamp(0))
+        GROUP BY m."conversationId"`
+    : [];
+  const unreadBy = new Map(counts.map((c) => [c.conversation_id, c.n]));
   const out = new Map<string, ThreadState>();
   for (const c of convos) {
-    const since = readAt.get(c.id) ?? new Date(0);
-    const unread = await prisma.message.count({ where: { conversationId: c.id, senderId: { not: userId }, sentAt: { gt: since } } });
+    const unread = unreadBy.get(c.id) ?? 0;
     const m = last.get(c.id);
     out.set(c.id, { unread, waitingForYou: !!m && m.senderId !== userId, lastAt: m?.sentAt ?? c.createdAt });
   }
