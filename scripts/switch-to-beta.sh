@@ -103,6 +103,15 @@ PY
 
 neon connection-string beta >/dev/null || die "couldn't read the Neon beta branch (run 'neon auth'?)."
 
+# ENG-67: test approvals (approve without the video ID call) must never be configured for real
+# users. The app ignores the flag in production anyway; this refuses to switch while it's there.
+if [ -n "${ALLOW_TEST_APPROVALS:-}" ]; then
+  die "ALLOW_TEST_APPROVALS is set in this shell. Unset it: test approvals are never allowed in production."
+fi
+if vercel env ls production 2>/dev/null | awk '{print $1}' | grep -qx ALLOW_TEST_APPROVALS; then
+  die "ALLOW_TEST_APPROVALS is set on production in Vercel. Remove it in the Vercel dashboard (Production) first."
+fi
+
 echo
 echo "All checks passed. Next: production's variables are switched to beta (database first,"
 echo "mode last). Nothing is deployed until you confirm a second time."

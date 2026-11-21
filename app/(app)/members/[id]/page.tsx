@@ -74,7 +74,9 @@ export default function MemberProfile({ params }: { params: Promise<{ id: string
             </div>
           </div>
           {IS_BETA
-            ? identityChecked(profile.credibility.checks) && <IdCheckedChip className="shrink-0" />
+            ? profile.credibility.checks?.some((c: { category: string }) => c.category === "test_account")
+              ? <span className="chip shrink-0 bg-caution-50 text-caution-800">Test account — ID not checked</span>
+              : identityChecked(profile.credibility.checks) && <IdCheckedChip className="shrink-0" />
             : <span className="chip bg-brand-100 text-brand-800">Demo {profile.credibility.score}/100</span>}
         </div>
 

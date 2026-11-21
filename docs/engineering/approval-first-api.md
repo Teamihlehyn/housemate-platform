@@ -290,3 +290,139 @@ sends a plain built-in version. Placeholders (all HTML-escaped by the app):
 | `call_booked` | E4 | `{{first_name}}`, `{{call_time}}` (e.g. "Thursday 19 November, 14:30 (Lagos time)"), `{{call_link}}` (the https video link, or "We'll send you the video link before the call.") |
 
 Every send writes an `email.sent` audit row without the address.
+
+## 7. Usability round 1 (ENG-50–59, 21 Nov)
+
+Spec: [`docs/product/beta/usability-round-1.md`](../product/beta/usability-round-1.md). The
+designer's pages call these; nothing here exposes another user's private state.
+
+### Notifications open what they're about (ENG-50, SEC-16)
+`GET /api/v1/notifications` → `{ notifications: [{ id, eventName, title, body, createdAt, readAt,
+target_type, href }], unread }`.
+- `target_type`: `conversation | introduction | household | application | none`.
+- `href`: `/messages/{conversationId}`, `/messages?intro={introductionId}`, `/household`,
+  `/join/status`, or `null`. Render the card as a link when `href` is set.
+- `POST /api/v1/notifications/{id}/read` → `{ status: "read" }` (404 if it isn't yours). Call it
+  when the card is tapped, then follow `href`.
+- `POST /api/v1/notifications` (mark all read) still works.
+- Links are re-authorised by the page they open: a blocked, deleted or other-world person's thread
+  is the normal 404 ("This user is not available.").
+
+### One read state (ENG-51, SEC-16)
+- Opening a thread (`GET /conversations/{id}/messages`, which the thread page polls) marks it read
+  for **you only**, and marks your notifications about that thread read. Nobody is ever told
+  whether you've read something (no read receipts).
+- `GET /api/v1/conversations` → each thread adds `unread` (messages from the other person since
+  you last read), `waiting_for_you` (their message is the latest), `last_at`; plus top-level
+  `unread_total`. Threads come sorted: waiting for your reply first, then newest activity.
+- `GET /api/v1/conversations/unread` → `{ unread_messages, unread_threads,
+  pending_introductions, unread_notifications }`, cheap enough to poll for the nav badge
+  (every 30 s, or on focus).
+- `GET /api/v1/recommendations`: each candidate adds `activity`: `null`, or
+  `{ kind: "new_message", href: "/messages/{id}", count }`, or
+  `{ kind: "introduced", href: "/messages?intro={id}" }` (they introduced themselves).
+- `/messages?intro={id}`: the inbox scrolls to and highlights that introduction request.
+
+### Household proposal errors (ENG-52, copy and privacy only)
+`POST /api/v1/households` (rule unchanged until D-R2) now says only what's true for **you**:
+- you have a pending proposal: 409 `STATE_CONFLICT` "You've got a pending proposal with {name}.
+  Withdraw it to propose to someone else." (`field_errors.blocker = "own_pending"`);
+- you're in a household: "You're already in a household with {name}. Leave it to propose a new one."
+  (`own_active`);
+- the other person isn't free: "{name} isn't available for a household right now." (`other_unavailable`;
+  never why).
+`POST /api/v1/households/{id}` adds `{action: "withdraw"}` (the proposer, while `proposed`) and
+`{action: "decline"}` (the other person, while `proposed`). Both close it; the other person gets a
+neutral notice. `leave` still works for an active household.
+
+### Resend the invitation (ENG-54, SEC-18)
+- The application status object adds `email_hint` ("t•••@gmail.com", approved only) and
+  `resends_left` (0–3, approved only, session only).
+- `POST /api/v1/applications/resend-activation` with the application session, or `{ t }` (the
+  magic-link token) signed out → `{ application, email_status }`. Revokes the old code, emails a new
+  one (E2) to the address on the application only. At most 3 in 24 hours: then 429
+  `RATE_LIMITED` "You've asked for 3 invitations today. Try again tomorrow, or email
+  hello@peabudy.com." 409 `STATE_CONFLICT` when the application isn't approved. Never creates an
+  application.
+- Copy for the page: "Check Promotions or Spam. It's from hello@peabudy.com." and "Your browser
+  remembers you for 7 days; after that, use the link in your confirmation email."
+
+### Move-in dates (ENG-55)
+`lib/dateRange.ts` (pure, client-safe): `latestMin(earliest)`, `afterEarliestChange(earliest,
+latest)` → `{ latest, cleared, message }`, `rangeError(earliest, latest)`. `useProfileDraft` uses
+them: `setEarliest` past the current latest clears it and sets `errors.latestDate` = "Choose your
+latest date again. It must be on or after {date}."; it exposes `latestMin` and `focusLatest`.
+The server still refuses latest < earliest (422).
+
+### Funnel events (ENG-58; no personal data)
+`POST /api/v1/funnel { event, step?, index?, flow_version?, ms_on_step?, source?, funnel_id? }`
+→ 204-style `{ status: "ok" }` (always, even when dropped). Allowed events: `join.viewed`,
+`join.code_sent`, `join.email_confirmed`, `join.step_viewed`, `join.step_completed`,
+`join.step_skipped`. `step` must be a known screen id. `funnel_id`: a random id the browser keeps
+in `sessionStorage` (`lib/funnel.ts` `trackFunnel` does this); with an application session the server uses its
+own anonymous id instead. The server records `join.submitted`, `application.call_booked`,
+`application.approved`, `application.activated` and `discover.first_viewed` itself.
+`useProfileDraft` already sends `join.step_completed` on each saved screen; the flow should call
+`trackFunnel("join.step_viewed", { step, index })` on each screen and `trackFunnel("join.viewed")`
+on `/join`. Admin: `GET /api/v1/staff/funnel?days=30` and the back office "Funnel" tab.
+
+### Edit area and budget from Discover (ENG-59)
+- `GET /api/v1/me/search` → `{ city, city_locked, areas: [{id,label}], area_options: [{id,label}],
+  budget: { min_minor, max_minor, period, currency } | null, move_in: { mode, earliest, latest },
+  chips: { areas, budget, dates } }` where `chips` are ready-made labels ("Yaba, Surulere",
+  "₦1.5m–2m/yr", "Jan–Mar 2027").
+- Save with `PATCH /api/v1/me/search { areaIds, rentMinMinor, rentMaxMinor }` (unchanged; writes a
+  search version; city changes are refused once approved), then re-fetch `/recommendations`.
+
+
+### Proposals after D-R2 (ENG-52, final rule)
+- `GET /api/v1/households/current` → `{ household, proposals }`. `household` is your formed
+  (active or completed) household, else your newest pending proposal. `proposals` lists **all
+  your own** pending proposals: `[{ id, version, direction: "sent" | "received", other_user_id,
+  other_name, created_at, can_withdraw, can_decline, can_accept }]`.
+- `GET /api/v1/households/{id}` → `{ household }` for any household you're in (404 otherwise).
+- The household view adds `proposed_by` (user id) and `proposal: { direction, can_withdraw,
+  can_decline } | null` (null once formed).
+- `POST /households` errors (409 `STATE_CONFLICT`, `field_errors.blocker`): `own_active`,
+  `other_unavailable`, `own_pending_same`, `incoming_pending`, `own_pending_limit` (3 outgoing).
+- Accepting forms the household and closes both people's other pending proposals (neutral notice
+  to the other party).
+
+### Deal-breakers (ENG-56, D-R4)
+- `PATCH /me/search { preferences: [{ dimension, ownAnswer: string | null, dealBreakers: string[],
+  noDealBreakers?: true }] }`. `noDealBreakers` with any `dealBreakers` → 422; ruling out every
+  answer → 422. Neither → saved as `unanswered`. The old `{ acceptedValues }` shape still works.
+- `GET /me` → each preference adds `state` (`none | some | unanswered`) and `dealBreakers`;
+  `ownAnswer` may be `null`.
+- `useProfileDraft`: own answers start empty (nothing pre-selected); `prefs[dim].state`;
+  `toggleDealBreaker` (= `toggleAccepted`), `setNoDealBreakers(dim)`, `markAnswered(dim)`.
+  Continue on a habit screen needs an own answer and a deal-breaker choice; skipping is the
+  flow's Skip.
+
+### Short application (ENG-57, D-R5)
+- Submit needs only: name, city + areas, budget, dates, gender (preference defaults to open),
+  bio ≥ 40 characters. INCOMPLETE keys: `displayName`, `bio`, `cityId`, `areaIds`, `budget`,
+  `moveMode`, `dates`, `email`.
+- `useProfileDraft` exports `SCREENS` (what `/join` runs now: name, city, areas, budget, dates,
+  gender, genderPref, bio, review), `APPLICATION_SCREENS` (the six-screen target with combined
+  `where` = city + areas and `livingWith` = gender + preference; `validate`/`save` support both
+  ids, StepBody needs to render them), and `DEFERRED_SCREENS` (six habits + stay).
+- "Better first matches" answers (`preferences`, `stayMinMonths`, `stayMaxMonths` only) are
+  accepted in `draft`, `submitted`, `in_review`, `call_booked`, `waitlisted` and `approved`, and
+  don't change the application version. The status object adds `better_matches: { answered, total: 7 }`.
+- Location ("address") is no longer asked; the column stays.
+
+### Funnel client (ENG-58)
+`import { trackFunnel } from "@/lib/funnel"` (client-safe). `trackFunnel("join.viewed")` on
+`/join`; `trackFunnel("join.step_viewed", { step, index })` on each screen;
+`trackFunnel("join.step_skipped", { step })` on Skip. `join.step_completed` is sent by
+`useProfileDraft.save` on `/join`. Server-only helpers are in `lib/funnelServer.ts`.
+
+### Test approvals (ENG-67; test environments only)
+`POST /api/v1/staff/applications/{id} { action: "approve_test", expected_version, confirm_test: true,
+reason: "testing" }` — admins only, from `submitted`, `in_review` or `call_booked`, only when
+`ALLOW_TEST_APPROVALS=true` and not production; otherwise 404. Same activation email; no identity
+check; `idCheckMethod = "skipped_test"`; `User.isTestAccount = true`; audit
+`application.approved_test_skip_call`. The detail adds `test_approval_available` and
+`is_test_account`. Candidates add `testAccount: true` (`idChecked: false`); credibility checks add
+`{ category: "test_account" }`, which `checkRows` renders as "Test account — ID not checked".

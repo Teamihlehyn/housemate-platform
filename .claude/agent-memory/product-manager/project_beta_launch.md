@@ -50,6 +50,24 @@ Background:
 - Proposed launch moves to Wed 18 Nov (F1).
 - Code finding: the staff approve route sets `phoneVerified` without any phone check.
 
+**Usability round 1 (2026-11-21; docs/product/beta/usability-round-1.md):**
+- One moderated session. The journey from message to household broke in two places:
+  - notifications have no links, there's no conversation read state, and the header feedback icon looks like chat;
+  - a pending proposal blocks any new proposal, with a misleading message that leaks someone else's state.
+- Other findings:
+  - the landing headline and CTA are unclear on mobile;
+  - there's no self-serve resend of the invite;
+  - deal-breaker semantics are ambiguous, and the own answer is pre-selected;
+  - 17 questions felt like a lot.
+- Decisions D-R1…D-R5 are pending. Tickets are ENG-50–60, DES-25–33, SEC-16–19.
+- Participant names must never go into the repo.
+- **D-R1…D-R5 were approved by the founder on 2026-11-21**, as recommended. F-26 (booking tool) is still open; the PM recommends Google Calendar appointment schedules.
+- The **Peabudy guide** (AI-guided chat, docs/product/beta/ai-guided-chat.md) is the founder's intended moat. Its decisions D-G1…D-G4 are pending. PM recommendation:
+  - v0 is a no-AI checklist with confirmed terms that pre-fill the agreement;
+  - v1 AI requires opt-in by both people;
+  - the guide never posts on its own.
+  - Tickets: ENG-61–66, DES-34–36, SEC-20–22.
+
 **Lesson:** don't record a general "I go with your recommendations" as approval of specific decisions. The founder changed D15 and D17 afterwards. List each decision explicitly and get per-item approval.
 
 **Why:** the founder wants real users quickly, a fully tested live site, and feedback through the Feedback button plus a follow-up survey.

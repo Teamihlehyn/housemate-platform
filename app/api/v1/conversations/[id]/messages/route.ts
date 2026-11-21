@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { writeAudit, writeOutbox, notify } from "@/lib/audit";
 import { afterMessage } from "@/lib/demoBots";
 import { assertNotBlocked } from "@/lib/blocks";
+import { markConversationRead } from "@/lib/reads";
 
 function escapeBody(raw: string): string {
   // Server strips unsafe markup; render escapes on the client too.
@@ -18,10 +19,19 @@ async function loadConvo(id: string, userId: string) {
 }
 
 // GET messages after a sequence (reconnect fetches everything after last acked).
+// Opening a thread re-checks access (SEC-16): a blocked, deleted or other-world person's thread is
+// the same 404 as a missing one. It also marks the thread read for you only (ENG-51).
 export const GET = handler(async (req: NextRequest, { rid, params }) => {
   const user = await requireUser();
   const convo = await loadConvo(params.id, user.id);
-  if (!convo) return fail("NOT_FOUND", "Conversation not found.", 404, rid);
+  if (!convo) return fail("NOT_FOUND", "This user is not available.", 404, rid);
+  const peerId = convo.userAId === user.id ? convo.userBId : convo.userAId;
+  await assertNotBlocked(user.id, peerId);
+  const peer = await prisma.user.findUnique({ where: { id: peerId }, select: { accountStatus: true, sandboxWorldId: true } });
+  if (!peer || !["active", "restricted"].includes(peer.accountStatus) || (peer.sandboxWorldId ?? null) !== (user.sandboxWorldId ?? null)) {
+    return fail("NOT_FOUND", "This user is not available.", 404, rid);
+  }
+  await markConversationRead(convo.id, user.id);
   const after = Number(new URL(req.url).searchParams.get("after_sequence") ?? 0);
   const messages = await prisma.message.findMany({
     where: { conversationId: convo.id, serverSequence: { gt: after } },
@@ -100,7 +110,7 @@ export const POST = handler(async (req: NextRequest, { rid, params }) => {
     // Audit/analytics log metadata only — never message body text.
     await writeAudit(tx, { eventType: "message.sent", actorId: user.id, subjectId: otherId, resourceType: "message", resourceId: msg.id, action: "send" }, rid);
     await writeOutbox(tx, "message_sent", { conversationId: convo.id, sequence: msg.serverSequence });
-    await notify(tx, otherId, "message_received", "New message", `${user.displayName} sent you a message.`);
+    await notify(tx, otherId, "message_received", "New message", `${user.displayName} sent you a message.`, { type: "conversation", id: convo.id });
     return msg;
   });
 

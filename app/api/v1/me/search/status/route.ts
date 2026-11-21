@@ -19,7 +19,7 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
     return fail("VALIDATION", "Unknown action.", 422, rid);
 
   const busy = await prisma.membership.findFirst({
-    where: { userId: user.id, state: "active", household: { state: { in: ["proposed", "active"] } } },
+    where: { userId: user.id, state: "active", household: { state: "active" } },
   });
   if (action === "resume" && busy)
     return fail("STATE_CONFLICT", "Leave your household before resuming search.", 409, rid);

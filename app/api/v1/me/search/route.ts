@@ -6,12 +6,49 @@ import { writeAudit, writeOutbox } from "@/lib/audit";
 import { CITIES, GENDER_IDS, OWN_GENDER_OPTIONS, QUESTIONNAIRE } from "@/lib/constants";
 import { testToday, addMonths } from "@/lib/dates";
 import { assertAnswersEditable, isNameLocked } from "@/lib/applicationService";
+import { preferenceRow } from "@/lib/matchRules";
+import { areaLabels, areasChip, budgetChip, datesChip } from "@/lib/searchChips";
+import { requireUser } from "@/lib/guard";
+import { recordApplicationEvent } from "@/lib/funnelServer";
+
+// GET /api/v1/me/search — what the Discover chips show and the edit sheet edits (ENG-59): areas
+// (within the city, which is locked once approved), budget and move-in window, with labels.
+export const GET = handler(async (_req: NextRequest, { rid }) => {
+  const user = await requireUser();
+  const s = await prisma.search.findUnique({ where: { userId: user.id }, include: { areas: true } });
+  if (!s) return fail("NOT_FOUND", "No search found.", 404, rid);
+  const cityId = s.cityId;
+  const areas = areaLabels(cityId, s.areas.map((a) => a.areaId));
+  const options = cityId && cityId in CITIES ? CITIES[cityId as keyof typeof CITIES].areas.map((a) => ({ id: a.id, label: a.label })) : [];
+  const budget =
+    s.rentMinMinor != null && s.rentMaxMinor != null && s.currency && s.rentPeriod
+      ? { min_minor: s.rentMinMinor, max_minor: s.rentMaxMinor, period: s.rentPeriod, currency: s.currency }
+      : null;
+  return ok(
+    {
+      city: cityId,
+      city_locked: await isNameLocked(user.id),
+      areas,
+      area_options: options,
+      budget,
+      move_in: { mode: s.moveMode, earliest: s.earliestDate, latest: s.latestDate },
+      chips: {
+        areas: areasChip(areas),
+        budget: budget ? budgetChip(budget.min_minor, budget.max_minor, budget.currency, budget.period) : null,
+        dates: datesChip(s.moveMode, s.earliestDate, s.latestDate),
+      },
+    },
+    rid
+  );
+});
 
 // PATCH /api/v1/me/search — partial onboarding updates. Stores a search version on change.
 export const PATCH = handler(async (req: NextRequest, { rid }) => {
   const user = await requireAccount();
-  await assertAnswersEditable(user);
   const body = await req.json().catch(() => ({}));
+  const DEFERRED_KEYS = ["preferences", "stayMinMonths", "stayMaxMonths"];
+  const deferredOnly = !!body && typeof body === "object" && Object.keys(body).length > 0 && Object.keys(body).every((k) => DEFERRED_KEYS.includes(k));
+  await assertAnswersEditable(user, { deferredOnly });
   const search = await prisma.search.findUnique({ where: { userId: user.id } });
   if (!search) return fail("NOT_FOUND", "No search found.", 404, rid);
 
@@ -140,9 +177,23 @@ export const PATCH = handler(async (req: NextRequest, { rid }) => {
   }
 
   // Preferences
-  const prefs = body.preferences as
-    | { dimension: string; ownAnswer: string; acceptedValues: string[] }[]
-    | undefined;
+  // Living habits (D-R4, ENG-56): {dimension, ownAnswer?, dealBreakers?, noDealBreakers?} or the
+  // legacy {dimension, ownAnswer, acceptedValues}. Nothing is pre-selected here.
+  let prefs: { dimension: string; ownAnswer: string | null; acceptedValues: string[]; state: string }[] | undefined;
+  if (body.preferences !== undefined) {
+    if (!Array.isArray(body.preferences)) {
+      return fail("VALIDATION", "Please fix the highlighted fields.", 422, rid, { field_errors: { preferences: "Send a list of answers." } });
+    }
+    prefs = [];
+    for (const item of body.preferences) {
+      const r = preferenceRow(item ?? {});
+      if (!r.ok) {
+        const dim = typeof item?.dimension === "string" ? item.dimension : "preferences";
+        return fail("VALIDATION", r.error, 422, rid, { field_errors: { [`preferences.${dim}`]: r.error } });
+      }
+      prefs.push(r.row);
+    }
+  }
 
   const versionChanging =
     Object.keys(data).length > 0 || areaIds !== undefined || prefs !== undefined;
@@ -160,19 +211,10 @@ export const PATCH = handler(async (req: NextRequest, { rid }) => {
     }
     if (prefs !== undefined) {
       for (const p of prefs) {
-        if (!QUESTIONNAIRE.find((q) => q.id === p.dimension)) continue;
-        const accepted = Array.isArray(p.acceptedValues) && p.acceptedValues.length > 0
-          ? p.acceptedValues
-          : [p.ownAnswer];
         await tx.preferenceAnswer.upsert({
           where: { searchId_dimension: { searchId: search.id, dimension: p.dimension } },
-          create: {
-            searchId: search.id,
-            dimension: p.dimension,
-            ownAnswer: p.ownAnswer,
-            acceptedValues: JSON.stringify(accepted),
-          },
-          update: { ownAnswer: p.ownAnswer, acceptedValues: JSON.stringify(accepted) },
+          create: { searchId: search.id, dimension: p.dimension, ownAnswer: p.ownAnswer, acceptedValues: JSON.stringify(p.acceptedValues), state: p.state },
+          update: { ownAnswer: p.ownAnswer, acceptedValues: JSON.stringify(p.acceptedValues), state: p.state },
         });
       }
     }
@@ -215,11 +257,19 @@ export const PATCH = handler(async (req: NextRequest, { rid }) => {
     }
     // HM-36: an applicant's edit changes what staff would approve, so it moves the
     // application's version too (a stale approval then gets 409).
-    if (user.accountStatus === "applicant") {
+    if (user.accountStatus === "applicant" && !deferredOnly) {
       await tx.application.updateMany({ where: { userId: user.id }, data: { version: { increment: 1 } } });
     }
     return { version: (await tx.search.findUnique({ where: { userId: user.id } }))!.version };
   });
 
+  // Funnel (ENG-58): "better first matches" answers, anonymous.
+  if (deferredOnly) {
+    const app = await prisma.application.findUnique({ where: { userId: user.id }, select: { id: true } });
+    if (app) {
+      for (const p of prefs ?? []) if (p.ownAnswer) await recordApplicationEvent(app.id, "prefs.deferred_answered", { step: `h:${p.dimension}` });
+      if (body.stayMinMonths !== undefined) await recordApplicationEvent(app.id, "prefs.deferred_answered", { step: "stay" });
+    }
+  }
   return ok({ version: result.version }, rid);
 });

@@ -42,6 +42,9 @@ model User {
   // Users in a world only see each other; users outside never see them.
   sandboxWorldId String?
   isDemoBot      Boolean  @default(false) // sample housemate that responds automatically
+  // ENG-67: approved without the video ID call, in a test environment. Never ID-checked; shown
+  // as "Test account — ID not checked". Test approvals don't exist in production.
+  isTestAccount  Boolean  @default(false)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -147,8 +150,12 @@ model PreferenceAnswer {
   searchId       String
   search         Search @relation(fields: [searchId], references: [id], onDelete: Cascade)
   dimension      String // cleaning|quiet|guests|smoking|pets|social
-  ownAnswer      String
-  acceptedValues String // JSON array of accepted values
+  // null = the person hasn't given their own answer yet (ENG-56/57; never pre-selected).
+  ownAnswer      String?
+  acceptedValues String // JSON array of accepted values (all values unless deal-breakers chosen)
+  // Deal-breakers (D-R4): "none" = said "no deal-breakers"; "some" = chose deal-breakers
+  // (acceptedValues = all − chosen); "unanswered" = not asked yet (accepts all).
+  state          String @default("some")
 
   @@unique([searchId, dimension])
 }
@@ -224,6 +231,7 @@ model Conversation {
 
   messages Message[]
   meetings Meeting[]
+  reads    ConversationRead[]
 }
 
 model Message {
@@ -273,6 +281,8 @@ model Household {
   derivedStage       String   @default("planning") // planning|viewing|application|move_in_pending|needs_reagreement
   introductionId     String?
   currentPlanVersion Int      @default(1)
+  // Who proposed it (D-R2: up to 3 outgoing pending proposals). Null on older rows.
+  proposedBy         String?
   version            Int      @default(1)
   formedAt           DateTime?
   closedAt           DateTime?
@@ -598,8 +608,47 @@ model Notification {
   title       String
   body        String
   channel     String   @default("in_app")
+  // What the notification is about (ENG-50): conversation | introduction | household |
+  // application | none. The link is re-authorised when opened (SEC-16).
+  targetType  String   @default("none")
+  targetId    String?
   readAt      DateTime?
   createdAt   DateTime @default(now())
+
+  @@index([recipientId, createdAt])
+}
+
+// Private read state per person per conversation (ENG-51). Never shown to the other person:
+// no read receipts (SEC-16).
+model ConversationRead {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String
+  lastReadAt     DateTime
+
+  @@unique([conversationId, userId])
+}
+
+// Step-level funnel events (ENG-58). No personal data: an anonymous funnelId (random per
+// browser before an application exists, then a keyed hash of the application id), the event,
+// the screen id and coarse buckets. Deleted after 12 months by the retention purge.
+model FunnelEvent {
+  id          String   @id @default(cuid())
+  funnelId    String
+  event       String
+  step        String?
+  stepIndex   Int?
+  flowVersion String
+  city        String?
+  source      String?  // utm/ref label, ≤ 64 chars
+  msBucket    String?  // time on step, bucketed
+  countBucket String?  // discover.first_viewed result count bucket
+  daysBucket  String?  // lifecycle: days since submit, bucketed
+  createdAt   DateTime @default(now())
+
+  @@index([event, createdAt])
+  @@index([funnelId, event])
 }
 
 model AuditEvent {

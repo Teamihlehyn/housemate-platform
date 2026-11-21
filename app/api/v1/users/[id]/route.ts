@@ -6,7 +6,7 @@ import { prisma } from "@/lib/db";
 import { credibilityDto } from "@/lib/credibility";
 import { QUESTIONNAIRE } from "@/lib/constants";
 import { IS_BETA, VERIFIED_ONLY_BROWSING } from "@/lib/env";
-import { canSeeEachOther, identityVerified } from "@/lib/verification";
+import { canSeeEachOther, passesIdentityGate } from "@/lib/verification";
 
 // GET /api/v1/users/[id] — public profile DTO only. Blocked/inaccessible → generic 404.
 // In beta, both the viewer and the target must be identity-checked (ENG-02).
@@ -16,7 +16,7 @@ export const GET = handler(async (_req: NextRequest, { rid, params }) => {
   const notFound = () => fail("NOT_FOUND", "This profile is no longer available.", 404, rid);
 
   if (VERIFIED_ONLY_BROWSING) {
-    const [viewerVerified, targetVerified] = await Promise.all([identityVerified(viewer.id), identityVerified(id)]);
+    const [viewerVerified, targetVerified] = await Promise.all([passesIdentityGate(viewer.id), passesIdentityGate(id)]);
     if (!canSeeEachOther({ verifiedOnly: true, viewerVerified, targetVerified })) return notFound();
   }
 

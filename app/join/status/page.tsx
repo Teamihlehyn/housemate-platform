@@ -31,7 +31,6 @@ function Status() {
   const [confirm, setConfirm] = useState<null | "withdraw" | "delete">(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [activation, setActivation] = useState("");
   const headingRef = useRef<HTMLHeadingElement>(null);
 
   const load = useCallback(async () => {
@@ -46,6 +45,15 @@ function Status() {
   }, [token]);
 
   useEffect(() => { void load(); }, [load]);
+
+  // DES-30: how many of the 7 "Better first matches" questions are answered (session only).
+  const [better, setBetter] = useState<number | null>(null);
+  useEffect(() => {
+    if (token) return;
+    api<any>("/me")
+      .then((me) => setBetter((me.search?.preferences ?? []).filter((p: { state?: string }) => p.state !== "unanswered").length + (me.search?.stayMinMonths != null ? 1 : 0)))
+      .catch(() => setBetter(null));
+  }, [token]);
   // Focus the heading whenever the state changes (including after withdrawing).
   const focusKey = state.kind === "ok" ? state.app.status : state.kind;
   useEffect(() => { if (focusKey !== "loading") headingRef.current?.focus(); }, [focusKey]);
@@ -166,18 +174,25 @@ function Status() {
         )}
       </div>
 
-      {app.status === "approved" && (
-        <form
-          className="card mt-6 p-5 text-left sm:p-6"
-          onSubmit={(e) => { e.preventDefault(); const c = normaliseCode(activation); if (c) router.push(`/invite/${encodeURIComponent(c)}`); }}
-        >
-          <label className="label" htmlFor="st-act">Have your activation code?</label>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <input id="st-act" className="input font-mono uppercase tracking-wider" value={activation} onChange={(e) => setActivation(e.target.value)} autoComplete="off" autoCapitalize="characters" spellCheck={false} maxLength={64} />
-            <button className="btn-primary shrink-0">Activate</button>
+      {session && better !== null && better < 7 && ["submitted", "in_review", "call_booked", "waitlisted"].includes(app.status) && (
+        <div className="card mt-6 p-5 text-left sm:p-6">
+          <div className="flex items-start gap-3">
+            <Pea size={44} mood="awake" blink className="shrink-0" />
+            <div className="min-w-0">
+              <h2 className="text-h3 text-ink">Better first matches</h2>
+              <p className="mt-1 text-sm text-ink-700">
+                While you wait for your call: six quick questions about living together, and how long you want to stay.
+                Optional. Your answers help us match you more precisely.
+              </p>
+              <p className="num mt-2 text-sm font-medium text-ink-700">{better} of 7 answered</p>
+            </div>
           </div>
-          <p className="helper">It&apos;s in the email “You&apos;re approved: activate your Peabudy account”. The link in that email works too.</p>
-        </form>
+          <Link href="/join/better" className="btn-primary mt-4 w-full sm:w-auto">{better === 0 ? "Start" : "Carry on"} <IconArrowRight size={18} /></Link>
+        </div>
+      )}
+
+      {app.status === "approved" && (
+        <Invitation app={app} token={token} onCode={(c) => router.push(`/invite/${encodeURIComponent(c)}`)} />
       )}
 
       {v.steps && (
@@ -287,11 +302,11 @@ function view(app: Application, city: string): {
       return { chip: "Not sent yet", chipClass: neutral, title: "Your application isn't sent yet", body: "Your answers are saved. Finish the questions and send it when you're ready. Unsent applications are deleted 30 days after your last change.", mood: "awake" };
     case "submitted":
     case "in_review":
-      return { chip: "Application received", chipClass: good, chipIcon: tick, title: "We've got your application", body: "We'll email you within a day to book a 10-minute video ID call.", mood: "happy", steps: track(1) };
+      return { chip: "Application received", chipClass: good, chipIcon: tick, title: "We've got your application", body: "Someone from the Peabudy team meets every applicant on a 10-minute video call. We'll email you within a day to book yours.", mood: "happy", steps: track(1) };
     case "call_booked":
       return { chip: "ID call booked", chipClass: good, chipIcon: tick, title: "Your ID call is booked", body: "We'll see your photo ID on a short video call. After that, we'll email you the outcome.", mood: "happy", steps: track(2) };
     case "approved":
-      return { chip: "Approved", chipClass: good, chipIcon: tick, title: "You're approved. Check your email for your invite.", body: "It's from hello@peabudy.com, with a link to activate your account. Check your junk folder too. The link works for 14 days.", mood: "happy", steps: track(3) };
+      return { chip: "Application approved", chipClass: "bg-brand-600 text-white", chipIcon: tick, title: "You're approved", body: "Thanks for the call. One step left: activate your account from the invitation we emailed you. Then your profile goes live.", mood: "wow", steps: track(3) };
     case "waitlisted":
       return { chip: `${city} opens later`, chipClass: "bg-sky-100 text-sky-800", title: `We're holding your application until ${city} opens`, body: `We're starting in Lagos. We'll email you when ${city} opens and book your ID call then. You don't need to do anything now.`, mood: "awake" };
     case "declined":
@@ -352,6 +367,76 @@ function Confirmable({ open, title, desc, action, confirmText, danger, busy, onO
         </button>
         <button className="btn-ghost" onClick={onCancel}>Cancel</button>
       </div>
+    </div>
+  );
+}
+
+/** DES-28: the approved moment. Where the invitation went, how to find it, and a self-serve
+ *  resend (ENG-54: POST /applications/resend-activation, max 3 a day, old link stops working). */
+function Invitation({ app, token, onCode }: { app: Application; token: string | null; onCode: (code: string) => void }) {
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  async function resend() {
+    setBusy(true);
+    setMsg(null);
+    try {
+      await api("/applications/resend-activation", { body: token ? { t: token } : {} });
+      setMsg({ ok: true, text: "Sent. Use the newest email: the link in any earlier one no longer works." });
+    } catch (e) {
+      setMsg({
+        ok: false,
+        text:
+          e instanceof ApiClientError && e.code !== "ERROR" && e.status !== 404
+            ? e.message
+            : "We couldn't resend it just now. Try again in a minute, or email hello@peabudy.com.",
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="card mt-6 p-5 text-left sm:p-6">
+      <h2 className="text-h3 text-ink">Activate your account</h2>
+      <p className="mt-2 text-sm text-ink-700">
+        We emailed your invitation to{" "}
+        {app.email_hint ? <strong className="font-semibold text-ink" data-clarity-mask="true">{app.email_hint}</strong> : "the address you applied with"}.
+        It&apos;s from <strong className="font-semibold text-ink">hello@peabudy.com</strong>, subject
+        “You&apos;re approved: activate your Peabudy account”. The link works for 14 days.
+      </p>
+      <p className="mt-3 rounded-field bg-caution-50 px-3 py-2.5 text-sm text-caution-800">
+        Not in your inbox? Check <strong>Promotions</strong> or <strong>Spam</strong>. It&apos;s from hello@peabudy.com.
+      </p>
+
+      {app.resends_left !== 0 && (
+        <div className="mt-4">
+          <button type="button" className="btn-secondary w-full sm:w-auto" onClick={resend} aria-busy={busy}>
+            {busy ? "Sending…" : "Resend invitation"}
+          </button>
+          {msg && (
+            <p role={msg.ok ? "status" : "alert"} className={`mt-2 text-sm ${msg.ok ? "text-brand-800" : "font-medium text-danger-700"}`}>{msg.text}</p>
+          )}
+        </div>
+      )}
+
+      {app.resends_left === 0 && (
+        <p className="mt-4 text-sm text-ink-700">You&apos;ve asked for 3 invitations today. Try again tomorrow, or email hello@peabudy.com.</p>
+      )}
+      <form
+        className="mt-5 border-t border-ink-100 pt-4"
+        onSubmit={(e) => { e.preventDefault(); const c = normaliseCode(code); if (c) onCode(c); }}
+      >
+        <label className="label" htmlFor="st-act">Or type the activation code from the email</label>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <input id="st-act" className="input font-mono uppercase tracking-wider" value={code} onChange={(e) => setCode(e.target.value)} autoComplete="off" autoCapitalize="characters" spellCheck={false} maxLength={64} />
+          <button className="btn-primary shrink-0">Activate</button>
+        </div>
+      </form>
+      <p className="mt-4 text-caption text-ink-600">
+        Your browser remembers you for 7 days. After that, use the link in your confirmation email to get back here.
+      </p>
     </div>
   );
 }

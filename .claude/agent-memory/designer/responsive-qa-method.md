@@ -25,5 +25,10 @@ Traps found 2026-11-10:
   subject. Drive start/verify with `fetch` from the page: HMR reloads from other agents' edits
   wipe multi-step UI state mid-flow.
 
+- **Since 21 Nov 2026 the iframe sweep is dead:** `next.config.ts` sends `X-Frame-Options: DENY`
+  / `frame-ancestors 'none'`, so `contentDocument` is null. Resize the tab per size, reload, and
+  measure in-page instead. The scratchpad is wiped between sessions: keep generators you need
+  again (e.g. the email builder) out of it, or rebuild by editing the files directly.
+
 **Why:** a whole sweep was silently invalid once (unhydrated + signed out) before these checks.
 **How to apply:** any future layout pass or "does X cover Y" check.

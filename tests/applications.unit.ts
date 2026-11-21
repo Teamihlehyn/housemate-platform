@@ -67,14 +67,18 @@ const complete = {
             stayMinMonths: 6, stayMaxMonths: 12, areaCount: 1, preferenceCount: 6 },
 };
 check("a complete application has nothing missing", missingFields(complete).length === 0);
-check("a fresh draft lists every field",
+check("ENG-57: a fresh draft lists only the six essentials (name, city, areas, budget, dates, bio)",
   missingFields({ displayName: "", emailVerified: true, profile: { journey: null, bio: null }, search: null }).join(",")
-  === "journey,displayName,bio,cityId,areaIds,budget,moveMode,stay,preferences");
-check("five habits isn't enough", missingFields({ ...complete, search: { ...complete.search, preferenceCount: 5 } }).join() === "preferences");
+  === "displayName,bio,cityId,areaIds,budget,moveMode");
+check("ENG-57: journey, stay length and habits aren't required to submit",
+  missingFields({ ...complete, profile: { ...complete.profile, journey: null },
+    search: { ...complete.search, stayMinMonths: null, stayMaxMonths: null, preferenceCount: 0 } }).length === 0);
 check("ranged dates need both ends", missingFields({ ...complete, search: { ...complete.search, latestDate: null } }).join() === "dates");
 check("undecided dates aren't 'missing' (submit refuses them separately)", missingFields({ ...complete, search: { ...complete.search, moveMode: "undecided", earliestDate: null, latestDate: null } }).length === 0);
-check("a 79-character bio is too short", missingFields({ ...complete, profile: { ...complete.profile, bio: "x".repeat(79) } }).join() === "bio");
-check("the message names fields in plain words", missingMessage(["bio", "areaIds"]) === "Complete these before you submit: a short bio (80 characters or more), areas.");
+check("ENG-57: a 39-character bio is too short, 40 is fine",
+  missingFields({ ...complete, profile: { ...complete.profile, bio: "x".repeat(39) } }).join() === "bio"
+  && missingFields({ ...complete, profile: { ...complete.profile, bio: "x".repeat(40) } }).length === 0);
+check("the message names fields in plain words", missingMessage(["bio", "areaIds"]) === "Complete these before you submit: a short bio (40 characters or more), areas.");
 
 // --- Status object ---
 const app = { status: "call_booked", submittedAt: now, callAt: later, reapplyAfter: later };
@@ -86,7 +90,12 @@ check("magic link view is read-only", ro.read_only && !ro.can_edit && !ro.can_wi
 const asMember = applicationDto({ ...app, status: "approved" }, "lagos", { readOnly: false, cityOpen: true, applicant: false });
 check("an activated member can't withdraw their approved application", !asMember.can_withdraw && !asMember.can_edit);
 check("status object carries no name, email or answers",
-  Object.keys(dto).sort().join() === "call_at,can_edit,can_withdraw,city,city_open,read_only,reapply_after,status,submitted_at");
+  Object.keys(dto).sort().join() === "better_matches,call_at,can_edit,can_withdraw,city,city_open,email_hint,read_only,reapply_after,resends_left,status,submitted_at");
+const approvedDto = applicationDto({ ...app, status: "approved" }, "lagos", { readOnly: false, cityOpen: true, applicant: true, emailHint: "t•••@gmail.com", resendsLeft: 2, betterMatchesAnswered: 3 });
+check("ENG-54: approved shows the masked address and resends left; nothing else carries them",
+  approvedDto.email_hint === "t•••@gmail.com" && approvedDto.resends_left === 2 && dto.email_hint === null && dto.resends_left === null);
+check("ENG-54: the magic link (read-only) never offers a resend count", applicationDto({ ...app, status: "approved" }, "lagos", { readOnly: true, cityOpen: true, resendsLeft: 3 }).resends_left === null);
+check("D-R5: better-first-matches progress out of 7", approvedDto.better_matches?.answered === 3 && approvedDto.better_matches?.total === 7);
 
 // --- Magic-link tokens ---
 const t1 = newStatusToken();

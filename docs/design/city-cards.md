@@ -42,6 +42,11 @@ Alt text:
 | `london-960.jpg` | 960 × 640 | 85 KB |
 | `lagos-480.jpg` | 480 × 270 | 40 KB |
 | `lagos-960.jpg` | 960 × 540 | 102 KB |
+| `london-720.jpg` | 720 × 480 | 47 KB (added 21 Nov; quality 45) |
+| `lagos-720.jpg` | 720 × 405 | 55 KB (added 21 Nov; quality 45) |
+
+`sizes` on phones is capped at 250 px, so 2–2.75× phones load the 720 w file (≤ 60 KB) and only
+3× screens get the 960.
 
 All under the budget (≤ 60 KB at 480 w, ≤ 120 KB at 960 w). Made with macOS `sips` from the
 founder's AVIF originals (quality 62 at 480 w, 48 at 960 w). The originals were not changed.

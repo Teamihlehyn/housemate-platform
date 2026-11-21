@@ -1,6 +1,7 @@
 // Fixed configuration: London & Lagos, questionnaire v1, rubric v1.
 
-export const ALGORITHM_VERSION = "match-v1";
+// v2 (21 Nov 2026): unanswered habits and stay length handled explicitly (ENG-56/57).
+export const ALGORITHM_VERSION = "match-v2";
 export const PRIVACY_VERSION = "privacy-v2";
 // Survey email opt-in wording version (ENG-29). Bump when the checkbox copy changes.
 export const SURVEY_OPT_IN_VERSION = "survey-v1";

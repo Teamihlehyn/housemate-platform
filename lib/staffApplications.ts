@@ -1,7 +1,7 @@
 import { prisma } from "./db";
 import { ApiError } from "./api";
 import { CITIES, QUESTIONNAIRE } from "./constants";
-import { isCityOpen } from "./env";
+import { isCityOpen, testApprovalsAllowed } from "./env";
 import { monthlyEquivalentMinor } from "./money";
 import { inviteState } from "./invites";
 import { DAY_MS, canStaffRoleAct, missingFields, waitingLabel } from "./applications";
@@ -176,11 +176,21 @@ export async function applicationDetail(appId: string, viewer: { id: string; rol
       }
       // Dealbreakers: the values this person won't live with (everything not accepted).
       const ruledOut = (q?.values ?? []).filter((v) => !accepted.includes(v.id)).map((v) => v.label);
-      return { dimension: p.dimension, label: q?.label ?? p.dimension, own: label(p.ownAnswer), accepted: accepted.map(label), ruled_out: ruledOut };
+      return {
+        dimension: p.dimension,
+        label: q?.label ?? p.dimension,
+        own: p.ownAnswer ? label(p.ownAnswer) : "Not answered yet",
+        accepted: accepted.map(label),
+        ruled_out: p.state === "some" ? ruledOut : [],
+        state: p.state,
+      };
     }),
     missing: missingFields(input),
     private_hidden: true,
     activation: invite ? { state: inviteState(invite), expires_at: invite.expiresAt } : null,
     can_act: canStaffRoleAct(viewer.role),
+    // ENG-67: test environments only, admins only.
+    is_test_account: user.isTestAccount,
+    test_approval_available: testApprovalsAllowed() && viewer.role === "admin" && ["submitted", "in_review", "call_booked"].includes(app.status),
   };
 }

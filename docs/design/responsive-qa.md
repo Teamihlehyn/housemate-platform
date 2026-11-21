@@ -140,3 +140,90 @@ engineer's e2e covers it), `/join/status` approved, call booked, waitlisted and 
 from one `view()` table; checked by code, not in the browser), the `/join` busy (HM-26) and
 paused states, real devices, Slow 3G. Under reduced motion the city card's scale-up is
 `motion-safe:` only, so it doesn't apply.
+
+---
+
+## Usability round 1 fixes (DES-25 to DES-33), 21 Nov 2026
+
+The iframe sweep no longer works: `next.config.ts` now sends `X-Frame-Options: DENY` and
+`frame-ancestors 'none'` (SEC-15), so every check below resized the tab itself and measured in
+the page. Landing checked in `housemate-beta`; in-app pages in `housemate-research` with a demo
+persona (a beta user needs a staff approval through the new password-protected back office).
+
+**DES-27 hero: "Apply to join" visible without scrolling**
+
+| Size | CTA bottom edge | Visible on load | Sideways overflow |
+|---|---|---|---|
+| 320 × 568 | 363 px | ✓ | none |
+| 360 × 740 | 363 px | ✓ | none |
+| 390 × 844 | 327 px | ✓ | none |
+| 430 × 932 | 327 px | ✓ | none |
+| 768 × 1024 | 669 px | ✓ | none |
+| 1280 × 800 | in the first screen (screenshot) | ✓ | none |
+
+| Page / state | 320 | 360 | 390 | 430 | 768 | 1280 |
+|---|---|---|---|---|---|---|
+| How it works, step 4 (₦ example) | ✓ (fixed: "a year each" no longer splits) | — | — | — | — | — |
+| Discover: Messages badge (header + bottom nav), "New message" card link, search chips | — | ✓ visual | — | — | — | — |
+| Discover: edit sheet (areas + budget), save → "Saved. 6 people fit now.", focus back on Edit | — | ✓ | — | — | — | — |
+| `/join/status` submitted with "Better first matches" card | — | ✓ visual | — | — | — | — |
+| `/join/better` deal-breakers: chips + exclusive "I have no deal-breakers" | — | ✓ (exclusivity checked by script) | — | — | — | — |
+
+**Not verified in the browser:** the approved status screen with Resend invitation (needs a staff
+approval), the household "Proposal sent / received" states (sample housemates accept instantly
+in research mode), the Discover empty state (research mode tops up the sample world, so it never
+empties), tablet/desktop for the in-app changes, real devices.
+
+**DES-27 rework (founder direction, same day): "Find flatmates in Lagos"**
+
+| Size | CTA bottom edge | Visible on load | Overflow |
+|---|---|---|---|
+| 320 × 568 | ≈ 330 px (from the screenshot) | ✓ | none |
+| 360 × 740 | 331 px | ✓ | none |
+| 390 × 844 | 331 px | ✓ | none |
+| 430 × 932 | 331 px | ✓ | none |
+| 768 × 1024 | 513 px | ✓ | none |
+| 1280 × 800 | 468 px | ✓ | none |
+
+Five-second check: the headline, "find flatmates" and Apply to join are all in the first screen
+at every size above. The section nav now starts at 1024 px (at 768 it wrapped "How it works" onto
+two lines). After scrolling the whole page, no element is left hidden by the reveal animation.
+A fresh 2× phone at 360 px picks `*-720.jpg` (probe), not the 960. Screenshots: hero at 320, 768
+and 1280; How it works, the match card, the agreement card and the city photos at 360; How it works
+and both cards at 1280.
+
+**DES-27b rotating hero** (`housemate-beta`; the CTA position was sampled every 250 ms for 9 s,
+covering all three states):
+
+| Size | CTA top/bottom (identical in Lagos, London and every city) | Visible | Word+tag fits the line | Overflow |
+|---|---|---|---|---|
+| 320 × 568 | 293 / 337 | ✓ | ✓ | none |
+| 360 × 740 | 275 / 319 | ✓ | ✓ | none |
+| 375 × 667 | 275 (H1 height constant at 80 px) | ✓ | ✓ | none |
+| 390 × 844 | 275 / 319 | ✓ | ✓ | none |
+| 430 × 932 | 289 / 333 | ✓ | ✓ | none |
+| 768 × 1024 | 330 / 374 (fixed: at 68 px "London Coming soon" didn't fit; the headline is 44 px until 1024) | ✓ | ✓ | none |
+| 1280 × 800 | 424 / 468 | ✓ | ✓ | none |
+
+The layout shift from the rotation is zero: the CTA's top never moved at any size. Screenshots:
+Lagos, London and every city at 375; Lagos at 768 and 1280. The 1280 London and every-city frames
+weren't captured: the app hid the browser pane, the page reported `visibilityState: hidden`, and
+the rotation correctly paused. Also checked: Pause stops it, and Play restarts it with focus still
+on the button. The pill no longer covers the call line at 375. **Reduced motion** was checked by
+code only (the tool can't emulate it): the timer never starts when the media query matches.
+
+**Round 1, engineer hand-back (21 Nov), 375 × 812, `housemate-research`:**
+- `/join` is now the six-screen application: "Where · Step 2 of 7" (city photo cards, then areas
+  once a city is picked, plus "Why we ask"), "Money and dates · Step 3/4 of 7", "Living together ·
+  Step 5 of 7" (gender and preference on one screen), "Your profile · Step 7 of 7" (review rows:
+  name, areas, budget, move-in, about you, two private rows). ✓
+- Date guard: earliest 10 Jan → latest `min` = 2027-01-10. Moving earliest to 1 Mar cleared
+  latest, moved focus to it and said "Choose your latest date again. It must be on or after
+  1 March 2027." ✓
+- The bio counter starts at "40 more characters to go" (D-R5). ✓
+- Funnel: `POST /api/v1/funnel` fires as the screens are viewed (200s). In development, React's
+  strict mode sends `step_viewed` twice per screen; production sends it once.
+- Notifications restyled (New chip, "Open →", dates as "21 Nov, 14:37"; the card content is now
+  valid inside a button). ✓
+- Not checked in the browser: the household proposals list (sample housemates accept straight
+  away, so no pending state exists in research mode), desktop for these screens.

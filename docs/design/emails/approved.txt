@@ -7,11 +7,6 @@ Activate my account:
 
 Or go to peabudy.com/signin, choose "Have an activation code?" and type: {{code}}
 
-When you activate
-1. We email you a 6-digit code to confirm it's you.
-2. Your profile goes live, and you see who fits: shared dates, areas and habits.
-3. Your profile shows that our team checked your ID. Checks completed — not a guarantee of safety.
-
 Never share this link or code. It works once, for your email address only, until {{expires_on}}. If it runs out, reply to this email and we'll send a new one.
 
 Didn't apply? Reply and tell us. Nothing happens unless the link is used.

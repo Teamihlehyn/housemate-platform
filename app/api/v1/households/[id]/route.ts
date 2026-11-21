@@ -3,9 +3,19 @@ import { handler, ok, fail } from "@/lib/api";
 import { requireUser } from "@/lib/guard";
 import { prisma } from "@/lib/db";
 import { writeAudit, writeOutbox, notify } from "@/lib/audit";
-import { acceptPlan } from "@/lib/household";
+import { acceptPlan, buildHouseholdView, closeProposal } from "@/lib/household";
 
-// POST /api/v1/households/[id] {action: accept|accept_plan|leave, expected_version?, plan_version_id?}
+// GET /api/v1/households/[id] — one of your households (e.g. a pending proposal) in full.
+// Not a member → 404.
+export const GET = handler(async (_req: NextRequest, { rid, params }) => {
+  const user = await requireUser();
+  const m = await prisma.membership.findFirst({ where: { householdId: params.id, userId: user.id } });
+  if (!m) return fail("NOT_FOUND", "Household not found.", 404, rid);
+  return ok({ household: await buildHouseholdView(params.id, user.id) }, rid);
+});
+
+// POST /api/v1/households/[id] {action: accept|accept_plan|withdraw|decline|leave, expected_version?, plan_version_id?}
+// withdraw: the proposer, while pending. decline: the other person, while pending (D-R2).
 export const POST = handler(async (req: NextRequest, { rid, params }) => {
   const user = await requireUser();
   const body = await req.json().catch(() => ({}));
@@ -35,6 +45,11 @@ export const POST = handler(async (req: NextRequest, { rid, params }) => {
     return ok({ state: fresh?.state, result }, rid);
   }
 
+  if (action === "withdraw" || action === "decline") {
+    const r = await closeProposal({ householdId: hh.id, userId: user.id, action, rid });
+    return ok(r, rid);
+  }
+
   if (action === "leave") {
     if (!["proposed", "active"].includes(hh.state))
       return fail("STATE_CONFLICT", "This household is already closed.", 409, rid);
@@ -58,7 +73,7 @@ export const POST = handler(async (req: NextRequest, { rid, params }) => {
       });
       await writeAudit(tx, { eventType: "household.closed", actorId: user.id, subjectId: otherId, resourceType: "household", resourceId: hh.id, action: "leave", reasonCode: "member_left" }, rid);
       await writeOutbox(tx, "household_closed", { householdId: hh.id });
-      await notify(tx, otherId, "household_closed", "Household closed", `${user.displayName} left the household. You can return to search anytime.`);
+      await notify(tx, otherId, "household_closed", "Household closed", `${user.displayName} left the household. You can return to search anytime.`, { type: "household", id: hh.id });
     });
     return ok({ state: "closed" }, rid);
   }

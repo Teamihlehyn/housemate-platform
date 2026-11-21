@@ -39,6 +39,8 @@ export async function purgeApplications(opts: { dryRun: boolean; staffId: string
     declined: rows.filter((r) => r.kind === "declined").length,
     withdrawn: rows.filter((r) => r.kind === "withdrawn").length,
     expired_tombstones: await prisma.applicantTombstone.count({ where: { reapplyAfter: { lte: now } } }),
+    // Funnel events are kept 12 months (ENG-58).
+    expired_funnel_events: await prisma.funnelEvent.count({ where: { createdAt: { lt: new Date(now.getTime() - 365 * 86_400_000) } } }),
   };
   if (opts.dryRun) return { dry_run: true, ...counts };
 
@@ -82,6 +84,7 @@ export async function purgeApplications(opts: { dryRun: boolean; staffId: string
     await tx.idempotencyKey.deleteMany({ where: { actorId: { in: userIds } } });
     await tx.user.deleteMany({ where: { id: { in: userIds }, accountStatus: { in: ["applicant", "deletion_pending"] } } });
     const expired = await tx.applicantTombstone.deleteMany({ where: { reapplyAfter: { lte: now } } });
+    await tx.funnelEvent.deleteMany({ where: { createdAt: { lt: new Date(now.getTime() - 365 * 86_400_000) } } });
     await writeAudit(tx, {
       eventType: "application.purged",
       actorType: "staff",

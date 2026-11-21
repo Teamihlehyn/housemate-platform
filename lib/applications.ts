@@ -32,6 +32,8 @@ export const STAFF_ACTIONS = {
   decline: ["submitted", "in_review", "call_booked", "waitlisted", "approved"],
   waitlist: ["submitted", "in_review", "call_booked"],
   resend_activation: ["approved"],
+  // ENG-67: test environments only (lib/env.ts testApprovalsAllowed), admins only.
+  approve_test: ["submitted", "in_review", "call_booked"],
 } as const satisfies Record<string, readonly ApplicationStatus[]>;
 export type StaffAction = keyof typeof STAFF_ACTIONS;
 
@@ -42,6 +44,7 @@ export const ACTION_RESULT: Record<StaffAction, ApplicationStatus> = {
   decline: "declined",
   waitlist: "waitlisted",
   resend_activation: "approved",
+  approve_test: "approved",
 };
 
 export function isStaffAction(a: unknown): a is StaffAction {
@@ -141,7 +144,7 @@ export interface CompletenessInput {
 export const MISSING_LABELS: Record<string, string> = {
   journey: "what you're looking for",
   displayName: "your first name",
-  bio: "a short bio (80 characters or more)",
+  bio: "a short bio (40 characters or more)",
   cityId: "city",
   areaIds: "areas",
   budget: "budget",
@@ -152,20 +155,22 @@ export const MISSING_LABELS: Record<string, string> = {
   email: "a confirmed email address",
 };
 
+export const BIO_MIN = 40;
+export const BETTER_MATCHES_TOTAL = 7; // six habits + stay length
+
 export function missingFields(u: CompletenessInput): string[] {
   const p = u.profile;
   const s = u.search;
   const m: string[] = [];
-  if (!p?.journey) m.push("journey");
+  // D-R5 (ENG-57): the application is name, city + areas, budget, dates, gender + preference
+  // and bio. Journey, stay length and the six habits come later ("better first matches").
   if (!u.displayName || u.displayName.trim().length < 2) m.push("displayName");
-  if (!p?.bio || p.bio.length < 80) m.push("bio");
+  if (!p?.bio || p.bio.trim().length < BIO_MIN) m.push("bio");
   if (!s?.cityId) m.push("cityId");
   if (!s || s.areaCount === 0) m.push("areaIds");
   if (s?.rentMinMinor == null || s?.rentMaxMinor == null) m.push("budget");
   if (!s?.moveMode) m.push("moveMode");
   if (s?.moveMode && s.moveMode !== "undecided" && (!s.earliestDate || !s.latestDate)) m.push("dates");
-  if (s?.stayMinMonths == null || s?.stayMaxMonths == null) m.push("stay");
-  if (!s || s.preferenceCount < 6) m.push("preferences");
   if (!u.emailVerified) m.push("email");
   return m;
 }
@@ -178,9 +183,17 @@ export function missingMessage(missing: string[], verb = "submit"): string {
 export function applicationDto(
   a: { status: string; submittedAt: Date | null; callAt: Date | null; reapplyAfter: Date | null },
   cityId: string | null,
-  opts: { readOnly: boolean; cityOpen: boolean; applicant?: boolean }
+  opts: {
+    readOnly: boolean;
+    cityOpen: boolean;
+    applicant?: boolean;
+    emailHint?: string | null;
+    resendsLeft?: number | null;
+    betterMatchesAnswered?: number | null;
+  }
 ) {
   const actionable = !opts.readOnly && opts.applicant !== false;
+  const approved = a.status === "approved";
   return {
     status: a.status,
     city: cityId,
@@ -191,6 +204,11 @@ export function applicationDto(
     can_edit: actionable && canEdit(a.status),
     can_withdraw: actionable && canWithdraw(a.status),
     read_only: opts.readOnly,
+    // ENG-54: where the invitation went (masked), and how many self-serve resends are left today.
+    email_hint: approved ? opts.emailHint ?? null : null,
+    resends_left: approved && actionable ? opts.resendsLeft ?? null : null,
+    // D-R5: the "better first matches" questions answered so far (habits + stay length).
+    better_matches: opts.readOnly ? null : { answered: opts.betterMatchesAnswered ?? 0, total: BETTER_MATCHES_TOTAL },
   };
 }
 

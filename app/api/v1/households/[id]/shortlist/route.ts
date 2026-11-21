@@ -80,7 +80,7 @@ export const POST = handler(async (req: NextRequest, { rid, params }) => {
     });
     await writeAudit(tx, { eventType: "shortlist.added", actorId: user.id, resourceType: "shortlist_item", resourceId: created.id, action: "add" }, rid);
     await writeOutbox(tx, "shortlist_added", { itemId: created.id });
-    await notify(tx, otherId, "shortlist_added", "New shortlisted home", `${user.displayName} added "${title}" to your shortlist.`);
+    await notify(tx, otherId, "shortlist_added", "New shortlisted home", `${user.displayName} added "${title}" to your shortlist.`, { type: "household", id: hh.id });
     return created;
   });
 

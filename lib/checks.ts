@@ -13,6 +13,8 @@ export interface CheckRow {
   text: string;
 }
 
+export const TEST_ACCOUNT_LABEL = "Test account — ID not checked";
+
 export const CHECKS_DISCLAIMER = "Checks completed — not a guarantee of safety.";
 
 const MONTHS = [
@@ -35,12 +37,19 @@ export function monthLabel(ym: string | null | undefined): string | null {
 export function checkRows(checks: CheckItem[], opts: { own: boolean }): CheckRow[] {
   const get = (c: string) => checks.find((x) => x.category === c);
   const rows: CheckRow[] = [];
+  // ENG-67: approved without the video ID call, for testing. Never claims an ID check.
+  if (checks.some((c) => c.category === "test_account")) {
+    rows.push({ key: "test_account", done: false, text: TEST_ACCOUNT_LABEL });
+  }
 
   const email = get("email");
   if (email?.status === "verified") rows.push({ key: "email", done: true, text: "Email confirmed" });
 
   const id = get("identity");
-  if (id?.status === "verified") {
+  const test = checks.some((c) => c.category === "test_account");
+  if (test) {
+    // nothing more about identity: it was never checked
+  } else if (id?.status === "verified") {
     const month = monthLabel(id.checkedMonth);
     rows.push({ key: "identity", done: true, text: `Identity checked by the Peabudy team${month ? ` · ${month}` : ""}` });
   } else if (opts.own && id?.status === "failed") {

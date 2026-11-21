@@ -16,7 +16,7 @@ export const CITY_VISUALS: Record<CityId, { name: string; symbol: string; alt: s
     // Big Ben sits right of centre; keep it in frame on narrow crops.
     position: "72% 40%",
     src: "/cities/london-480.jpg",
-    srcSet: "/cities/london-480.jpg 480w, /cities/london-960.jpg 960w",
+    srcSet: "/cities/london-480.jpg 480w, /cities/london-720.jpg 720w, /cities/london-960.jpg 960w",
   },
   lagos: {
     name: "Lagos",
@@ -25,7 +25,7 @@ export const CITY_VISUALS: Record<CityId, { name: string; symbol: string; alt: s
     // The tower is centre-left, the lagoon to its right.
     position: "50% 35%",
     src: "/cities/lagos-480.jpg",
-    srcSet: "/cities/lagos-480.jpg 480w, /cities/lagos-960.jpg 960w",
+    srcSet: "/cities/lagos-480.jpg 480w, /cities/lagos-720.jpg 720w, /cities/lagos-960.jpg 960w",
   },
 };
 
@@ -62,7 +62,7 @@ export default function CityCard({
       <img
         src={v.src}
         srcSet={v.srcSet}
-        sizes="(min-width: 640px) 280px, calc(100vw - 32px)"
+        sizes="(min-width: 640px) 280px, 250px" /* phones get ≤ 720 w (≤ 60 KB) even at 2.75× */
         alt={v.alt}
         width={480}
         height={300}

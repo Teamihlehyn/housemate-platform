@@ -4,7 +4,8 @@ import { ALGORITHM_VERSION, QUESTIONNAIRE, answerLabel, CITIES, Dimension, gende
 import { monthlyEquivalentMinor } from "./money";
 import { dateOverlap } from "./dates";
 import { computeScore } from "./credibility";
-import { IS_BETA } from "./env";
+import { IS_BETA, testApprovalsAllowed } from "./env";
+import { HabitAnswer, habitCompatible, stayRange } from "./matchRules";
 
 export interface Candidate {
   userId: string;
@@ -23,7 +24,8 @@ export interface Candidate {
   latestDate: string | null;
   bio: string | null;
   score?: number; // credibility score; omitted in beta, which shows no numbers (ENG-04)
-  idChecked?: boolean; // beta only: always true, because only checked people are listed (ENG-02)
+  idChecked?: boolean; // beta: true for team-checked people; false only for test accounts (ENG-67)
+  testAccount?: boolean; // ENG-67: approved without the ID call (test environments only)
   rank: number;
   reasons: string[];
   discussTopics: string[];
@@ -47,9 +49,10 @@ interface Loaded {
   stayMin: number;
   stayMax: number;
   areas: string[];
-  prefs: Record<string, { own: string; accepted: string[] }>;
+  prefs: Record<string, HabitAnswer>;
   gender: string | null;
   genderAccepts: string[];
+  isTest: boolean;
 }
 
 async function loadMatchable(userId: string): Promise<Loaded | null> {
@@ -67,16 +70,22 @@ async function loadMatchable(userId: string): Promise<Loaded | null> {
     s.rentMinMinor == null ||
     s.rentMaxMinor == null ||
     s.rentPeriod == null ||
-    s.currency == null ||
-    s.stayMinMonths == null ||
-    s.stayMaxMonths == null
+    s.currency == null
   )
     return null;
 
   const prefs: Loaded["prefs"] = {};
   for (const p of s.preferences) {
-    prefs[p.dimension] = { own: p.ownAnswer, accepted: JSON.parse(p.acceptedValues) };
+    let accepted: string[] = [];
+    try {
+      accepted = JSON.parse(p.acceptedValues);
+    } catch {
+      accepted = [];
+    }
+    prefs[p.dimension] = { own: p.ownAnswer, accepted, state: (p.state as HabitAnswer["state"]) ?? "some" };
   }
+  // Stay not answered yet = open (ENG-57): nobody is dropped for skipping it.
+  const stay = stayRange(s.stayMinMonths, s.stayMaxMonths);
 
   return {
     userId: user.id,
@@ -93,12 +102,13 @@ async function loadMatchable(userId: string): Promise<Loaded | null> {
     moveMode: s.moveMode ?? "undecided",
     earliestDate: s.earliestDate,
     latestDate: s.latestDate,
-    stayMin: s.stayMinMonths,
-    stayMax: s.stayMaxMonths,
+    stayMin: stay.min,
+    stayMax: stay.max,
     areas: s.areas.map((a) => a.areaId),
     prefs,
     gender: s.gender,
     genderAccepts: parseGenderPreference(s.genderPreference),
+    isTest: user.isTestAccount,
   };
 }
 
@@ -129,7 +139,8 @@ export async function getRecommendations(viewerId: string): Promise<MatchResult>
 
   // Users already in an active household are unavailable.
   const activeMembers = await prisma.membership.findMany({
-    where: { state: "active", household: { state: { in: ["proposed", "active"] } } },
+    // D-R2: only a formed household takes someone out of Discover; pending proposals don't.
+    where: { state: "active", household: { state: "active" } },
     select: { userId: true },
   });
   const housedIds = new Set(activeMembers.map((m) => m.userId));
@@ -148,8 +159,11 @@ export async function getRecommendations(viewerId: string): Promise<MatchResult>
       profile: { publicationStatus: "published" },
       search: { status: "active", cityId: viewer.cityId },
       // Pilot: only team-verified identities are discoverable.
+      // (Where test approvals are allowed, never in production: test accounts too, ENG-67.)
       ...(IS_BETA
-        ? { checks: { some: { category: "identity", status: "verified" } } }
+        ? testApprovalsAllowed()
+          ? { OR: [{ checks: { some: { category: "identity", status: "verified" } } }, { isTestAccount: true }] }
+          : { checks: { some: { category: "identity", status: "verified" } } }
         : {}),
     },
     include: { profile: true, search: { include: { areas: true, preferences: true } } },
@@ -189,13 +203,11 @@ export async function getRecommendations(viewerId: string): Promise<MatchResult>
       continue;
     }
 
-    // Two-way living dealbreakers
+    // Two-way living deal-breakers. An unanswered own answer can't satisfy someone with
+    // deal-breakers on that question (ENG-56/57, lib/matchRules.ts).
     let dealbreakerFail = false;
     for (const q of QUESTIONNAIRE) {
-      const v = viewer.prefs[q.id];
-      const o = c.prefs[q.id];
-      if (!v || !o) continue;
-      if (!o.accepted.includes(v.own) || !v.accepted.includes(o.own)) {
+      if (!habitCompatible(viewer.prefs[q.id], c.prefs[q.id], q.id)) {
         dealbreakerFail = true;
         break;
       }
@@ -237,7 +249,7 @@ export async function getRecommendations(viewerId: string): Promise<MatchResult>
     for (const q of QUESTIONNAIRE) {
       const v = viewer.prefs[q.id];
       const o = c.prefs[q.id];
-      if (v && o && v.own === o.own) {
+      if (v && o && v.own != null && v.own === o.own) {
         habitPoints += 6;
         identicalHabits.push(q.id);
       }
@@ -258,7 +270,7 @@ export async function getRecommendations(viewerId: string): Promise<MatchResult>
     reasons.push(`Both want to live in ${areaLabels}`);
     if (identicalHabits.length > 0) {
       const first = identicalHabits[0];
-      reasons.push(`Same answer on "${answerLabel(first, viewer.prefs[first].own)}"`);
+      reasons.push(`Same answer on "${answerLabel(first, viewer.prefs[first].own as string)}"`);
     }
 
     // Discuss topics: differing but mutually accepted habits
@@ -266,7 +278,7 @@ export async function getRecommendations(viewerId: string): Promise<MatchResult>
     for (const q of QUESTIONNAIRE) {
       const v = viewer.prefs[q.id];
       const o = c.prefs[q.id];
-      if (v && o && v.own !== o.own) {
+      if (v && o && v.own != null && o.own != null && v.own !== o.own) {
         discussTopics.push(q.label);
       }
     }
@@ -289,7 +301,8 @@ export async function getRecommendations(viewerId: string): Promise<MatchResult>
       earliestDate: c.earliestDate,
       latestDate: c.latestDate,
       bio: c.bio,
-      ...(sb ? { score: sb.score } : { idChecked: true }),
+      // A test account (ENG-67) was never ID-checked: say so, never "ID checked".
+      ...(sb ? { score: sb.score } : c.isTest ? { idChecked: false, testAccount: true } : { idChecked: true }),
       rank,
       reasons: reasons.slice(0, 3),
       discussTopics: discussTopics.slice(0, 3),

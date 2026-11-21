@@ -8,7 +8,7 @@ import { addDays, testToday } from "@/lib/dates";
 import { IS_BETA } from "@/lib/env";
 import { gendersCompatible, parseGenderPreference } from "@/lib/constants";
 import { afterIntroduction } from "@/lib/demoBots";
-import { identityVerified } from "@/lib/verification";
+import { passesIdentityGate } from "@/lib/verification";
 import { assertNotBlocked } from "@/lib/blocks";
 
 // GET /api/v1/introductions?direction=incoming|outgoing
@@ -60,7 +60,7 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
   const user = await requireUser();
   // Pilot: the sender must be team-verified before anything about the target is looked
   // up, so an unverified account learns nothing about who exists (HM-01).
-  if (IS_BETA && !(await identityVerified(user.id)))
+  if (IS_BETA && !(await passesIdentityGate(user.id)))
     return fail("IDENTITY_PENDING", "Your identity check is still pending. We'll be in touch to arrange it.", 403, rid);
   const body = await req.json().catch(() => ({}));
   const idemKey = req.headers.get("idempotency-key");
@@ -90,7 +90,7 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
   )
     return fail("NOT_FOUND", "This user is not available.", 404, rid);
   // Pilot: the target must be team-verified too.
-  if (IS_BETA && !(await identityVerified(targetId)))
+  if (IS_BETA && !(await passesIdentityGate(targetId)))
     return fail("NOT_FOUND", "This user is not available.", 404, rid);
 
   await assertNotBlocked(user.id, targetId);
@@ -149,7 +149,7 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
         });
         await writeAudit(tx, { eventType: "introduction.sent", actorId: user.id, subjectId: targetId, resourceType: "introduction", resourceId: updated.id, action: "resend" }, rid);
         await writeOutbox(tx, "introduction_sent", { id: updated.id });
-        await notify(tx, targetId, "introduction_received", "New introduction", `${user.displayName} would like to connect.`);
+        await notify(tx, targetId, "introduction_received", "New introduction", `${user.displayName} would like to connect.`, { type: "introduction", id: updated.id });
         return { id: updated.id, state: "pending", already: false };
       }
       const created = await tx.introduction.create({
@@ -163,7 +163,7 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
       });
       await writeAudit(tx, { eventType: "introduction.sent", actorId: user.id, subjectId: targetId, resourceType: "introduction", resourceId: created.id, action: "create" }, rid);
       await writeOutbox(tx, "introduction_sent", { id: created.id });
-      await notify(tx, targetId, "introduction_received", "New introduction", `${user.displayName} would like to connect.`);
+      await notify(tx, targetId, "introduction_received", "New introduction", `${user.displayName} would like to connect.`, { type: "introduction", id: created.id });
       return { id: created.id, state: "pending", already: false };
     });
 

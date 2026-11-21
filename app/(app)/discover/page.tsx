@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, ApiClientError, newIdempotencyKey } from "@/lib/client";
@@ -8,8 +8,9 @@ import { formatMoney } from "@/lib/money";
 import { formatDateRange } from "@/lib/dates";
 import { CITIES } from "@/lib/constants";
 import Pea from "@/components/brand/Pea";
-import { IconCalendar, IconCheck, IconWallet } from "@/components/icons";
+import { IconCalendar, IconChat, IconCheck, IconWallet } from "@/components/icons";
 import { IdCheckedChip } from "@/components/ChecksCard";
+import SearchChips from "@/components/discover/SearchChips";
 
 // Avatar tints are chosen from the id, never from gender or anything personal.
 const TINTS = ["bg-lilac-100 text-lilac-800", "bg-sky-100 text-sky-800", "bg-apricot-100 text-apricot-800", "bg-pea-100 text-ink"];
@@ -29,7 +30,10 @@ interface Candidate {
   bio: string | null;
   score?: number;
   idChecked?: boolean;
+  testAccount?: boolean; // ENG-67: test environments only
   reasons: string[];
+  /** ENG-51: something from this person waiting for you (private to you). */
+  activity?: { kind: "new_message"; href: string; count?: number } | { kind: "introduced"; href: string } | null;
 }
 
 function areaLabel(city: string, area: string) {
@@ -45,16 +49,23 @@ export default function Discover() {
   const [composerFor, setComposerFor] = useState<Candidate | null>(null);
   const [identityPending, setIdentityPending] = useState(false);
 
-  useEffect(() => {
-    api<{ candidates: Candidate[]; exclusions: any; gate?: string | null }>("/recommendations")
-      .then((d) => {
-        setCandidates(d.candidates);
-        setExclusions(d.exclusions);
-        setIdentityPending(d.gate === "identity_pending");
-      })
-      .catch((e) => { if (e instanceof ApiClientError && e.status === 403) router.replace("/onboarding"); })
-      .finally(() => setLoading(false));
-  }, [router]);
+  const [editSignal, setEditSignal] = useState(0);
+
+  // Resolves to how many people fit, for the search chips' "Saved. 3 people fit now."
+  const load = useCallback(
+    () =>
+      api<{ candidates: Candidate[]; exclusions: any; gate?: string | null }>("/recommendations")
+        .then((d) => {
+          setCandidates(d.candidates);
+          setExclusions(d.exclusions);
+          setIdentityPending(d.gate === "identity_pending");
+          return d.candidates.length;
+        })
+        .catch((e) => { if (e instanceof ApiClientError && e.status === 403) router.replace("/onboarding"); return 0; })
+        .finally(() => setLoading(false)),
+    [router],
+  );
+  useEffect(() => { load(); }, [load]);
 
   const visible = candidates.filter((c) => !passed.has(c.userId));
 
@@ -78,7 +89,7 @@ export default function Discover() {
           </div>
           <h1 className="mt-4 font-display text-h1 text-ink">Your ID check is next</h1>
           <p className="mt-2 text-ink-700">
-            Before you can see other members, someone from our team checks your photo ID on a 10-minute video call.
+            Before you can see other users, someone from the Peabudy team checks your photo ID on a 10-minute video call.
             We&apos;ll email you within a day to book it. Nobody can see your profile until then.
           </p>
           <Link href="/profile" className="btn-secondary mt-6">Check my profile</Link>
@@ -94,6 +105,8 @@ export default function Discover() {
         <p className="mt-1 text-sm text-ink-600">Ranked by shared dates, areas and living habits.</p>
       </div>
 
+      <SearchChips onSaved={load} openSignal={editSignal} />
+
       {process.env.NEXT_PUBLIC_APP_ENV === "research" && (
         <div className="mb-5 rounded-panel border border-dashed border-ink-400 bg-white p-4 text-sm text-ink-700">
           Everyone here is a <strong>sample housemate</strong> created for your test, matched to what you entered. They reply
@@ -108,17 +121,22 @@ export default function Discover() {
           <p className="mx-auto mt-2 max-w-md text-sm text-ink-600">
             {exclusions && exclusions.excludedCount > 0
               ? `We checked ${exclusions.excludedCount} nearby ${exclusions.excludedCount === 1 ? "person" : "people"} but none fit all your hard constraints yet.`
-              : "There aren't compatible members in your city yet."}
+              : "There aren't any compatible users in your city yet."}
             {exclusions && exclusions.narrowFilters.length > 0 && (
               <> Your narrowest filters: <strong>{exclusions.narrowFilters.join(", ")}</strong>.</>
             )}
           </p>
-          <Link href="/profile" className="btn-secondary mt-5">Adjust my search</Link>
+          <p className="mx-auto mt-2 max-w-md text-sm text-ink-600">Try another area or a wider budget. You can change them back any time.</p>
+          <div className="mt-5 flex flex-col justify-center gap-2 sm:flex-row">
+            <button type="button" className="btn-primary" onClick={() => setEditSignal((n) => n + 1)}>Change areas or budget</button>
+            <Link href="/profile" className="btn-secondary">Dates and habits</Link>
+          </div>
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
           {visible.map((c) => (
             <div key={c.userId} className="card flex flex-col p-4 sm:p-5">
+              <ActivityLink activity={c.activity} name={c.displayName} />
               <div className="flex items-center gap-3">
                 <span aria-hidden="true" className={`grid h-12 w-12 shrink-0 place-items-center rounded-full font-bold ${TINTS[c.userId.charCodeAt(c.userId.length - 1) % TINTS.length]}`}>{c.avatarInitials}</span>
                 <div className="min-w-0">
@@ -126,6 +144,7 @@ export default function Discover() {
                     <span className="font-semibold text-ink">{c.displayName}</span>
                     {process.env.NEXT_PUBLIC_APP_ENV === "research" && <span className="chip-sample">Sample</span>}
                     {c.idChecked && <IdCheckedChip />}
+                    {c.testAccount && <span className="chip bg-caution-50 text-caution-800">Test account — ID not checked</span>}
                   </p>
                   <p className="truncate text-sm text-ink-600">{c.areas.map((a) => areaLabel(c.cityId, a)).join(", ")}</p>
                 </div>
@@ -174,7 +193,7 @@ function IntroComposer({ candidate, onClose, onSent }: { candidate: Candidate; o
         body: { target_user_id: candidate.userId, text },
         idempotencyKey: key,
       });
-      if (res.already) setError("You already have an introduction with this member.");
+      if (res.already) setError("You already have an introduction with this person.");
       else onSent();
     } catch (e) {
       setError(e instanceof ApiClientError ? e.message : "Could not send.");
@@ -197,5 +216,26 @@ function IntroComposer({ candidate, onClose, onSent }: { candidate: Candidate; o
         </div>
       </div>
     </div>
+  );
+}
+
+/** DES-25: "New message" / "Introduced themselves" on a card. Text and an icon, not colour alone;
+ *  one tap opens the thread (or Messages, where introductions are answered). Private to you. */
+function ActivityLink({ activity, name }: { activity: Candidate["activity"]; name: string }) {
+  if (!activity?.href) return null;
+  const message = activity.kind === "new_message";
+  const count = message && "count" in activity ? activity.count ?? 1 : 1;
+  return (
+    <Link
+      href={activity.href}
+      className="-mx-1 -mt-1 mb-3 flex min-h-[44px] items-center gap-2 rounded-field bg-brand-50 px-3 text-sm font-semibold text-brand-800 ring-1 ring-brand-200 hover:bg-brand-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+    >
+      <IconChat size={18} className="shrink-0" />
+      <span className="min-w-0 flex-1">
+        {message ? (count > 1 ? `${count} new messages` : "New message") : "Introduced themselves"}
+        <span className="sr-only"> from {name}</span>
+      </span>
+      <span aria-hidden="true">{message ? "Open" : "Reply"} →</span>
+    </Link>
   );
 }

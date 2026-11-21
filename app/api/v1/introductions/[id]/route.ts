@@ -40,7 +40,7 @@ export const POST = handler(async (req: NextRequest, { rid, params }) => {
       });
       await writeAudit(tx, { eventType: "introduction.accepted", actorId: user.id, subjectId: otherId, resourceType: "introduction", resourceId: intro.id, action: "accept", versionBefore: intro.version, versionAfter: updated.version }, rid);
       await writeOutbox(tx, "introduction_accepted", { id: intro.id, conversationId: convo.id });
-      await notify(tx, intro.senderId, "introduction_accepted", "Introduction accepted", `${user.displayName} accepted your introduction.`);
+      await notify(tx, intro.senderId, "introduction_accepted", "Introduction accepted", `${user.displayName} accepted your introduction.`, { type: "conversation", id: convo.id });
       return { conversationId: convo.id };
     });
     return ok({ state: "accepted", conversationId: result.conversationId }, rid);
