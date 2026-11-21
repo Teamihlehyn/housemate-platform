@@ -167,6 +167,12 @@ function Status() {
 
       {/* The one main next step */}
       <div className="mt-6 flex flex-col items-center gap-2">
+        {/* ENG-60: self-serve booking, only when the server gives a link (https, configured). */}
+        {(app.status === "submitted" || app.status === "in_review") && app.booking_url && (
+          <a href={app.booking_url} target="_blank" rel="noopener noreferrer" className="btn-primary btn-lg w-full sm:w-auto">
+            Book your 10-minute video call <IconArrowRight size={18} />
+          </a>
+        )}
         {app.status === "draft" && session && <Link href="/join" className="btn-primary btn-lg w-full sm:w-auto">Continue my application <IconArrowRight size={18} /></Link>}
         {app.status === "draft" && !session && <Link href="/join" className="btn-primary btn-lg w-full sm:w-auto">Continue with my email <IconArrowRight size={18} /></Link>}
         {(app.status === "withdrawn" || (app.status === "declined" && app.reapply_after && new Date(app.reapply_after) <= new Date())) && (

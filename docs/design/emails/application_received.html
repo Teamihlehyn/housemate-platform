@@ -8,7 +8,7 @@
 <meta name="supported-color-schemes" content="light dark">
 <title>We’ve got your Peabudy application</title>
 <!--
-  E1 (DES-22): sent on submit. Placeholders: {{first_name}} {{status_url}}.
+  E1 (DES-22): sent on submit. Placeholders: {{first_name}} {{status_url}}; optional section {{#booking_url}}…{{/booking_url}} (ENG-60).
   Email-safe like invite.html: tables, inline CSS, 600 px max, web-safe fonts, no JS. The
   <style> block only adds dark-mode and small-screen tweaks. Footer keeps [POSTAL ADDRESS].
   Transactional (asked for), so no unsubscribe link. Every line reads without images.
@@ -96,6 +96,11 @@
                     Button not working? Open <a href="{{status_url}}" class="pb-link" style="color:#28554a;word-break:break-all;">{{status_url}}</a>
                   </td>
                 </tr>
+                {{#booking_url}}<tr>
+                  <td align="center" class="pb-pad" style="padding:16px 40px 0;font-family:Inter,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:16px;line-height:24px;color:#23221e;">
+                    <a href="{{booking_url}}" class="pb-link" style="color:#28554a;font-weight:700;">Book your 10-minute video call</a>
+                  </td>
+                </tr>{{/booking_url}}
                 <tr>
                   <td class="pb-pad" style="padding:28px 32px 0;">
                     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">

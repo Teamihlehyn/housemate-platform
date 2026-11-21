@@ -3,7 +3,7 @@ import { handler, ok, fail, ApiError } from "@/lib/api";
 import { prisma } from "@/lib/db";
 import { requireAccount } from "@/lib/guard";
 import { writeAudit, writeOutbox } from "@/lib/audit";
-import { isCityOpen } from "@/lib/env";
+import { callBookingUrl, isCityOpen } from "@/lib/env";
 import { setSurveyOptIn } from "@/lib/surveyConsent";
 import { firstName } from "@/lib/emails/render";
 import { applicationReceivedEmail, applicationWaitlistedEmail } from "@/lib/emails";
@@ -62,11 +62,11 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
   });
 
   await recordApplicationEvent(app.id, "join.submitted", { city });
-  const values = { first_name: firstName(full.displayName), status_url: statusUrl(token) };
+  const values = { first_name: firstName(full.displayName), status_url: statusUrl(token), booking_url: callBookingUrl() ?? "" };
   after(() =>
     sendApplicationEmail(
       status === "waitlisted"
-        ? { to: full.email, userId: user.id, emailId: "E5", built: applicationWaitlistedEmail({ ...values, city_name: cityName(city) }) }
+        ? { to: full.email, userId: user.id, emailId: "E5", built: applicationWaitlistedEmail({ first_name: values.first_name, status_url: values.status_url, city_name: cityName(city) }) }
         : { to: full.email, userId: user.id, emailId: "E1", built: applicationReceivedEmail(values) },
       rid
     )

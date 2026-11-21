@@ -90,7 +90,7 @@ check("magic link view is read-only", ro.read_only && !ro.can_edit && !ro.can_wi
 const asMember = applicationDto({ ...app, status: "approved" }, "lagos", { readOnly: false, cityOpen: true, applicant: false });
 check("an activated member can't withdraw their approved application", !asMember.can_withdraw && !asMember.can_edit);
 check("status object carries no name, email or answers",
-  Object.keys(dto).sort().join() === "better_matches,call_at,can_edit,can_withdraw,city,city_open,email_hint,read_only,reapply_after,resends_left,status,submitted_at");
+  Object.keys(dto).sort().join() === "better_matches,booking_url,call_at,can_edit,can_withdraw,city,city_open,email_hint,read_only,reapply_after,resends_left,status,submitted_at");
 const approvedDto = applicationDto({ ...app, status: "approved" }, "lagos", { readOnly: false, cityOpen: true, applicant: true, emailHint: "t•••@gmail.com", resendsLeft: 2, betterMatchesAnswered: 3 });
 check("ENG-54: approved shows the masked address and resends left; nothing else carries them",
   approvedDto.email_hint === "t•••@gmail.com" && approvedDto.resends_left === 2 && dto.email_hint === null && dto.resends_left === null);

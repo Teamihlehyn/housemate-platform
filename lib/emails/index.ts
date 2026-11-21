@@ -54,12 +54,16 @@ export function codeEmail(v: { code: string }): Built {
 }
 
 // E1: application received.
-export function applicationReceivedEmail(v: { first_name: string; status_url: string }): Built {
+// booking_url (ENG-60): the "Book your 10-minute video call" link, or "" (the line is left out).
+export function applicationReceivedEmail(v: { first_name: string; status_url: string; booking_url?: string }): Built {
   const T1 = { subject: T.APPLICATION_RECEIVED_SUBJECT, html: T.APPLICATION_RECEIVED_HTML, text: T.APPLICATION_RECEIVED_TEXT };
-  return fromTemplate(T1, v, () => {
+  const values = { ...v, booking_url: v.booking_url ?? "" };
+  return fromTemplate(T1, values, () => {
     const lines = [
       `Hi ${v.first_name}, thanks for applying to Peabudy.`,
-      "What happens next: within a day we'll email you to book a 10-minute video ID call. Once a person on our team has checked your profile and seen your ID, we'll send you an invite to activate your account.",
+      values.booking_url
+        ? `What happens next: book your 10-minute video ID call: ${values.booking_url} . Once a person on our team has checked your profile and seen your ID, we'll send you an invite to activate your account.`
+        : "What happens next: within a day we'll email you to book a 10-minute video ID call. Once a person on our team has checked your profile and seen your ID, we'll send you an invite to activate your account.",
       "We'll never ask you for money.",
     ];
     return {

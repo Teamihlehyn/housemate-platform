@@ -4,7 +4,10 @@ Thanks, {{first_name}}. A person on our team will read it. We'll email you withi
 
 Check my application:
 {{status_url}}
-
+{{#booking_url}}
+Book your 10-minute video call:
+{{booking_url}}
+{{/booking_url}}
 What happens next
 1. We email you to book a 10-minute video ID call.
 2. On the call, show a photo ID: a passport, driver's licence or national ID card. We don't record the call or keep a copy of your ID.

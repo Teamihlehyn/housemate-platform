@@ -64,6 +64,7 @@ Systematic matching of individuals, combined with a safety risk from offline mee
 | R8 | Deletion not completed on time | Medium | Medium | Weekly manual purge SOP (F-10); purge job later | Medium |
 | R9 | Analytics cookies without consent | High if Clarity is on | Low–medium | Clarity off in beta until ENG-14 | Low |
 | R10 | Email account takeover gives account access (OTP) | Low | High | 6-digit codes, 10 minutes, 5 attempts; `crypto.randomInt` (ENG-06); IP limits (ENG-18) | Low–medium |
+| R12 | Application step analytics (HM-52): pseudonymous personal data (screens viewed, completed or skipped; time-per-screen buckets; city; fixed-list channel) re-identified or used beyond improving the application | Low | Low–medium | Random or scrambled ID, never name, email or answers; fixed-list channel only; admin-only aggregate view; 12-month retention; deleted with the application or account; lawful basis legitimate interests (improving the application), with a right to object | Low. **Legal reviewer to confirm the basis** |
 | R11 | Discrimination through preferences | Low | High | Only gender is offered (legal review pending); no other protected characteristics; terms ban discriminatory use | **Open: counsel** |
 | R12 | Unreviewed legal text published on 11 Nov | Certain (fast-track) | Medium | Accurate interim notice; small invite-led cohort; legal review by 4 Dec | Accepted by the founder (D11) |
 

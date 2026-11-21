@@ -13,6 +13,7 @@ app sends, so start the server with:
   APP_ENV=beta NEXT_PUBLIC_APP_ENV=beta OPEN_CITIES=lagos \
   RESEND_API_KEY=test-key EMAIL_FROM="Peabudy <test@example.com>" EMAIL_API_URL=http://127.0.0.1:8025 \
   ADMIN_EMAILS=e2e-admin@example.com,e2e-bounce@example.com ALLOW_TEST_APPROVALS=true \
+  NEXT_PUBLIC_CALL_BOOKING_URL=https://cal.example/peabudy/id-call \
   STAFF_EMAILS=e2e-verifier@example.com:verifier,e2e-moderator@example.com:moderator,e2e-lock@example.com:moderator \
   DATABASE_URL=… DIRECT_URL=… next dev -p 3100
 (EMAIL_API_URL is honoured only outside Vercel.) Some setup goes straight to the database:
@@ -700,6 +701,9 @@ check("submit: 200, status submitted", r[0] == 200 and d(r)["application"]["stat
 e1 = wait_mail(ada, lambda m: "application" in m.get("subject", "").lower(), after=before)
 status_link = re.search(r"https?://\S+/join/status\?t=([A-Za-z0-9_-]+)", (e1 or {}).get("text", ""))
 check("E1 sent with the status magic link", bool(e1 and status_link), (e1 or {}).get("subject"))
+BOOKING = "https://cal.example/peabudy/id-call"
+check("ENG-60: E1 has 'Book your 10-minute video call' with the configured link", e1 and BOOKING in e1["text"] and BOOKING in e1["html"])
+check("ENG-60: the status page offers the booking link while submitted", d(ada_c.call("/applications/status"))["application"].get("booking_url") == BOOKING)
 check("application.submitted and email.sent audited, no address in the audit log",
       audits("application.submitted", f'and "actorId" = {lit(ada_id)}') == 1 and audits("email.sent", f'and "subjectId" = {lit(ada_id)} and "resourceId" = \'E1\'') == 1
       and sql(f'''select count(*) from "AuditEvent" where ("safeAfter" like {lit('%' + ada + '%')} or "safeBefore" like {lit('%' + ada + '%')})''') == "0")
@@ -764,6 +768,8 @@ check("answers lock once review starts", ada_c.call("/me/profile", {"bio": BIO},
 call_at = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)).replace(microsecond=0).isoformat()
 before = len(mails_to(ada))
 r = staff_act(staff_c, ada_aid, "call_booked", call_at=call_at, send_email=True)
+check("ENG-60: no booking link once a call is booked",
+      r[0] == 200 and d(ada_c.call("/applications/status"))["application"].get("booking_url") is None)
 check("call booked, with E4", r[0] == 200 and d(r)["application"]["status"] == "call_booked" and d(r)["email_status"] == "sent", r)
 e4 = wait_mail(ada, lambda m: "ID call" in m.get("subject", ""), after=before)
 check("E4 names the time in Lagos time", e4 and "Lagos time" in e4["subject"])
@@ -1424,6 +1430,63 @@ check("a pending proposal doesn't hide anyone from Discover; a formed household 
       peers["hy"][1] in [c["userId"] for c in d(peers["hw"][0].call("/recommendations"))["candidates"]]
       and hx_id not in [c["userId"] for c in d(peers["hw"][0].call("/recommendations"))["candidates"]])
 
+print("== HM-49: formation is serialised per person ==")
+from concurrent.futures import ThreadPoolExecutor as _TPE
+cx_c, _, cx_id = verified_member("cex")
+cy_c, _, cy_id = verified_member("cey")
+cz_c, _, cz_id = verified_member("cez")
+iy = intro_accept(cx_c, cy_c, cy_id)[0]
+iz = intro_accept(cx_c, cz_c, cz_id)[0]
+hy_id = d(cx_c.call("/households", {"introduction_id": iy, "plan": {}}))["id"]
+hz_id = d(cx_c.call("/households", {"introduction_id": iz, "plan": {}}))["id"]
+vy = int(sql(f'select version from "Household" where id = {lit(hy_id)}'))
+vz = int(sql(f'select version from "Household" where id = {lit(hz_id)}'))
+with _TPE(max_workers=2) as pool:
+    res = list(pool.map(lambda a: a[0].call(f"/households/{a[1]}", {"action": "accept", "expected_version": a[2]}),
+                        [(cy_c, hy_id, vy), (cz_c, hz_id, vz)]))
+codes_ = sorted(r[0] for r in res)
+check("two proposals sharing a person accepted at once: exactly one forms, the other gets 409",
+      codes_ == [200, 409] and sum(1 for r in res if d(r).get("state") == "active") == 1, [(r[0], d(r).get("state"), err(r)) for r in res])
+check("…and that person is in exactly one active household",
+      sql(f'''select count(*) from "Membership" m join "Household" h on h.id = m."householdId" where m."userId" = {lit(cx_id)} and m.state = 'active' and h.state = 'active' ''') == "1")
+ra_c, _, ra_id = verified_member("rha")
+rb_c, _, rb_id = verified_member("rhb")
+ir = intro_accept(ra_c, rb_c, rb_id)[0]
+hr_id = d(ra_c.call("/households", {"introduction_id": ir, "plan": {}}))["id"]
+vr = int(sql(f'select version from "Household" where id = {lit(hr_id)}'))
+with _TPE(max_workers=2) as pool:
+    res = list(pool.map(lambda a: a[0].call(f"/households/{hr_id}", a[1]),
+                        [(ra_c, {"action": "withdraw"}), (rb_c, {"action": "accept", "expected_version": vr})]))
+final = sql(f'select state from "Household" where id = {lit(hr_id)}')
+check("withdraw racing accept: exactly one wins, the other gets 409, and the result is consistent",
+      sorted(r[0] for r in res) == [200, 409] and final in ("closed", "active")
+      and ((final == "active") == any(d(r).get("state") == "active" for r in res)), ([r[0] for r in res], final))
+
+print("== HM-51: a household page needs a live membership and no block ==")
+ka_c, _, ka_id = verified_member("kia")
+kb_c, _, kb_id = verified_member("kib")
+ik = intro_accept(ka_c, kb_c, kb_id)[0]
+hk_id = d(ka_c.call("/households", {"introduction_id": ik, "plan": {}}))["id"]
+check("a member can open the pending proposal", kb_c.call(f"/households/{hk_id}")[0] == 200)
+kb_c.call("/blocks", {"target_user_id": ka_id})
+check("after a block, the old id is 404 for both", ka_c.call(f"/households/{hk_id}")[0] == 404 and kb_c.call(f"/households/{hk_id}")[0] == 404)
+closed_id = hy_id if sql(f'select state from "Household" where id = {lit(hy_id)}') != "active" else hz_id
+check("a proposal that closed when the other formed is 404 by id", cx_c.call(f"/households/{closed_id}")[0] == 404)
+
+print("== HM-50: the funnel endpoint is capped per connection ==")
+cap_ip_f = f"192.0.2.{random.randint(10, 99)}"
+ip_key = hashlib.sha256(("peabudy-ip-local-only:" + cap_ip_f).encode()).hexdigest()[:32]
+fcap = f"e2e-fcap-{RUN}"
+sql(f'''insert into "AuditEvent"(id, "eventType", "actorType", "resourceType", "resourceId", action, outcome, "occurredAt")
+       select {lit(fcap)} || g, 'funnel.posted', 'service', 'ip', {lit(ip_key)}, 'post', 'allowed', now() from generate_series(1, 300) g''')
+before_f = int(sql('select count(*) from "FunnelEvent"'))
+outs = [C().call("/funnel", {"event": "join.viewed", "funnel_id": str(uuid.uuid4())}, ip=cap_ip_f) for _ in range(5)]
+check("300 posts an hour from one connection: rotating funnel ids adds nothing, the answer stays {status:'ok'}",
+      int(sql('select count(*) from "FunnelEvent"')) == before_f and all(r[0] == 200 and d(r) == {"status": "ok"} for r in outs))
+check("…another connection still records", C().call("/funnel", {"event": "join.viewed", "funnel_id": str(uuid.uuid4())})[0] == 200
+      and int(sql('select count(*) from "FunnelEvent"')) == before_f + 1)
+sql(f'delete from "AuditEvent" where id like {lit(fcap + "%")}')
+
 print("== ENG-54: resend the invitation yourself ==")
 rs_email = f"beta-resend-{RUN}@example.com"
 rs_c, _ = start_application(rs_email)
@@ -1574,7 +1637,11 @@ check("export includes the application, the activation invite and survey sends",
       (ex.get("application") or {}).get("status") == "approved" and ex.get("invites") and any(x["campaign"] == SURVEY["campaign"] for x in ex.get("surveyEmails", [])))
 dru_c = start_application(dru)[0]
 check("an applicant can export their data too", (d(dru_c.call("/me/export")).get("export", {}).get("application") or {}).get("status") == "draft")
+dru_fid = "a-" + hmac.new(b"peabudy-email-hash-local-only-not-a-secret", ("funnel:" + application_id(dru)).encode(), hashlib.sha256).hexdigest()[:24]
+had_funnel = int(sql(f'select count(*) from "FunnelEvent" where "funnelId" = {lit(dru_fid)}'))
 r = dru_c.call("/me/delete", {})
+check("HM-52: deleting removes that application's funnel rows",
+      had_funnel > 0 and sql(f'select count(*) from "FunnelEvent" where "funnelId" = {lit(dru_fid)}') == "0", had_funnel)
 check("an applicant can delete their application", r[0] == 200 and sql(f'select status from "Application" where id = {lit(application_id(dru))}') == "withdrawn"
       and sql(f'select "accountStatus" from "User" where email = {lit(dru)}') == "deletion_pending")
 check("deletion requested", ada_c.call("/me/delete", {})[0] == 200)

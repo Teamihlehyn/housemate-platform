@@ -426,3 +426,14 @@ check; `idCheckMethod = "skipped_test"`; `User.isTestAccount = true`; audit
 `application.approved_test_skip_call`. The detail adds `test_approval_available` and
 `is_test_account`. Candidates add `testAccount: true` (`idChecked: false`); credibility checks add
 `{ category: "test_account" }`, which `checkRows` renders as "Test account — ID not checked".
+
+### Security review follow-ups (HM-49–53, 22 Nov)
+- Accepting, withdrawing and declining a proposal take the same per-person locks as proposing,
+  and only change a household that is still `proposed` at the version read: a race returns 409
+  `STATE_CONFLICT`.
+- `GET /households/{id}`: 404 unless it's `proposed`, `active` or `completed`, your membership is
+  active, and neither of you has blocked the other.
+- `POST /funnel`: capped at 300 an hour per connection and 3,000 an hour site-wide (still
+  `{status:"ok"}`). `source` must be one of `whatsapp, instagram, x, facebook, tiktok, linkedin,
+  email, friend, flyer, google, direct` (aliases: twitter, wa, ig, fb); anything else is dropped.
+  An application's funnel rows are deleted with it (retention purge, `/me/delete`).

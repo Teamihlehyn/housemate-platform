@@ -44,6 +44,7 @@ Peabudy is run by **[CONTROLLER NAME]** ([COMPANY NUMBER OR "a sole trader"]), [
 | Feedback and research | Feedback you send in the app (linked to your account if you're signed in), the page you were on, a rating; survey answers you choose to give (through Tally, linked to your account by a pseudonymous reference); waitlist sign-ups (through Tally) | You |
 | Survey email choice | Whether you asked us to email you a survey, when, which version of the wording you saw, and when you stopped | You |
 | Application to join (Peabudy reviews every user before they can sign in) | Everything in "Profile" and "Private matching details" above, given before you're approved; our review: status, dates, reviewer, the ID check method and date, and a reason category if declined; your activation code (stored only in scrambled form) | You and our team |
+| Application step analytics [LEGAL REVIEWER: please check, HM-52] | Which screens of the application were viewed, completed or skipped, rough time spent per screen, city, and the channel you came from (from a fixed list). Stored under a random or scrambled identifier, never your name, email or answers | Your use of the application |
 | Technical | IP address and browser information in server logs; a random browser ID used to group feedback; [USAGE RECORDINGS: if Microsoft Clarity is switched on, and only with your consent: clicks, scrolls and pages viewed. Text you type, messages, emails and codes are masked] | Your device |
 | Emails we send | Whether an email was sent and for which event. Never its content beyond your first name | Our systems |
 
@@ -70,6 +71,7 @@ The legal bases are those in the UK GDPR (Article 6) and the Nigeria Data Protec
 | Waitlist | Waitlist answers, email | Consent |
 | Usage recordings (Microsoft Clarity) | Technical | **Consent.** Only if you choose "Allow"; you can change it in Settings |
 | Security, preventing abuse, keeping the service running | Technical, account | Legitimate interests |
+| Improve the application (find the screens where people get stuck or give up) | Application step analytics | Legitimate interests (improving the application). You can object (section 8) [LEGAL REVIEWER: confirm, HM-52] |
 
 **Matching is automatic but not a "solely automated decision" with legal or similarly significant effects.** It applies the rules you set: dates, areas, budget, habits, stay length and housemate preference. You always choose whom to contact. You can see why someone was suggested, and you can change your rules.
 
@@ -116,6 +118,7 @@ You can ask us for a copy of the safeguards.
 | Safety records (reports, actions, suspension reason) | **[24] months** after the case closes, so we can stop banned people returning and respond to legal claims |
 | Audit logs (who did what and when; no message content) | **[24] months** |
 | In-app feedback | **[12] months**, then anonymised or deleted |
+| Application step analytics | **12 months**, and deleted earlier with your application or account |
 | Survey answers (Tally) | **[12] months** |
 | Survey email choice | While your account is open (a withdrawal is kept so we don't email you again), then deleted with it |
 | Record of survey emails sent to you (which survey, when) | While your account is open |

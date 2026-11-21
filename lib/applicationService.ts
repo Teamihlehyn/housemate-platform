@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "./db";
 import { writeAudit } from "./audit";
 import { emailConfigured, sendEmail } from "./email";
-import { IS_BETA, isCityOpen, siteUrl } from "./env";
+import { IS_BETA, callBookingUrl, isCityOpen, siteUrl } from "./env";
 import { ApiError } from "./api";
 import { applicationDto, canEdit, missingFields } from "./applications";
 import { findInvite, inviteUsable, maskEmail } from "./invites";
@@ -67,6 +67,7 @@ export async function applicationStatusFor(userId: string, readOnly = false) {
     emailHint: user ? maskEmail(user.email) : null,
     resendsLeft: app.status === "approved" ? await resendsLeft(app.id) : null,
     betterMatchesAnswered: answered,
+    bookingUrl: callBookingUrl(),
   });
 }
 

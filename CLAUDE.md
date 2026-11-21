@@ -163,6 +163,7 @@ Connection strings: `neon connection-string <branch>` (direct, for migrations) a
 | `RESEND_API_KEY`, `EMAIL_FROM` | Real login email. `onboarding@resend.dev` only reaches the Resend account owner |
 | `ADMIN_EMAILS` | Comma-separated; these accounts are `admin` (and the only admins) and always get emailed codes |
 | `EMAIL_HASH_SECRET` | 32+ chars, **stable, never rotate**: keys the email hashes for per-address code limits and declined-application tombstones (HM-40). Unset in a deployment → email codes and tombstones refuse to run (503). `switch-to-beta.sh` creates it (and `IP_HASH_SALT`) only if missing |
+| `NEXT_PUBLIC_CALL_BOOKING_URL` | https link to the ID-call scheduling page (ENG-60). Set → "Book your 10-minute video call" on the status page (submitted/in review) and in E1; unset or not https → hidden. Staff still mark "Call booked" by hand |
 | `ALLOW_TEST_APPROVALS` | `"true"` on staging/previews only: admins may approve without the ID call; accounts become labelled test accounts (ENG-67). Ignored (with a startup warning) in production |
 | `STAFF_EMAILS` | `email:verifier,email:moderator` (comma list); the only verifiers/moderators. ADMIN_EMAILS wins on overlap |
 | `NEXT_PUBLIC_SITE_URL` | Absolute base for OG/link previews (falls back to `VERCEL_PROJECT_PRODUCTION_URL`) |

@@ -20,6 +20,7 @@ export const TEMPLATES = {
 // app sends a plain built-in version (lib/emails/index.ts), so these export null.
 export const OPTIONAL_TEMPLATES = {
   code: ["code"],
+  // booking_url is optional: wrap its line in {{#booking_url}} … {{/booking_url}} (ENG-60).
   application_received: ["first_name", "status_url"],
   application_waitlisted: ["first_name", "status_url", "city_name"],
   approved: ["first_name", "activation_url", "code", "expires_on"],

@@ -4,6 +4,7 @@ import { ApiError } from "./api";
 import { writeAudit, writeOutbox, notify } from "./audit";
 import { monthlyEquivalentMinor } from "./money";
 import { HOMES_ENABLED } from "./env";
+import { lockKey } from "./rateLimit";
 
 type Tx = Prisma.TransactionClient;
 type ActorType = "user" | "service";
@@ -49,6 +50,14 @@ export async function requirePlanAgreed(householdId: string) {
 
 // Accept the latest plan version. Forms the household when it was a proposal.
 // ---- Proposals (D-R2: ENG-52, SEC-17) ----------------------------------------------------------
+
+// HM-49: proposals, formation, withdraw and decline for the same person run one at a time. Take
+// the per-person locks (sorted, the same keys POST /households uses) for every member, then the
+// caller re-reads the household inside the transaction.
+async function lockHouseholdMembers(tx: Tx, householdId: string): Promise<void> {
+  const ms = await tx.membership.findMany({ where: { householdId }, select: { userId: true } });
+  for (const id of [...new Set(ms.map((m) => m.userId))].sort()) await lockKey(tx, `household-proposals:${id}`);
+}
 export const MAX_OUTGOING_PROPOSALS = 3;
 type Db = Tx | typeof prisma;
 
@@ -106,7 +115,8 @@ async function closeOtherProposals(tx: Tx, formedId: string, memberIds: string[]
     include: { memberships: true },
   });
   for (const o of others) {
-    await tx.household.update({ where: { id: o.id }, data: { state: "closed", closedAt: new Date(), version: o.version + 1 } });
+    const closed = await tx.household.updateMany({ where: { id: o.id, state: "proposed" }, data: { state: "closed", closedAt: new Date(), version: o.version + 1 } });
+    if (closed.count !== 1) continue;
     await writeAudit(tx, {
       eventType: "household.closed",
       actorType: "service",
@@ -131,16 +141,18 @@ async function closeOtherProposals(tx: Tx, formedId: string, memberIds: string[]
 export async function closeProposal(opts: { householdId: string; userId: string; action: "withdraw" | "decline"; rid?: string }) {
   const { householdId, userId, action, rid } = opts;
   return prisma.$transaction(async (tx) => {
+    await lockHouseholdMembers(tx, householdId);
     const hh = await tx.household.findUnique({ where: { id: householdId }, include: { memberships: true } });
     if (!hh || !hh.memberships.some((m) => m.userId === userId && m.state === "active")) throw new ApiError("NOT_FOUND", "Household not found.", 404);
     if (hh.state !== "proposed") throw new ApiError("STATE_CONFLICT", "This proposal isn't pending any more.", 409);
     const proposer = hh.proposedBy;
     if (action === "withdraw" && proposer !== userId) throw new ApiError("STATE_CONFLICT", "Only the person who proposed can withdraw. You can decline it.", 409);
     if (action === "decline" && proposer === userId) throw new ApiError("STATE_CONFLICT", "You proposed this one. You can withdraw it.", 409);
-    await tx.household.update({
-      where: { id: hh.id },
+    const moved = await tx.household.updateMany({
+      where: { id: hh.id, state: "proposed", version: hh.version },
       data: { state: action === "decline" ? "declined" : "closed", closedAt: new Date(), version: hh.version + 1 },
     });
+    if (moved.count !== 1) throw new ApiError("STATE_CONFLICT", "This proposal isn't pending any more.", 409);
     const otherId = hh.memberships.find((m) => m.userId !== userId)?.userId;
     await writeAudit(tx, {
       eventType: action === "decline" ? "household.declined" : "household.withdrawn",
@@ -205,6 +217,8 @@ export async function acceptPlan(opts: {
 }): Promise<"formed" | "agreed" | "waiting" | "already"> {
   const { householdId, userId, planVersion, actorType = "user", rid } = opts;
   return prisma.$transaction(async (tx) => {
+    // HM-49: serialise per person before deciding anything, then re-read.
+    await lockHouseholdMembers(tx, householdId);
     const hh = await tx.household.findUnique({ where: { id: householdId }, include: { memberships: true } });
     if (!hh || !hh.memberships.some((m) => m.userId === userId && m.state === "active"))
       throw new ApiError("NOT_FOUND", "Household not found.", 404);
@@ -239,10 +253,11 @@ export async function acceptPlan(opts: {
 
     let result: "formed" | "agreed" | "waiting" = "waiting";
     if (agreed && hh.state === "proposed") {
-      await tx.household.update({
-        where: { id: hh.id },
+      const formed = await tx.household.updateMany({
+        where: { id: hh.id, state: "proposed", version: hh.version },
         data: { state: "active", formedAt: new Date(), version: hh.version + 1, derivedStage: "planning" },
       });
+      if (formed.count !== 1) throw new ApiError("STATE_CONFLICT", "This proposal isn't pending any more.", 409);
       await tx.search.updateMany({ where: { userId: { in: memberIds } }, data: { status: "paused" } });
       await tx.introduction.updateMany({
         where: { state: "pending", OR: [{ lowUserId: { in: memberIds } }, { highUserId: { in: memberIds } }] },
