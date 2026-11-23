@@ -12,6 +12,8 @@ import { applicationReceivedEmail } from "../lib/emails";
 import { applicationDto } from "../lib/applications";
 import { canStaffAct } from "../lib/applications";
 import { checkRows } from "../lib/checks";
+import { budgetError, isDateInput, monthsError } from "../lib/searchInput";
+import { bioChangedAfterReview } from "../lib/applications";
 import { QUESTIONNAIRE } from "../lib/constants";
 
 const cases: [string, boolean][] = [];
@@ -148,6 +150,21 @@ check("the status object offers booking only while submitted or in review",
   const full = profileStrength({ bio: "x".repeat(60), journey: "find_together", stayAnswered: true, habits: habits(6) }, { applicant: false });
   check("ENG-68: everything done → 4 of 4, 100%", full.done === 4 && full.percent === 100);
   check("ENG-68: a short bio isn't done", !profileStrength({ bio: "hi", journey: null, stayAnswered: false, habits: habits(0) }, { applicant: true }).items[0].done);
+}
+
+// --- HM-55: budget and stay input checks ---
+check("HM-55: 3,000,000,000 kobo (₦30m) is fine for NGN; ₦25m/yr saves", budgetError(3_000_000_000, "NGN", "max") === null && budgetError(2_500_000_000, "NGN", "max") === null);
+check("HM-55: over the cap is refused (NGN ₦1bn, GBP £1m)", !!budgetError(100_000_000_001, "NGN", "max") && !!budgetError(100_000_001, "GBP", "min") && budgetError(100_000_000, "GBP", "min") === null);
+check("HM-55: fractions, strings, NaN, Infinity and tiny values are refused",
+  [150.5, "5", NaN, Infinity, 99, -1, null].every((v) => !!budgetError(v, "NGN", "min")));
+check("HM-55: stay months must be whole numbers in range", monthsError(6, 24) === null && [0, 25, 6.5, "x", "6", null].every((v) => !!monthsError(v, 24)));
+check("HM-55: dates must be YYYY-MM-DD (or null)", isDateInput("2027-01-31") && isDateInput(null) && ![20270131, "31/01/2027", "2027-1-3", "", {}].some((v) => isDateInput(v)));
+// --- HM-54: bio changed after review ---
+{
+  const decided = new Date("2026-11-20T10:00:00Z");
+  check("HM-54: a bio edited after the decision is flagged", bioChangedAfterReview(new Date("2026-11-21T10:00:00Z"), decided));
+  check("HM-54: before the decision, or no decision, or never edited: not flagged",
+    !bioChangedAfterReview(new Date("2026-11-19T10:00:00Z"), decided) && !bioChangedAfterReview(new Date(), null) && !bioChangedAfterReview(null, decided));
 }
 
 let failed = 0;

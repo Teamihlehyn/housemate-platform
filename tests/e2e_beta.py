@@ -1728,6 +1728,69 @@ r = aw_c.call("/introductions", {"target_user_id": yb_id, "text": INTRO})
 check("introduction anywhere → Yaba: allowed", r[0] == 200, r)
 
 
+print("== HM-55: budgets and malformed search input ==")
+bad = [
+    ({"rentMinMinor": 150.5}, "rentMinMinor"),
+    ({"rentMinMinor": "5"}, "rentMinMinor"),
+    ({"rentMaxMinor": 100_000_000_001}, "rentMaxMinor"),
+    ({"stayMinMonths": "x"}, "stayMinMonths"),
+    ({"stayMaxMonths": 12.5}, "stayMaxMonths"),
+    ({"areaIds": "yaba"}, "areaIds"),
+    ({"earliestDate": 20270101}, "earliestDate"),
+]
+for body, field in bad:
+    r = yb_c.call("/me/search", body, method="PATCH")
+    check(f"PATCH /me/search {body}: 422 on {field}, never 500", r[0] == 422 and field in (r[1]["error"]["field_errors"] or {}), r)
+r = yb_c.call("/me/search", [1, 2], method="PATCH")
+check("a non-object body: 422", r[0] == 422, r)
+r = yb_c.call("/me/profile", ["bio"], method="PATCH")
+check("PATCH /me/profile with a non-object body: 422", r[0] == 422, r)
+r = yb_c.call("/me/search", {"rentPeriod": "year", "rentMinMinor": 1_500_000_000, "rentMaxMinor": 2_500_000_000}, method="PATCH")
+s_ = d(yb_c.call("/me/search"))
+check("a realistic ₦25,000,000/yr budget saves and reads back exactly", r[0] == 200 and s_["budget"]["max_minor"] == 2_500_000_000 and s_["chips"]["budget"], (r[0], s_.get("budget")))
+r = yb_c.call("/me/search", {"rentMaxMinor": 3_000_000_000}, method="PATCH")
+check("₦30,000,000/yr (3,000,000,000 kobo, past 32-bit) saves too: BigInt column", r[0] == 200 and d(yb_c.call("/me"))["search"]["rentMaxMinor"] == 3_000_000_000, r)
+check("Discover still works with a big budget", yb_c.call("/recommendations")[0] == 200 and aw_c.call("/recommendations")[0] == 200)
+r = ln_c.call("/me/search", {"rentMaxMinor": 3_000_000_000}, method="PATCH")
+check("£30,000,000 is over the GBP cap: 422", r[0] == 422 and "rentMaxMinor" in (r[1]["error"]["field_errors"] or {}), r)
+yb_c.call("/me/search", {"rentMinMinor": LAGOS_MONEY["rentMinMinor"], "rentMaxMinor": LAGOS_MONEY["rentMaxMinor"]}, method="PATCH")
+r = aw_c.call("/me/search", {"anyArea": False}, method="PATCH")
+check("anyArea false with no areas: 422 asking for an area", r[0] == 422 and "areaIds" in (r[1]["error"]["field_errors"] or {}), r)
+pub = kemi_c.call(f"/users/{aw_id}")
+check("GET /users/[id] says anyArea, so the profile can show 'Anywhere in Lagos'", pub[0] == 200 and d(pub).get("anyArea") is True, pub[0])
+r = yb_c.call("/me/search", {"cityId": "lagos", "unknownKey": "x@example.com"}, method="PATCH")
+last = sql(f"""select "safeAfter" from "AuditEvent" where "eventType" = 'search.updated' and "actorId" = {lit(yb_id)} order by "occurredAt" desc limit 1""")
+check("audit: search.updated lists only known field names", r[0] == 200 and "unknownKey" not in last and "cityId" in last, last)
+
+print("== HM-54: bio changes after review ==")
+det = d(admin_c.call(f"/staff/applications/{nb_aid}"))["application"]
+check("staff detail: 'Bio changed after review' when the bio changed after approval", det.get("bio_changed_after_review") is True and det.get("bio_updated_at"), det.get("bio_changed_after_review"))
+det = d(admin_c.call(f"/staff/applications/{aw_aid}"))["application"]
+check("…and not when it didn't", det.get("bio_changed_after_review") is False)
+r = yb_c.call("/me/profile", {"bio": "Quiet engineer in Yaba, early riser, keeps the kitchen spotless.", "foo": "bar"}, method="PATCH")
+rows = sql(f"""select "safeAfter" from "AuditEvent" where "eventType" = 'profile.bio_changed' and "actorId" = {lit(yb_id)} order by "occurredAt" desc limit 1""")
+check("audit: profile.bio_changed records the length only", r[0] == 200 and rows == '{"length":%d}' % len("Quiet engineer in Yaba, early riser, keeps the kitchen spotless."), rows)
+last = sql(f"""select "safeAfter" from "AuditEvent" where "eventType" = 'profile.updated' and "actorId" = {lit(yb_id)} order by "occurredAt" desc limit 1""")
+check("audit: profile.updated lists only known field names", "foo" not in last and "bio" in last, last)
+before_n = int(sql(f"""select count(*) from "AuditEvent" where "eventType" = 'profile.bio_changed' and "actorId" = {lit(yb_id)}"""))
+yb_c.call("/me/profile", {"bio": "Quiet engineer in Yaba, early riser, keeps the kitchen spotless."}, method="PATCH")
+check("saving the same bio isn't a change", int(sql(f"""select count(*) from "AuditEvent" where "eventType" = 'profile.bio_changed' and "actorId" = {lit(yb_id)}""")) == before_n)
+codes_ = [aw_c.call("/me/profile", {"bio": f"Bio edit number {i}, still the same tidy person."}, method="PATCH")[0] for i in range(21)]
+check("bio edits are capped at 20 a day (then 429)", codes_[:20] == [200] * 20 and codes_[20] == 429, codes_)
+
+print("== HM-56: the reported bio is kept for moderators ==")
+yb_bio_then = "Quiet engineer in Yaba, early riser, keeps the kitchen spotless."
+r = kemi_c.call("/reports", {"target_user_id": yb_id, "category": "other", "description": "End-to-end test report about a bio, please ignore."})
+check("report created", r[0] == 200, r)
+yb_c.call("/me/profile", {"bio": "A completely different bio written after the report was made."}, method="PATCH")
+rep = next((x for x in d(mod_c.call("/staff/research"))["reports"] if x["targetUserId"] == yb_id), {})
+check("moderators see the bio as it was when reported", rep.get("targetBio") == yb_bio_then, rep.get("targetBio"))
+check("…with 'Bio changed after review'", rep.get("targetBioChangedAfterReview") is True)
+rep_v = next((x for x in d(staff_c.call("/staff/research"))["reports"] if x["targetUserId"] == yb_id), None) if staff_c.call("/staff/research")[0] == 200 else {}
+check("verifiers don't see the snapshot", rep_v is None or "targetBio" not in rep_v, rep_v)
+check("the snapshot never reaches the audit log", sql(f"""select count(*) from "AuditEvent" where coalesce("safeAfter", '') like '%Quiet engineer%' or coalesce("safeBefore", '') like '%Quiet engineer%'""") == "0")
+
+
 print("== ENG-25: draft legal pages ==")
 for path, needle in (("/privacy", "privacy-v2"), ("/terms", "Terms of use")):
     st, _, html = C().raw(path)

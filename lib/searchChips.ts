@@ -10,10 +10,10 @@ function compact(major: number): string {
   return major.toLocaleString("en-GB");
 }
 
-export function budgetChip(minMinor: number, maxMinor: number, currency: string, period: string): string {
+export function budgetChip(minMinor: number | bigint, maxMinor: number | bigint, currency: string, period: string): string {
   const sym = currency === "NGN" ? "₦" : currency === "GBP" ? "£" : "";
-  const lo = compact(Math.round(minMinor / 100));
-  const hi = compact(Math.round(maxMinor / 100));
+  const lo = compact(Math.round(Number(minMinor) / 100));
+  const hi = compact(Math.round(Number(maxMinor) / 100));
   return `${sym}${lo}–${sym}${hi}/${period === "year" ? "yr" : "mo"}`;
 }
 

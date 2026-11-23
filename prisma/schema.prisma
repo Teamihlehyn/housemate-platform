@@ -97,6 +97,9 @@ model Profile {
   user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   journey           String?  // find_together|candidate_home|existing_room
   bio               String?
+  // HM-54: when the bio last changed (bio edits are allowed after approval, ENG-68), so staff
+  // can see "Bio changed after review".
+  bioUpdatedAt      DateTime?
   avatarInitials    String?
   publicationStatus String   @default("draft") // draft|published
   publishedAt       DateTime?
@@ -115,10 +118,12 @@ model Search {
   // Exclusive with specific SearchArea rows.
   anyArea            Boolean  @default(false)
   currency           String?  // GBP|NGN
-  rentMinMinor       Int?
-  rentMaxMinor       Int?
+  // HM-55: BigInt — Lagos annual budgets in kobo pass 2^31. PATCH /me/search caps them (₦1bn,
+  // £1m) far below 2^53, so they serialise as plain JSON numbers (lib/db.ts).
+  rentMinMinor       BigInt?
+  rentMaxMinor       BigInt?
   rentPeriod         String?  // month|year
-  upfrontMinor       Int?
+  upfrontMinor       BigInt?
   locationDetail     String?  // private: preferred postcode/address (owner-only, never on public card)
   moveMode           String?  // exact|range|undecided
   earliestDate       String?  // YYYY-MM-DD
@@ -480,6 +485,9 @@ model Report {
   category       String   // scam_money_request|harassment|identity_issue|unsafe_property|threat|other
   description    String
   conversationId String?
+  // HM-56: the target's bio when the report was made (moderators only; kept and deleted with
+  // the report; never in the audit log).
+  targetBio      String?
   status         String   @default("open") // open|triaged|resolved
   createdAt      DateTime @default(now())
 

@@ -46,7 +46,7 @@ interface Row {
 interface Detail {
   id: string; version: number; status: string; submitted_at: string | null; waiting_hours: number | null; call_at: string | null;
   reviewed_at: string | null; reviewed_by: string | null; decline_reason: string | null; reapply_after: string | null; email: string;
-  display_name: string; journey: string | null; bio: string | null; city: string | null; city_open: boolean; areas: { id: string; label: string }[];
+  display_name: string; journey: string | null; bio: string | null; bio_updated_at?: string | null; bio_changed_after_review?: boolean; city: string | null; city_open: boolean; areas: { id: string; label: string }[];
   budget: { currency: string; period: string; min_minor: number; max_minor: number; monthly_min_minor: number; monthly_max_minor: number } | null;
   move_in: { mode: string | null; earliest: string | null; latest: string | null; preferred: string | null } | null;
   stay: { min_months: number | null; max_months: number | null } | null;
@@ -465,6 +465,11 @@ function ApplicationDetail({ id, onBack }: { id: string; onBack: () => void }) {
               <dt className="text-ink-500">Stay</dt><dd>{d.stay?.min_months != null ? `${d.stay.min_months}–${d.stay.max_months} months` : "—"}</dd>
               <dt className="text-ink-500">Looking for</dt><dd>{d.journey?.replaceAll("_", " ") ?? "—"}</dd>
             </dl>
+            {d.bio_changed_after_review && (
+              <p className="chip bg-caution-50 text-caution-800">
+                Bio changed after review{d.bio_updated_at ? ` · ${new Date(d.bio_updated_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : ""}
+              </p>
+            )}
             <p className="whitespace-pre-wrap text-ink" data-clarity-mask="true">{d.bio || "No bio yet."}</p>
           </div>
 

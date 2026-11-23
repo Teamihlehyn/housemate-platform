@@ -7,7 +7,8 @@ import { HOMES_ENABLED, IS_BETA } from "./env";
 export { adminEmails } from "./staff";
 
 // Any signed-in account, applicants included (ENG-39). Only for the applicant allow-list:
-// /me, /me/profile, /me/search, /me/preferences, /me/export, /me/delete, /applications/*.
+// /me, /me/profile, /me/search, /me/preferences, /me/profile-strength, /me/export, /me/delete,
+// /feedback, /applications/*.
 export async function requireAccount() {
   const user = await getCurrentUser();
   if (!user) throw new ApiError("UNAUTHENTICATED", "Sign in to continue.", 401);

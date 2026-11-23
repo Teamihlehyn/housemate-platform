@@ -258,3 +258,9 @@ code only (the tool can't emulate it): the timer never starts when the media que
 - Profile: "Your profile is complete" with Pea and Bud. No overflow at 320, 430 or 1280.
 - Not checked in the browser: the public "Hasn't added a bio yet" line (every sample housemate
   has a bio), the Discover hide-for-a-week timer, and the 320/430 widths of /join's money step.
+
+**HM-55 budget cap (23 Nov, 375 px):** typing ₦2,000,000,000 into "Up to" shows "Enter a budget of
+₦1,000,000,000 or less." inline straight away (the server's wording; £1,000,000 for pounds), with
+the ÷10 "Did you mean ₦200,000,000?" note still beside it. Pressing Continue anyway gets the
+server's 422, shown on the same field with "Please fix the highlighted fields." at the top. Stay,
+date and area 422s already render on their own fields through `StepBody`.

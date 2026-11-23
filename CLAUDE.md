@@ -55,7 +55,9 @@ where everyone is real); sample people are labelled.
 3. **Every state change writes its audit row (and outbox event) in the same transaction.**
    Use `writeAudit` / `writeOutbox` / `notify` from `lib/audit.ts` inside `prisma.$transaction`.
    Audit payloads are allow-listed: never message bodies, contacts, addresses, evidence or tokens.
-4. **Money is integer minor units + ISO currency.** Never floats. Household contributions are
+4. **Money is integer minor units + ISO currency.** Never floats. Search budgets are `BigInt`
+   columns (HM-55; Lagos annual kobo pass 2^31): convert with `Number()`/`minorNum` before maths;
+   `lib/db.ts` makes BigInt serialise as a JSON number, and the API caps budgets (₦1bn, £1m). Household contributions are
    **monthly-equivalent** minor units (Lagos budgets are annual — convert with
    `monthlyEquivalentMinor`). Show annual equivalents for NGN where useful.
 5. **Move-in dates are `YYYY-MM-DD` strings**, compared as strings, using `lib/dates.ts`

@@ -3,13 +3,22 @@ import { handler, ok, fail } from "@/lib/api";
 import { requireAccount } from "@/lib/guard";
 import { prisma } from "@/lib/db";
 import { writeAudit } from "@/lib/audit";
+import { lockKey, recentCount } from "@/lib/rateLimit";
+import { ApiError } from "@/lib/api";
 import { JOURNEYS } from "@/lib/constants";
 import { assertAnswersEditable, isNameLocked } from "@/lib/applicationService";
+
+const PROFILE_FIELDS = ["journey", "bio", "displayName"];
+const BIO_EDITS_PER_DAY = 20;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 // PATCH /api/v1/me/profile — journey, bio, display name, avatar initials.
 export const PATCH = handler(async (req: NextRequest, { rid }) => {
   const user = await requireAccount();
-  const body = await req.json().catch(() => ({}));
+  const raw = await req.json().catch(() => ({}));
+  if (!raw || typeof raw !== "object" || Array.isArray(raw))
+    return fail("VALIDATION", "Send the changes as a JSON object.", 422, rid);
+  const body = raw as Record<string, any>;
   // ENG-68: bio and journey are "complete later" answers: allowed at any open stage, and they
   // don't move the application version (staff don't approve them).
   const deferredOnly = !!body && typeof body === "object" && Object.keys(body).length > 0 && Object.keys(body).every((k) => ["bio", "journey"].includes(k));
@@ -49,6 +58,19 @@ export const PATCH = handler(async (req: NextRequest, { rid }) => {
     return fail("VALIDATION", "Please fix the highlighted fields.", 422, rid, { field_errors: fe });
 
   await prisma.$transaction(async (tx) => {
+    // HM-54: a bio change is stamped and audited (length only, never the text), and capped
+    // at BIO_EDITS_PER_DAY a day so a bio can't be flipped back and forth after review.
+    let bioChanged = false;
+    if ("bio" in profileData) {
+      const cur = await tx.profile.findUnique({ where: { userId: user.id }, select: { bio: true } });
+      bioChanged = (cur?.bio ?? null) !== profileData.bio;
+      if (bioChanged) {
+        await lockKey(tx, `bio:${user.id}`);
+        if ((await recentCount(tx, "profile.bio_changed", user.id, DAY_MS)) >= BIO_EDITS_PER_DAY)
+          throw new ApiError("RATE_LIMITED", "You've changed your bio a lot today. Try again tomorrow.", 429, undefined, 3600);
+        profileData.bioUpdatedAt = new Date();
+      }
+    }
     if (Object.keys(userData).length > 0)
       await tx.user.update({ where: { id: user.id }, data: userData });
     if (Object.keys(profileData).length > 0) {
@@ -65,8 +87,20 @@ export const PATCH = handler(async (req: NextRequest, { rid }) => {
       resourceType: "profile",
       resourceId: user.id,
       action: "patch",
-      safeAfter: { changed: Object.keys(body) },
+      // Audit hygiene: only known field names, never arbitrary client keys.
+      safeAfter: { changed: Object.keys(body).filter((k) => PROFILE_FIELDS.includes(k)) },
     }, rid);
+    if (bioChanged) {
+      await writeAudit(tx, {
+        eventType: "profile.bio_changed",
+        actorId: user.id,
+        subjectId: user.id,
+        resourceType: "profile",
+        resourceId: user.id,
+        action: "patch",
+        safeAfter: { length: typeof profileData.bio === "string" ? profileData.bio.length : 0 },
+      }, rid);
+    }
     // HM-36: an applicant's edit changes what staff would approve, so it moves the
     // application's version too (a stale approval then gets 409).
     if (user.accountStatus === "applicant" && !deferredOnly) {

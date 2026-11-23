@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { handler, ok } from "@/lib/api";
 import { requireStaff } from "@/lib/guard";
 import { prisma } from "@/lib/db";
+import { bioChangedAfterReview } from "@/lib/applications";
 import { IS_BETA } from "@/lib/env";
 
 const PAGE = 50;
@@ -12,7 +13,7 @@ const PAGE = 50;
 // to load more feedback. Counts: beta → members, verified, feedback in the last 7 days;
 // research → the tester cohort counts.
 export const GET = handler(async (req: NextRequest, { rid }) => {
-  await requireStaff();
+  const staff = await requireStaff();
   const beforeRaw = req.nextUrl.searchParams.get("before");
   const before = beforeRaw && !Number.isNaN(Date.parse(beforeRaw)) ? new Date(beforeRaw) : null;
 
@@ -32,6 +33,18 @@ export const GET = handler(async (req: NextRequest, { rid }) => {
   }
 
   const reports = await prisma.report.findMany({ orderBy: { createdAt: "desc" }, take: 100 });
+  // HM-54/HM-56: moderators and admins see the reported bio snapshot and whether the bio
+  // changed after the application decision. Verifiers don't.
+  const canModerate = staff.role === "moderator" || staff.role === "admin";
+  const targetIds = [...new Set(reports.map((r) => r.targetUserId))];
+  const [profiles, apps] = canModerate
+    ? await Promise.all([
+        prisma.profile.findMany({ where: { userId: { in: targetIds } }, select: { userId: true, bioUpdatedAt: true } }),
+        prisma.application.findMany({ where: { userId: { in: targetIds } }, select: { userId: true, reviewedAt: true } }),
+      ])
+    : [[], []];
+  const bioAt = new Map(profiles.map((p) => [p.userId, p.bioUpdatedAt]));
+  const decidedAt = new Map(apps.map((a) => [a.userId, a.reviewedAt]));
   const senders = await names([...senderIds, ...reports.flatMap((r) => [r.reporterId, r.targetUserId])]);
   const counts = IS_BETA ? await betaCounts() : await researchCounts();
   return ok(
@@ -40,8 +53,10 @@ export const GET = handler(async (req: NextRequest, { rid }) => {
       counts,
       feedback: page.map((f) => feedbackDto(f, senders)),
       more_feedback: more,
-      reports: reports.map((r) => ({
+      reports: reports.map(({ targetBio, ...r }) => ({
         ...r,
+        targetBio: canModerate ? targetBio : undefined,
+        targetBioChangedAfterReview: canModerate ? bioChangedAfterReview(bioAt.get(r.targetUserId), decidedAt.get(r.targetUserId)) : undefined,
         caseId: r.id.slice(-6).toUpperCase(),
         reporter: senders.get(r.reporterId) ?? "—",
         target: senders.get(r.targetUserId) ?? "—",
