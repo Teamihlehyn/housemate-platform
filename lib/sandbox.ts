@@ -108,7 +108,8 @@ async function loadSearchShape(tx: Tx, userId: string): Promise<SearchShape | nu
     latestDate: s.latestDate,
     stayMinMonths: s.stayMinMonths ?? 1,
     stayMaxMonths: s.stayMaxMonths ?? 36,
-    areas: s.areas.map((a) => a.areaId),
+    // ENG-69: "anywhere" testers get counterparts across the city's areas.
+    areas: s.anyArea ? CITIES[s.cityId as CityId].areas.map((a) => a.id) : s.areas.map((a) => a.areaId),
     prefs,
     genderAccepts: parseGenderPreference(s.genderPreference),
   };

@@ -9,8 +9,11 @@ import { assertAnswersEditable, isNameLocked } from "@/lib/applicationService";
 // PATCH /api/v1/me/profile — journey, bio, display name, avatar initials.
 export const PATCH = handler(async (req: NextRequest, { rid }) => {
   const user = await requireAccount();
-  await assertAnswersEditable(user);
   const body = await req.json().catch(() => ({}));
+  // ENG-68: bio and journey are "complete later" answers: allowed at any open stage, and they
+  // don't move the application version (staff don't approve them).
+  const deferredOnly = !!body && typeof body === "object" && Object.keys(body).length > 0 && Object.keys(body).every((k) => ["bio", "journey"].includes(k));
+  await assertAnswersEditable(user, { deferredOnly });
   const fe: Record<string, string> = {};
   const profileData: Record<string, unknown> = {};
   const userData: Record<string, unknown> = {};
@@ -20,9 +23,10 @@ export const PATCH = handler(async (req: NextRequest, { rid }) => {
     else profileData.journey = body.journey;
   }
   if (body.bio !== undefined) {
-    const bio = String(body.bio).trim();
-    if (bio.length < 40 || bio.length > 600) fe.bio = "Write 40 to 600 characters.";
-    else profileData.bio = bio;
+    // ENG-68: optional, any length up to 600; an empty bio clears it.
+    const bio = String(body.bio ?? "").trim();
+    if (bio.length > 600) fe.bio = "Keep it under 600 characters.";
+    else profileData.bio = bio.length ? bio : null;
   }
   if (body.displayName !== undefined) {
     const dn = String(body.displayName).trim();
@@ -65,7 +69,7 @@ export const PATCH = handler(async (req: NextRequest, { rid }) => {
     }, rid);
     // HM-36: an applicant's edit changes what staff would approve, so it moves the
     // application's version too (a stale approval then gets 409).
-    if (user.accountStatus === "applicant") {
+    if (user.accountStatus === "applicant" && !deferredOnly) {
       await tx.application.updateMany({ where: { userId: user.id }, data: { version: { increment: 1 } } });
     }
   });

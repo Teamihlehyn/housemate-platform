@@ -29,11 +29,12 @@ export const GET = handler(async (_req: NextRequest, { rid }) => {
       city: cityId,
       city_locked: await isNameLocked(user.id),
       areas,
+      any_area: s.anyArea, // ENG-69
       area_options: options,
       budget,
       move_in: { mode: s.moveMode, earliest: s.earliestDate, latest: s.latestDate },
       chips: {
-        areas: areasChip(areas),
+        areas: areasChip(areas, s.anyArea ? { cityId } : undefined),
         budget: budget ? budgetChip(budget.min_minor, budget.max_minor, budget.currency, budget.period) : null,
         dates: datesChip(s.moveMode, s.earliestDate, s.latestDate),
       },
@@ -68,6 +69,8 @@ export const PATCH = handler(async (req: NextRequest, { rid }) => {
     } else {
       data.cityId = body.cityId;
       data.currency = CITIES[body.cityId as keyof typeof CITIES].currency;
+      // ENG-69: a different city resets "anywhere" (and the old city's areas below).
+      if (search.cityId && body.cityId !== search.cityId) data.anyArea = false;
       if (body.rentPeriod === undefined && !search.rentPeriod)
         data.rentPeriod = CITIES[body.cityId as keyof typeof CITIES].defaultPeriod;
     }
@@ -164,16 +167,35 @@ export const PATCH = handler(async (req: NextRequest, { rid }) => {
     return fail("VALIDATION", "Please fix the highlighted fields.", 422, rid, { field_errors: fe });
   }
 
-  // Areas
+  // Areas. ENG-69: "Anywhere in {city}" (anyArea: true) is exclusive with specific areas:
+  // choosing it clears them, choosing areas clears it.
   let areaIds: string[] | undefined;
-  if (body.areaIds !== undefined) {
+  if (body.anyArea !== undefined && typeof body.anyArea !== "boolean") {
+    return fail("VALIDATION", "Please fix the highlighted fields.", 422, rid, { field_errors: { anyArea: "Must be true or false." } });
+  }
+  const wantsAreas = Array.isArray(body.areaIds) && body.areaIds.length > 0;
+  if (body.anyArea === true && wantsAreas) {
+    return fail("VALIDATION", "Choose “Anywhere” or specific areas, not both.", 422, rid, {
+      field_errors: { areaIds: "Choose “Anywhere” or specific areas, not both." },
+    });
+  }
+  if (body.anyArea === true) {
+    if (!(data.cityId ?? search.cityId)) {
+      return fail("VALIDATION", "Choose a city first.", 422, rid, { field_errors: { cityId: "Choose a city first." } });
+    }
+    data.anyArea = true;
+    areaIds = [];
+  } else if (body.areaIds !== undefined) {
     const city = (data.cityId ?? search.cityId) as string | null;
     const valid = city ? CITIES[city as keyof typeof CITIES].areas.map((a) => a.id) : [];
     areaIds = (body.areaIds as string[]).filter((a) => valid.includes(a)).slice(0, 5);
     if (areaIds.length === 0)
-      return fail("VALIDATION", "Choose at least one area.", 422, rid, {
-        field_errors: { areaIds: "Choose at least one area." },
+      return fail("VALIDATION", "Choose at least one area, or “Anywhere”.", 422, rid, {
+        field_errors: { areaIds: "Choose at least one area, or “Anywhere”." },
       });
+    data.anyArea = false;
+  } else if (data.cityId && search.cityId && data.cityId !== search.cityId) {
+    areaIds = []; // the old city's areas don't apply in the new one
   }
 
   // Preferences
@@ -205,7 +227,7 @@ export const PATCH = handler(async (req: NextRequest, { rid }) => {
     }
     if (areaIds !== undefined) {
       await tx.searchArea.deleteMany({ where: { searchId: search.id } });
-      await tx.searchArea.createMany({
+      if (areaIds.length) await tx.searchArea.createMany({
         data: areaIds.map((a) => ({ searchId: search.id, areaId: a })),
       });
     }
@@ -231,6 +253,7 @@ export const PATCH = handler(async (req: NextRequest, { rid }) => {
           snapshot: JSON.stringify({
             cityId: fresh!.cityId,
             areas: fresh!.areas.map((a) => a.areaId),
+            anyArea: fresh!.anyArea,
             rentMinMinor: fresh!.rentMinMinor,
             rentMaxMinor: fresh!.rentMaxMinor,
             rentPeriod: fresh!.rentPeriod,

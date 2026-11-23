@@ -22,7 +22,7 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
   if (!isClientEvent(body?.event)) return done();
   const step = body.step == null ? null : isStep(body.step) ? body.step : undefined;
   if (step === undefined) return done();
-  if (body.event.startsWith("join.step_") && !step) return done();
+  if ((body.event.startsWith("join.step_") || body.event.startsWith("profile.item_")) && !step) return done();
 
   const user = await getCurrentUser();
   const app = user ? await prisma.application.findUnique({ where: { userId: user.id }, select: { id: true } }) : null;

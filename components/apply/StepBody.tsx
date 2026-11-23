@@ -7,13 +7,15 @@
 import { RefObject, useEffect, useRef } from "react";
 import { CITIES, GENDERS, GENDER_IDS, JOURNEYS, OWN_GENDER_OPTIONS, QUESTIONNAIRE, CityId } from "@/lib/constants";
 import { formatMoney, monthlyEquivalentMinor } from "@/lib/money";
-import { IconCheck, IconX } from "@/components/icons";
+import { IconCheck, IconPin, IconX } from "@/components/icons";
 import { FieldError, HABIT_ASK, JourneyArt, MoneyInput, NameTag, OptionCard, Question, RadioRow, Reassure, Stepper } from "./fields";
 import CityCard from "./CityCard";
+import BudgetFields from "@/components/inputs/BudgetFields";
 import type { Draft, ScreenId } from "./useProfileDraft";
 
-// Bio minimum (D-R5: 40 characters, from 80; the server checks the same).
-const BIO_MIN = 40;
+// Bio (DES-38): optional, with a soft guide length rather than a minimum.
+const BIO_GUIDE = 80;
+const BIO_PROMPTS = ["My routine is…", "I'm looking for…", "I'm easy to live with because…"];
 
 export default function StepBody({
   screen,
@@ -39,6 +41,7 @@ export default function StepBody({
   // ENG-55: when the earliest date moves past the latest, the draft clears latest and asks us to
   // focus it (d.focusLatest changes); skip the first render.
   const latestRef = useRef<HTMLInputElement>(null);
+  const bioRef = useRef<HTMLTextAreaElement>(null);
   const seenFocus = useRef(d.focusLatest);
   useEffect(() => {
     if (d.focusLatest !== seenFocus.current) {
@@ -103,29 +106,58 @@ export default function StepBody({
       </fieldset>
     );
 
-  if (screen === "areas")
-    return cityCfg ? (
+  // DES-39: "Anywhere in {city}" first, exclusive with specific areas. It appears once the draft
+  // supports it (ENG-69: `anyArea` / `setAnyArea`); the server already handles the flag.
+  if (screen === "areas") {
+    if (!cityCfg) return <p className="text-sm text-ink-700">Choose a city first.</p>;
+    const any = d as Omit<Draft, "anyArea" | "setAnyArea"> & { anyArea?: boolean; setAnyArea?: (v: boolean) => void };
+    const anywhereOn = !!any.anyArea;
+    const cityName = d.city === "london" ? "London" : "Lagos";
+    const pickArea = (aid: string) => {
+      if (anywhereOn) any.setAnyArea?.(false);
+      d.toggleArea(aid);
+    };
+    return (
       <fieldset>
         <Question {...qp} legend>Which areas would you live in?</Question>
-        <p className="helper">Pick up to 5. You&apos;ll only see people who share at least one.</p>
-        <div className={`${gap} flex flex-wrap gap-2`}>
+        {any.setAnyArea ? (
+          <>
+            <div className={`${gap}`}>
+              <button
+                type="button"
+                aria-pressed={anywhereOn}
+                onClick={() => { any.setAnyArea!(!anywhereOn); }}
+                className="choice-chip border-dashed border-brand-600 aria-pressed:border-solid"
+              >
+                <IconPin size={16} /> Anywhere in {cityName}
+                {anywhereOn && <IconCheck size={16} strokeWidth={2.5} />}
+              </button>
+            </div>
+            <p className="helper">Not sure yet? You&apos;ll see people across {cityName}, and you can narrow it down later.</p>
+            <p className="mt-4 text-caption font-semibold uppercase tracking-wide text-ink-600" aria-hidden="true">or choose areas</p>
+          </>
+        ) : (
+          <p className="helper">Pick up to 5. You&apos;ll only see people who share at least one.</p>
+        )}
+        <div className={`${any.setAnyArea ? "mt-2" : gap} flex flex-wrap gap-2`}>
           {cityCfg.areas.map((a) => {
-            const on = d.areas.includes(a.id);
-            const full = !on && d.areas.length >= 5;
+            const on = !anywhereOn && d.areas.includes(a.id);
+            const full = !on && !anywhereOn && d.areas.length >= 5;
             return (
-              <button key={a.id} type="button" aria-pressed={on} onClick={() => d.toggleArea(a.id)} aria-disabled={full} className={`choice-chip ${full ? "opacity-60" : ""}`}>
+              <button key={a.id} type="button" aria-pressed={on} onClick={() => pickArea(a.id)} aria-disabled={full} className={`choice-chip ${full ? "opacity-60" : ""}`}>
                 {on && <IconCheck size={16} strokeWidth={2.5} />}
                 {a.label}
               </button>
             );
           })}
         </div>
-        <p className="num mt-3 text-sm font-medium text-ink-700" aria-live="polite">{d.areas.length} of 5 chosen</p>
+        <p className="num mt-3 text-sm font-medium text-ink-700" aria-live="polite">
+          {anywhereOn ? `Anywhere in ${cityName}` : `${d.areas.length} of 5 chosen`}
+        </p>
         <FieldError msg={errors.areas || errors.areaIds} />
       </fieldset>
-    ) : (
-      <p className="text-sm text-ink-700">Choose a city first.</p>
     );
+  }
 
   // ENG-57 / DES-30: city and areas on one screen. Areas appear once a city is chosen.
   if (screen === "where")
@@ -176,24 +208,17 @@ export default function StepBody({
     return cityCfg ? (
       <fieldset>
         <Question {...qp} legend>What&apos;s your rent budget, per person?</Question>
-        <div className={`${gap} inline-flex rounded-full bg-white p-1 ring-1 ring-ink-100`} role="radiogroup" aria-label="Budget period">
-          {(["month", "year"] as const).map((p) => (
-            <button key={p} type="button" role="radio" aria-checked={d.period === p} onClick={() => d.setPeriod(p)}
-              className={`min-h-[44px] rounded-full px-5 text-sm font-semibold ${d.period === p ? "bg-ink text-cream" : "text-ink-700"}`}>
-              Per {p}
-            </button>
-          ))}
-        </div>
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          <MoneyInput id={id("rmin")} label="From" currency={cityCfg.currency} value={d.rentMin} onChange={d.setRentMin} error={errors.rentMinMinor} />
-          <MoneyInput id={id("rmax")} label="Up to" currency={cityCfg.currency} value={d.rentMax} onChange={d.setRentMax} error={errors.rentMaxMinor} />
-        </div>
-        {d.period === "year" && parseFloat(d.rentMin) > 0 && parseFloat(d.rentMax) > 0 && (
-          <p className="num mt-3 text-sm text-ink-700">
-            About {formatMoney(monthlyEquivalentMinor(Math.round(parseFloat(d.rentMin) * 100), "year"), cityCfg.currency)}–
-            {formatMoney(monthlyEquivalentMinor(Math.round(parseFloat(d.rentMax) * 100), "year"), cityCfg.currency)} a month.
-          </p>
-        )}
+        <BudgetFields
+          idPrefix={id("")}
+          currency={cityCfg.currency}
+          period={d.period}
+          setPeriod={d.setPeriod}
+          min={d.rentMin}
+          max={d.rentMax}
+          setMin={d.setRentMin}
+          setMax={d.setRentMax}
+          errors={{ min: errors.rentMinMinor, max: errors.rentMaxMinor }}
+        />
         <FieldError msg={errors.rentPeriod} />
         <Reassure icon="eye">People you match with see this range, so they know it fits. Matching only needs your ranges to overlap.</Reassure>
       </fieldset>
@@ -278,28 +303,45 @@ export default function StepBody({
       </fieldset>
     );
 
-  if (screen === "bio")
+  // DES-38: optional bio with starter prompts and a soft guide length (no hard minimum).
+  if (screen === "bio") {
+    const len = d.bio.trim().length;
+    const addPrompt = (t: string) => {
+      const cur = d.bio.replace(/\s+$/, "");
+      d.setBio(`${cur}${cur ? (/[.!?]$/.test(cur) ? " " : ". ") : ""}${t.replace(/…$/, "")} `);
+      bioRef.current?.focus();
+    };
     return (
       <>
-        <Question {...qp} htmlFor={id("bio")}>Tell people a bit about you</Question>
+        <Question {...qp} htmlFor={id("bio")}>Tell people a bit about you <span className="font-sans text-base font-medium text-ink-600">(optional)</span></Question>
+        <p className="helper">A few lines are plenty. Tap a starter if you&apos;re not sure what to say.</p>
+        <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Starters">
+          {BIO_PROMPTS.map((t) => (
+            <button key={t} type="button" className="choice-chip" onClick={() => addPrompt(t)}>
+              <span aria-hidden="true">+</span> {t}
+            </button>
+          ))}
+        </div>
         <textarea
+          ref={bioRef}
           id={id("bio")}
-          className={`input ${gap} min-h-[160px] leading-relaxed`}
+          className="input mt-3 min-h-[150px] leading-relaxed"
           value={d.bio}
           onChange={(e) => d.setBio(e.target.value)}
           maxLength={600}
           aria-describedby={`${id("bio-count")} ${id("bio-help")}`}
           aria-invalid={!!errors.bio}
-          placeholder="Your routine, what you're looking for, and what makes you easy to live with."
+          placeholder="My routine is… I'm looking for… I'm easy to live with because…"
           data-clarity-mask="true"
         />
-        <p id={id("bio-count")} className={`num mt-1.5 text-sm font-medium ${d.bio.trim().length >= BIO_MIN ? "text-brand-700" : "text-ink-600"}`}>
-          {d.bio.trim().length < BIO_MIN ? `${BIO_MIN - d.bio.trim().length} more characters to go` : `✓ ${d.bio.length} / 600`}
+        <p id={id("bio-count")} className="num mt-1.5 text-sm font-medium text-ink-600">
+          {len === 0 ? "Optional. Around 2–3 sentences works well." : len < BIO_GUIDE ? `${len} characters. A sentence or two more helps people say hello.` : `✓ ${len} / 600`}
         </p>
         <FieldError msg={errors.bio} />
         <Reassure id={id("bio-help")} icon="eye">Shown on your profile. Don&apos;t include your address or phone number.</Reassure>
       </>
     );
+  }
 
   if (screen.startsWith("h:")) {
     const q = QUESTIONNAIRE.find((x) => `h:${x.id}` === screen)!;

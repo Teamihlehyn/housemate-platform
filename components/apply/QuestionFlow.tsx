@@ -13,15 +13,21 @@ import { formatMoney } from "@/lib/money";
 import { formatDateRange } from "@/lib/dates";
 import StepBody from "./StepBody";
 import { HabitPod, SaveStatus } from "./fields";
-import { APPLICATION_SCREENS, Draft, HABIT_IDS, SCREENS, SECTIONS, ScreenId } from "./useProfileDraft";
+import { Draft, HABIT_IDS, SCREENS, SECTIONS, ScreenId } from "./useProfileDraft";
 import { trackFunnel } from "@/lib/funnel";
 
+// DES-38: budget and dates share one step in the application ("money").
+type FlowStep = ScreenId | "money";
+const JOIN_STEPS: FlowStep[] = ["name", "where", "money", "livingWith", "review"];
+const partsOf = (s: FlowStep): ScreenId[] => (s === "money" ? ["budget", "dates"] : [s]);
+
 // DES-30: one plain line under each essential question.
-const WHY: Partial<Record<ScreenId, string>> = {
+const WHY: Partial<Record<FlowStep, string>> = {
+  money: "We only match people whose budgets and move-in dates overlap. You can change both any time.",
   name: "So people know what to call you, and our team knows who to expect on your call.",
   city: "We're open in Lagos first. Other cities are held until they open.",
   areas: "You'll only see people who want at least one of the same areas.",
-  where: "We're open in Lagos first. You'll only see people who want at least one of the same areas.",
+  where: "We're open in Lagos first. Pick areas, or anywhere in the city if you're not sure yet.",
   livingWith: "Private. Only used so nobody is shown to someone they wouldn't live with, both ways.",
   budget: "We only match people whose ranges overlap. You can change it any time.",
   dates: "Timing matters most: we only match people whose move-in dates overlap.",
@@ -70,13 +76,18 @@ export default function QuestionFlow({
   /** Every screen can be skipped (optional questions). */
   skipAll?: boolean;
 }) {
-  // /join is the six-screen application (D-R5); demo onboarding keeps its own list.
-  const LIST = screens ?? (mode === "join" ? APPLICATION_SCREENS : SCREENS);
-  /** Old single-question ids map onto the combined screens when the list has them. */
-  const place = (s: ScreenId): ScreenId => {
+  // /join is the short application (DES-38): name · where · money and dates · living with · review.
+  // The bio and living habits come after applying. Demo onboarding keeps its own list.
+  const LIST: FlowStep[] = screens ?? (mode === "join" ? JOIN_STEPS : SCREENS);
+  /** Old single-question ids map onto the combined steps when the list has them. */
+  const place = (s: FlowStep): FlowStep => {
     if (LIST.includes(s)) return s;
-    const alias: Partial<Record<ScreenId, ScreenId>> = { city: "where", areas: "where", location: "where", gender: "livingWith", genderPref: "livingWith" };
-    return alias[s] && LIST.includes(alias[s]!) ? alias[s]! : s;
+    const alias: Partial<Record<FlowStep, FlowStep>> = {
+      city: "where", areas: "where", location: "where", gender: "livingWith", genderPref: "livingWith", budget: "money", dates: "money",
+    };
+    const a = alias[s];
+    if (a && LIST.includes(a)) return a;
+    return s === "money" && !LIST.includes("money") ? "budget" : s;
   };
   const custom = !!screens;
   const [idx, setIdx] = useState(() => Math.max(0, initialScreen ? LIST.indexOf(place(initialScreen)) : 0));
@@ -86,10 +97,11 @@ export default function QuestionFlow({
   const firstRender = useRef(true);
 
   const screen = LIST[idx];
+  const parts = partsOf(screen);
   const cityCfg = d.city ? CITIES[d.city] : null;
   const firstName = d.displayName.trim().split(/\s+/)[0] || "";
-  const section = SECTIONS.findIndex((sec) => sec.screens.includes(screen));
-  const habitIdx = HABIT_IDS.indexOf(screen);
+  const section = SECTIONS.findIndex((sec) => sec.screens.includes(parts[0]));
+  const habitIdx = HABIT_IDS.indexOf(parts[0]);
   const join = mode === "join";
 
   // A late resume (GET /me arrives after first paint) can move us to where they left off.
@@ -116,13 +128,14 @@ export default function QuestionFlow({
     function onHide() {
       if (document.visibilityState !== "hidden") return;
       const { screen: s, d: dd } = latest.current;
-      if (s !== "review" && Object.keys(dd.validate(s)).length === 0) void dd.save([s], { quiet: true });
+      const ps = partsOf(s);
+      if (s !== "review" && ps.every((x) => Object.keys(dd.validate(x)).length === 0)) void dd.save(ps, { quiet: true });
     }
     document.addEventListener("visibilitychange", onHide);
     return () => document.removeEventListener("visibilitychange", onHide);
   }, []);
 
-  function go(target: ScreenId | undefined) {
+  function go(target: FlowStep | undefined) {
     const t = target && place(target);
     if (t && LIST.includes(t)) setIdx(LIST.indexOf(t));
   }
@@ -141,7 +154,7 @@ export default function QuestionFlow({
         }
         return;
       }
-      const r = await d.save([screen]);
+      const r = await d.save(parts);
       if (r.ok && custom && idx === LIST.length - 1) {
         const f = await onFinish();
         if (!f.ok && f.message) setTopError(f.message);
@@ -150,7 +163,7 @@ export default function QuestionFlow({
       if (r.ok) setIdx((i) => Math.min(LIST.length - 1, i + 1));
       else {
         if (r.message) setTopError(r.message);
-        if (r.screen && r.screen !== screen) go(r.screen);
+        if (r.screen && !parts.includes(r.screen)) go(r.screen);
       }
     } finally {
       setBusy(false);
@@ -161,7 +174,7 @@ export default function QuestionFlow({
     d.setErrors({});
     setTopError(null);
     // Keep a changed answer even when going back, if it's complete.
-    if (screen !== "review" && Object.keys(d.validate(screen)).length === 0) void d.save([screen], { quiet: true });
+    if (screen !== "review" && parts.every((x) => Object.keys(d.validate(x)).length === 0)) void d.save(parts, { quiet: true });
     setIdx((i) => Math.max(0, i - 1));
   }
 
@@ -192,6 +205,7 @@ export default function QuestionFlow({
           : { line: "Hi, I'm Pea. I'll help you find someone whose plans fit yours.", mood: "awake" };
       case "journey": return { line: `Lovely to meet you${hi}. Let's start with the big picture.`, mood: "happy" };
       case "city": return { line: "Where are you planning to live?", mood: "awake" };
+      case "money": return { line: "Now the money and the timing. Only people whose ranges overlap are matched.", mood: "awake" };
       case "where": return { line: `Nice to meet you${hi}. Where are you planning to live?`, mood: "happy" };
       case "livingWith": return { line: "Two private questions. Only the matching uses these, and it works both ways.", mood: "awake" };
       case "areas": return { line: `${cityCfg ? cityCfg.label.replace(/ pilot$/, "") : "Nice"}. Let's narrow it down.`, mood: "happy" };
@@ -201,7 +215,7 @@ export default function QuestionFlow({
       case "stay": return { line: "Roughly is fine. You can change it later.", mood: "happy" };
       case "gender": return { line: "A couple of private questions. Only the matching uses these.", mood: "awake" };
       case "genderPref": return { line: "This works both ways, and nobody sees why someone isn't shown.", mood: "awake" };
-      case "bio": return { line: `Last one${hi}. A few lines help people say hello.`, mood: "happy" };
+      case "bio": return { line: custom ? "A few lines help people say hello. Optional, and you can change it any time." : `Last one${hi}. A few lines help people say hello.`, mood: "happy" };
       case "review":
         return editing
           ? { line: "Change anything you like. Each answer saves as you go.", mood: "happy" }
@@ -216,7 +230,7 @@ export default function QuestionFlow({
           mood: habitIdx % 2 ? "wow" : "awake",
         };
     }
-  }, [screen, firstName, cityCfg, habitIdx, d.answered.length, join, editing]);
+  }, [screen, firstName, cityCfg, habitIdx, d.answered.length, join, editing, custom]);
 
   const finishing = screen === "review" || (custom && idx === LIST.length - 1);
   const ctaLabel = finishing ? (busy ? finishBusyLabel : finishLabel) : busy ? "Saving…" : "Continue";
@@ -224,12 +238,12 @@ export default function QuestionFlow({
   // Review rows: label, value, the screen that edits it.
   const money = (v: string) => (cityCfg && v ? formatMoney(Math.round(parseFloat(v) * 100), cityCfg.currency) : "");
   const habitsLine = QUESTIONNAIRE.filter((q) => d.answered.includes(q.id)).map((q) => answerLabel(q.id, d.prefs[q.id].own)).join(" · ");
-  const rows: [string, string, ScreenId, boolean?][] = [
+  const rows: [string, string, FlowStep, boolean?][] = [
     ["Name", d.displayName, "name"],
     ["Looking to", JOURNEYS.find((j) => j.id === d.journey)?.label ?? "", "journey"],
-    ["Areas", d.city ? `${d.city === "london" ? "London" : "Lagos"} · ${d.areas.map((a) => cityCfg?.areas.find((x) => x.id === a)?.label).join(", ")}` : "", place("areas")],
-    ["Budget", d.rentMin && d.rentMax ? `${money(d.rentMin)}–${money(d.rentMax)} per ${d.period}` : "", "budget"],
-    ["Move-in", d.earliest ? formatDateRange(d.earliest, d.moveMode === "range" && d.latest ? d.latest : d.earliest) : "", "dates"],
+    ["Areas", d.city ? ((d as { anyArea?: boolean }).anyArea ? `Anywhere in ${d.city === "london" ? "London" : "Lagos"}` : `${d.city === "london" ? "London" : "Lagos"} · ${d.areas.map((a) => cityCfg?.areas.find((x) => x.id === a)?.label).join(", ")}`) : "", place("areas")],
+    ["Budget", d.rentMin && d.rentMax ? `${money(d.rentMin)}–${money(d.rentMax)} per ${d.period}` : "", place("budget")],
+    ["Move-in", d.earliest ? formatDateRange(d.earliest, d.moveMode === "range" && d.latest ? d.latest : d.earliest) : "", place("dates")],
     ["Stay", d.stayMin && d.stayMax ? `${d.stayMin}–${d.stayMax} months` : "", "stay"],
     ["Living habits", d.answered.length === 6 ? habitsLine : `${d.answered.length} of 6 answered`, "h:cleaning"],
     ["About you", d.bio.trim() ? d.bio.trim() : "", "bio"],
@@ -288,7 +302,11 @@ export default function QuestionFlow({
         <div className="mt-6">
           {screen !== "review" ? (
             <>
-              <StepBody screen={screen} d={d} headingRef={headingRef} cityBadges={cityBadges} idCheck={join} />
+              {parts.map((p, i) => (
+                <div key={p} className={i ? "mt-8 border-t border-ink-100 pt-6" : ""}>
+                  <StepBody screen={p} d={d} headingRef={i === 0 ? headingRef : undefined} compact={i > 0} idPrefix={i ? `${p}-` : ""} cityBadges={cityBadges} idCheck={join} />
+                </div>
+              ))}
               {screen === "city" && cityNote?.(d.city)}
               {WHY[screen] && (
                 <p className="mt-4 border-l-2 border-pea-400 pl-3 text-sm text-ink-700">

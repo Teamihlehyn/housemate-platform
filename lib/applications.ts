@@ -137,6 +137,7 @@ export interface CompletenessInput {
     stayMinMonths: number | null;
     stayMaxMonths: number | null;
     areaCount: number;
+    anyArea?: boolean; // ENG-69: "Anywhere in {city}" counts as answered
     preferenceCount: number;
   } | null;
 }
@@ -144,7 +145,7 @@ export interface CompletenessInput {
 export const MISSING_LABELS: Record<string, string> = {
   journey: "what you're looking for",
   displayName: "your first name",
-  bio: "a short bio (40 characters or more)",
+  bio: "a short bio",
   cityId: "city",
   areaIds: "areas",
   budget: "budget",
@@ -162,12 +163,12 @@ export function missingFields(u: CompletenessInput): string[] {
   const p = u.profile;
   const s = u.search;
   const m: string[] = [];
-  // D-R5 (ENG-57): the application is name, city + areas, budget, dates, gender + preference
-  // and bio. Journey, stay length and the six habits come later ("better first matches").
+  // ENG-68 (after D-R5): the application is name, city + areas, budget, dates, gender +
+  // preference. Bio, journey, stay length and the six habits come later (profile strength).
   if (!u.displayName || u.displayName.trim().length < 2) m.push("displayName");
-  if (!p?.bio || p.bio.trim().length < BIO_MIN) m.push("bio");
+  void p;
   if (!s?.cityId) m.push("cityId");
-  if (!s || s.areaCount === 0) m.push("areaIds");
+  if (!s || (s.areaCount === 0 && !s.anyArea)) m.push("areaIds");
   if (s?.rentMinMinor == null || s?.rentMaxMinor == null) m.push("budget");
   if (!s?.moveMode) m.push("moveMode");
   if (s?.moveMode && s.moveMode !== "undecided" && (!s.earliestDate || !s.latestDate)) m.push("dates");

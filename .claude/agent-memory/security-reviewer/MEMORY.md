@@ -1,2 +1,2 @@
-- [Beta pre-launch review Nov 2026](project_beta_prelaunch_review.md) — finding IDs HM-01..HM-53 with status (SEC-15/ENG-47 11 Nov; round 1 21 Nov), threat model line
+- [Beta pre-launch review Nov 2026](project_beta_prelaunch_review.md) — finding IDs HM-01..HM-56 with status (SEC-15/ENG-47 11 Nov; round 1 21 Nov; ENG-68/69 23 Nov), threat model line
 - [Recurring weak spots](recurring_weak_spots.md) — patterns that keep producing bugs; checklist for new routes

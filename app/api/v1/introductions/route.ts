@@ -7,6 +7,7 @@ import { writeAudit, writeOutbox, notify } from "@/lib/audit";
 import { addDays, testToday } from "@/lib/dates";
 import { IS_BETA } from "@/lib/env";
 import { gendersCompatible, parseGenderPreference } from "@/lib/constants";
+import { areaMatch } from "@/lib/matchRules";
 import { afterIntroduction } from "@/lib/demoBots";
 import { passesIdentityGate } from "@/lib/verification";
 import { assertNotBlocked } from "@/lib/blocks";
@@ -96,7 +97,15 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
   await assertNotBlocked(user.id, targetId);
 
   // Housemate gender preference applies both ways (generic response — no reason disclosed).
-  const mine = await prisma.search.findUnique({ where: { userId: user.id } });
+  const mine = await prisma.search.findUnique({ where: { userId: user.id }, include: { areas: true } });
+  // ENG-69: areas re-checked here too ("Anywhere in {city}" counts as sharing an area).
+  const theirAreas = target.search ? await prisma.searchArea.findMany({ where: { searchId: target.search.id }, select: { areaId: true } }) : [];
+  if (
+    target.search && mine &&
+    (mine.cityId !== target.search.cityId ||
+      !areaMatch({ anyArea: mine.anyArea, areas: mine.areas.map((a) => a.areaId) }, { anyArea: target.search.anyArea, areas: theirAreas.map((a) => a.areaId) }).ok)
+  )
+    return fail("NOT_FOUND", "This user is not available.", 404, rid);
   if (
     target.search &&
     !gendersCompatible(

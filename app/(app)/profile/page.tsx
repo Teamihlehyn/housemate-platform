@@ -16,6 +16,9 @@ import StepBody from "@/components/apply/StepBody";
 import { HABIT_IDS, ScreenId, useProfileDraft } from "@/components/apply/useProfileDraft";
 import { CITY_VISUALS } from "@/components/apply/CityCard";
 import { IconLock } from "@/components/icons";
+import ProfileStrength from "@/components/ProfileStrength";
+import { trackFunnel } from "@/lib/funnel";
+import { useRouter } from "next/navigation";
 
 const IS_BETA = process.env.NEXT_PUBLIC_APP_ENV === "beta";
 
@@ -28,12 +31,30 @@ export default function Profile() {
   const [editing, setEditing] = useState<SectionKey | null>(null);
   const d = useProfileDraft();
   const { hydrate } = d;
+  const router = useRouter();
 
   const load = useCallback(
     () => api<any>("/me").then((m) => { setMe(m); hydrate(m); }).finally(() => setLoading(false)),
     [hydrate],
   );
   useEffect(() => { load(); }, [load]);
+
+  // DES-38: checklist links land here as /profile?edit=<screen>&from=<where>. Open that section,
+  // and after saving go back to the checklist they came from.
+  const [returnTo, setReturnTo] = useState<{ from: string; key: string } | null>(null);
+  useEffect(() => {
+    if (loading || !me) return;
+    const q = new URLSearchParams(window.location.search);
+    const e = q.get("edit");
+    if (!e) return;
+    const section: SectionKey | null = e === "bio" || e === "journey" ? "about" : e.startsWith("h:") ? "habits" : e === "stay" ? "money" : null;
+    if (!section) return;
+    hydrate(me);
+    setEditing(section);
+    setReturnTo({ from: q.get("from") ?? "profile", key: e.startsWith("h:") ? "habits" : e });
+    window.history.replaceState(null, "", "/profile");
+    setTimeout(() => document.getElementById(`sec-${section}`)?.scrollIntoView({ block: "start" }), 50);
+  }, [loading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function status(action: string) {
     setMsg(null);
@@ -60,7 +81,10 @@ export default function Profile() {
   }
 
   const accepts: string[] = s.genderPreference ?? [...GENDER_IDS];
-  const areaLabels = s.areas.map((a: string) => city?.areas.find((x) => x.id === a)?.label).join(", ");
+  // DES-39: "Anywhere in {city}" (any_area / anyArea from the API, ENG-69).
+  const areaLabels = s.anyArea || s.any_area
+    ? `Anywhere in ${city?.label.replace(/ pilot$/, "") ?? "the city"}`
+    : s.areas.map((a: string) => city?.areas.find((x) => x.id === a)?.label).join(", ");
   const visual = s.cityId ? CITY_VISUALS[s.cityId as keyof typeof CITY_VISUALS] : null;
 
   function edit(k: SectionKey) {
@@ -80,6 +104,13 @@ export default function Profile() {
       setEditing(null);
       setMsg({ ok: true, text: okText });
       await load();
+      if (returnTo) {
+        trackFunnel("profile.item_completed", { step: returnTo.key });
+        const from = returnTo.from;
+        setReturnTo(null);
+        if (from === "discover") router.push("/discover");
+        else document.getElementById("strength")?.scrollIntoView({ block: "start" });
+      }
       return;
     }
     if (r.message) setMsg({ ok: false, text: r.message });
@@ -116,7 +147,14 @@ export default function Profile() {
               <p className="text-sm text-ink-600">{city?.label.replace(/ pilot$/, "")} · {areaLabels}</p>
             </div>
           </div>
-          <p className="mt-4 whitespace-pre-line text-ink-700" data-clarity-mask="true">{me.profile.bio}</p>
+          {me.profile.bio?.trim() ? (
+            <p className="mt-4 whitespace-pre-line text-ink-700" data-clarity-mask="true">{me.profile.bio}</p>
+          ) : (
+            <p className="mt-4 text-sm text-ink-600">
+              No bio yet. Others see &ldquo;Hasn&apos;t added a bio yet&rdquo;.{" "}
+              <button type="button" className="inline-flex min-h-[44px] items-center font-semibold text-brand-700 underline underline-offset-2" onClick={() => edit("about")}>Add a bio</button>
+            </p>
+          )}
         </div>
       </div>
 
@@ -138,12 +176,14 @@ export default function Profile() {
         </div>
       )}
 
+      <ProfileStrength from="profile" className="mt-6" />
+
       <h2 className="mt-8 text-h2 text-ink">Your answers</h2>
       <p className="mt-1 text-sm text-ink-600">Changes to dates, budget, areas or habits update who you match with straight away.</p>
 
       <Section
         title="About you"
-        open={editing === "about"}
+        anchor="sec-about" open={editing === "about"}
         onEdit={() => edit("about")}
         onCancel={cancel}
         onSave={() => save(nameLocked ? ["journey", "bio"] : ["name", "journey", "bio"], "Saved. Your profile is updated.")}
@@ -174,7 +214,7 @@ export default function Profile() {
 
       <Section
         title="Where"
-        open={editing === "where"}
+        anchor="sec-where" open={editing === "where"}
         onEdit={() => edit("where")}
         onCancel={cancel}
         onSave={() => save(["areas", "location"], "Saved. Your matches now use these areas.")}
@@ -195,7 +235,7 @@ export default function Profile() {
 
       <Section
         title="Money and dates"
-        open={editing === "money"}
+        anchor="sec-money" open={editing === "money"}
         onEdit={() => edit("money")}
         onCancel={cancel}
         onSave={() => save(["budget", "dates", "stay"], "Saved. Your matches now use these dates and budget.")}
@@ -213,7 +253,7 @@ export default function Profile() {
 
       <Section
         title="Living habits"
-        open={editing === "habits"}
+        anchor="sec-habits" open={editing === "habits"}
         onEdit={() => edit("habits")}
         onCancel={cancel}
         onSave={() => save(HABIT_IDS, "Saved. Your matches now use these habits.")}
@@ -234,7 +274,7 @@ export default function Profile() {
       <Section
         title="Housemate gender"
         note="Private: only used to match you, never shown on your profile."
-        open={editing === "private"}
+        anchor="sec-private" open={editing === "private"}
         onEdit={() => edit("private")}
         onCancel={cancel}
         onSave={() => save(["gender", "genderPref"], "Saved. Your matches now reflect your housemate gender preference.")}
@@ -258,8 +298,9 @@ export default function Profile() {
 }
 
 function Section({
-  title, note, rows, open, onEdit, onCancel, onSave, busy, children,
+  anchor, title, note, rows, open, onEdit, onCancel, onSave, busy, children,
 }: {
+  anchor?: string;
   title: string;
   note?: string;
   rows: [string, string][];
@@ -271,7 +312,7 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="card mt-4 p-5 sm:p-6" aria-label={title}>
+    <section id={anchor} className="card mt-4 scroll-mt-24 p-5 sm:p-6" aria-label={title}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="text-h3 text-ink">{title}</h3>

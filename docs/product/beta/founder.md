@@ -46,6 +46,12 @@
 - **F-26, booking tool: decided by you on 21 Nov.** The ID call runs on **Google Meet**, booked through a **Google Calendar "Appointment schedule"** page.
   - **Set-up:** 10-minute slots, Lagos hours, a buffer between calls, a daily cap, Meet auto-attached.
   - **Your action:** send the booking page link to the engineer, who sets it as `NEXT_PUBLIC_CALL_BOOKING_URL` (production + staging). **ENG-60 is built; the "Book your 10-minute video call" button stays hidden until this is set.** It's a build-time variable, so redeploy after setting it. **F-26 is done once the link is set.**
+- **D-R6 (decided by you, 22 Nov):**
+  - The bio is no longer required to apply; `/join` is now 5 screens.
+  - Bio, habits and stay length move to a "Make your profile stronger" checklist (status page, a dismissible Discover card, Profile).
+  - Tickets ENG-68 / DES-38 are in progress.
+  - *Open suggestion (still undecided):* ask for a short bio just before someone sends their first introduction.
+- **D-R7 (decided by you, 22 Nov):** an "Anywhere in {city}" areas option (ENG-69 / DES-39). It's matched both ways, it can't be combined with specific areas, and it doesn't earn the points for shared areas, so people who chose the same specific areas still rank higher.
 - **For your legal reviewer (HM-52):** the privacy notice now includes "application step analytics": pseudonymous data, legitimate interests (improving the application), 12 months, and a DPIA row (R12). Please ask them to confirm the lawful basis.
   - **v1 is link-out only.** Staff mark "Call booked" in the back office by hand. Syncing with the Calendar API comes later.
   - **Don't record calls.** The privacy notice says calls aren't recorded unless we say so.

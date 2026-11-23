@@ -327,6 +327,10 @@ Hard constraints (all two-way): same city · ≥1 common area · overlapping mon
 bands · overlapping stay ranges · each person's habit answer is in the other's accepted set ·
 gender compatibility (`gendersCompatible`) · overlapping move-in windows (`undecided` never
 matches) · not blocked · not in an active household · same sandbox world.
+**Anywhere in {city} (ENG-69):** `Search.anyArea = true` (exclusive with specific areas; a city
+change resets it) satisfies "≥1 common area" against anyone in the same city, both ways; two
+"anywhere" people match. It earns **no** area points, and the reason says "Open to anywhere in
+Lagos" (`areaMatch` in `lib/matchRules.ts`; introductions re-check it).
 **Unanswered (D-R4/D-R5, `lib/matchRules.ts`, `match-v2`):** stay length not given = open
 (1–36 months). An unanswered own habit answer can't satisfy someone with deal-breakers on that
 question; your own unanswered deal-breakers accept all. `PreferenceAnswer.state` =
@@ -403,14 +407,17 @@ notice is checked **before** the code is consumed (so a missing tick doesn't bur
 **Approval-first sign-up (beta, ENG-39–46):** contract in `docs/engineering/approval-first-api.md`.
 - Applicants are `User.accountStatus = "applicant"` with an `Application` row; their answers
   live in their own Profile/Search. Their session is `scope = "application"`: only `/me`,
-  `/me/profile`, `/me/search`, `/me/preferences`, `/me/export`, `/me/delete`, `/feedback`,
+  `/me/profile`, `/me/search`, `/me/preferences`, `/me/profile-strength`, `/me/export`, `/me/delete`, `/feedback`,
   `/applications/*` work; every other API is 404. Use `requireAccount()` only for that list.
 - `request-code` gives **every** address the identical 200 and timing (floor + send after the
   response); a code goes only to active users and allowlisted staff. Rate limits count the
   same for every address. Don't add a branch that answers differently (HM-28).
-- The application asks only name, city + areas, budget, dates, gender + preference and bio
-  (40+ characters) (D-R5). Journey, stay and the six habits are "better first matches", asked
-  after submitting and answerable while the review is under way (they don't move the version).
+- **Minimum application (ENG-68):** five steps — name, where (city + areas or anywhere),
+  money and dates, living with (gender + preference), review. The **bio is optional** (≤ 600
+  characters). Bio, journey, stay and the six habits are deferred: editable from draft to
+  approved and after activation without moving the application version, and listed by
+  `GET /me/profile-strength` (also `profile_strength` in the status object, `profileStrength`
+  in `GET /me`). Empty bios must render a neutral empty state everywhere.
 - Applications: draft → submitted (or waitlisted outside `OPEN_CITIES`) → in_review →
   call_booked → approved → activated at `/invite/[code]` (14-day bound code); declined (reapply
   after 30 days) and withdrawn reopen as a draft. Verifiers/admins act, moderators view, nobody

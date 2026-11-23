@@ -5,7 +5,11 @@
 // Bump when the application's screens change, so reports compare like with like.
 export const FLOW_VERSION = "v2";
 
-export const CLIENT_EVENTS = ["join.viewed", "join.code_sent", "join.email_confirmed", "join.step_viewed", "join.step_completed", "join.step_skipped"] as const;
+export const CLIENT_EVENTS = [
+  "join.viewed", "join.code_sent", "join.email_confirmed", "join.step_viewed", "join.step_completed", "join.step_skipped",
+  // ENG-68: the profile-strength checklist (step = the item key).
+  "profile.item_opened", "profile.item_completed",
+] as const;
 export const SERVER_EVENTS = [
   "join.submitted",
   "application.call_booked",
@@ -20,7 +24,8 @@ export type FunnelEventName = (typeof CLIENT_EVENTS)[number] | (typeof SERVER_EV
 // "better first matches" step.
 export const STEPS = [
   "email", "code", "consent",
-  "name", "journey", "city", "areas", "location", "budget", "dates", "stay", "gender", "genderPref", "livingWith", "bio", "review",
+  "name", "journey", "city", "areas", "where", "location", "budget", "dates", "money", "moneyDates", "stay", "gender", "genderPref", "livingWith", "bio", "review",
+  "habits", // ENG-68 checklist item
   "h:cleaning", "h:quiet", "h:guests", "h:smoking", "h:pets", "h:social",
 ] as const;
 

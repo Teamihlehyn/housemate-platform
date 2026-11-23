@@ -636,3 +636,41 @@ optional sky status chip above the name. Selected = 4 px ink ring + offset, ink 
 `motion-safe:scale-[1.02]`. Never grey out an unselected city. `role="radio"`, accessible name
 "City. Rent usually per …[. Chip]". Images: `public/cities/<city>-480|960.jpg` via `srcset`, lazy.
 See [city-cards.md](city-cards.md).
+
+## 18. MoneyInput and budget fields (DES-37, 22 Nov 2026)
+
+`components/inputs/MoneyInput.tsx` is the only way money is typed. `BudgetFields.tsx` wraps it for
+rent budgets (through `StepBody`'s budget screen, so /join, Profile and the Discover sheet all
+share it). `budgetRules.ts` holds the founder-tunable numbers.
+
+**MoneyInput**
+- Shows `1,000,000` as you type. The caret stays after the same digit when commas move, and
+  Backspace/Delete beside a comma removes the digit beyond it.
+- Paste or type anything: `1,000,000`, `₦1,000,000`, `£950` → digits only. Shorthand `1.5m` →
+  1,500,000 and `500k` → 500,000, with a visible hint.
+- `inputMode="numeric"`, `pattern="[0-9,]*"`, `autoComplete="off"`, 16 px text, 48 px tall.
+- The ₦/£ is a non-editable adornment; the label carries "…, in naira per year" for screen readers.
+  Errors use `role="alert"` and are linked by `aria-describedby`.
+- **Value:** a digits string in whole currency units ("1000000"). Callers already turn that into
+  minor units, so API payloads are unchanged (checked: `PATCH /me/search` still sends
+  `rentMinMinor: 100000000` for ₦1,000,000).
+
+**BudgetFields**
+- The period toggle puts the city's default first (naira: Per year; pounds: Per month). Toggling
+  **converts** the numbers (×12; ÷12 rounded to ₦100 or £1) rather than reinterpreting them.
+- **Quick picks** (labelled "suggestions, not market prices"): Lagos yearly ₦500k–1m, ₦1m–2m,
+  ₦2m–3.5m, ₦3.5m+; London monthly £600–900, £900–1,200, £1,200–1,600. They convert with the
+  period.
+- **Live equivalent:** "About ₦83,300–₦166,700 a month" when yearly; "About £10,800–£14,400 a
+  year" when monthly.
+- **Gentle notes** (never blocking): Lagos under ₦100,000 or over ₦50,000,000 a year per person;
+  London under £200 or over £5,000 a month, scaled for the other period. Each note offers the ×10
+  or ÷10 fix ("Did you mean ₦10,000,000?").
+- **Range error:** "Up to" below "From" → "Make 'Up to' at least ₦X, the same as 'From' or more."
+
+**Household agreement:** the rent split uses MoneyInput. Lagos households type **yearly** amounts
+by default (toggle to monthly). They're converted to the monthly-equivalent minor units the server
+stores, and the total shows "₦6,000,000 a year · about ₦500,000 a month".
+
+Displayed money always goes through `formatMoney` (`lib/money.ts`), so it reads ₦1,800,000 or
+£950 everywhere. The Discover chips use a short form (₦1.5m) on purpose.

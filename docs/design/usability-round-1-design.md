@@ -160,3 +160,50 @@ Nothing is shown as chosen until the person answers (`state` from ENG-56, or not
 - `/join/better`: the six habits + stay length, optional and skippable, "Better first matches ·
   Step n of 7", saved per screen. It's reached from a status-page card while waiting for the call
   ("n of 7 answered"; "Your answers help us match you more precisely": not a measured claim).
+
+## DES-37 fix: exact period round trips (22 Nov)
+`BudgetFields` and the household split keep the **source**: the value the person typed and the
+period they typed it in (that's what's saved). The toggle only changes the *display*: per month
+shows the rounded conversion, and toggling back shows the original exactly. The source moves to
+the new period only when they edit a field there. Checked by keystrokes: ₦1,000,000 per year →
+month (83,300) → year gives 1,000,000. Leaving the view on "month" and pressing Continue still
+sent `{"rentMinMinor":100000000,"rentMaxMinor":250000000,"rentPeriod":"year"}`.
+
+## DES-38 Apply first, complete later (22 Nov)
+- **/join is five steps:** Name · Where · Money and dates (budget and dates on one screen) ·
+  Living together · Review ("Step n of 5"). There's no bio screen. The review says "You can add a
+  bio and living habits after you apply. They help people say hello."
+- **"Make your profile stronger"** (`components/ProfileStrength.tsx`, data from
+  `GET /me/profile-strength`). Benchmarks:
+  - [LinkedIn profile strength](https://www.linkedin.com/help/linkedin/answer/a554363): a meter
+    plus the next suggested step.
+  - [Airbnb host profile](https://www.airbnb.com/help/article/67): optional "about you" items
+    with plain reasons.
+  - [Hinge prompts](https://help.hinge.co/hc/en-us): writing made easy with starters.
+
+  Shown three ways:
+  - On the status page (it absorbs "Better first matches").
+  - On Discover, as a card you can hide for a week; it disappears when everything is done.
+  - On Profile, as a section that turns into "Your profile is complete" with Pea and Bud
+    (pop-in, off under reduced motion).
+
+  It shows "n of 4 done", a segmented meter (your own items only) and each item's one-line why.
+  The whys come from the server and make no claims we can't back. Items open a focused editor:
+  - for applicants, `/join/better?screen=…` (just the bio, just the habits, and so on);
+  - for users, `/profile?edit=…`, which opens that section.
+
+  After saving, it returns to the checklist (status page, Discover or Profile), and
+  `profile.item_opened` / `profile.item_completed` are tracked.
+- **The bio editor** is optional, with starters ("My routine is…", "I'm looking for…", "I'm easy
+  to live with because…") that insert text you keep typing after. There's a soft guide ("Around
+  2–3 sentences works well"), no minimum, and the same privacy line.
+- **No bio:** the public profile says "Hasn't added a bio yet."; your own profile says "No bio yet.
+  Others see 'Hasn't added a bio yet'." with Add a bio.
+
+## DES-39 Anywhere in {city} (22 Nov)
+- On the areas question, "Anywhere in Lagos" (pin icon, dashed outline until chosen) comes first,
+  then "or choose areas". The two are mutually exclusive. Hint: "Not sure yet? You'll see people
+  across Lagos, and you can narrow it down later."
+- The same component serves /join, Profile and the Discover sheet. The review row and the
+  Profile row read "Anywhere in Lagos". The Discover chips use the server's label, and cards show
+  it for people who chose it. The match reason "Open to anywhere in Lagos" comes from the server.

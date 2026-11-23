@@ -17,6 +17,11 @@ function areaLabel(cityId: string | null, areaId: string): string {
   return city?.areas.find((a) => a.id === areaId)?.label ?? areaId;
 }
 
+// ENG-69: "Anywhere in Lagos".
+function anywhereLabel(cityId: string | null): string {
+  return `Anywhere in ${cityId === "lagos" ? "Lagos" : cityId === "london" ? "London" : "the city"}`;
+}
+
 // Load an application staff may see: not their own (HM-10). Unknown or own → 404.
 export async function staffApplication(id: string, staffId: string) {
   const app = await prisma.application.findUnique({ where: { id } });
@@ -32,7 +37,7 @@ export function requireActingRole(role: string) {
 // D20 cluster hint: how many other people share at least one area with each applicant, split
 // into active (published) members and other open applications (submitted, in review, call
 // booked or approved but not yet activated). area_matches = members + applicants.
-async function clusterCounts(apps: { userId: string; cityId: string | null; areas: string[] }[]) {
+async function clusterCounts(apps: { userId: string; cityId: string | null; areas: string[]; anyArea?: boolean }[]) {
   const cities = [...new Set(apps.map((a) => a.cityId).filter(Boolean))] as string[];
   type Counts = { members: number; applicants: number };
   if (!cities.length) return new Map<string, Counts>();
@@ -46,7 +51,7 @@ async function clusterCounts(apps: { userId: string; cityId: string | null; area
         ],
       },
     },
-    select: { userId: true, cityId: true, areas: { select: { areaId: true } }, user: { select: { accountStatus: true } } },
+    select: { userId: true, cityId: true, anyArea: true, areas: { select: { areaId: true } }, user: { select: { accountStatus: true } } },
   });
   const openApps = new Set(
     (await prisma.application.findMany({
@@ -58,7 +63,9 @@ async function clusterCounts(apps: { userId: string; cityId: string | null; area
   const out = new Map<string, Counts>();
   for (const a of apps) {
     const mine = new Set(a.areas);
-    const near = counted.filter((o) => o.userId !== a.userId && o.cityId === a.cityId && o.areas.some((x) => mine.has(x.areaId)));
+    const near = counted.filter(
+      (o) => o.userId !== a.userId && o.cityId === a.cityId && (a.anyArea || o.anyArea || o.areas.some((x) => mine.has(x.areaId)))
+    );
     const members = near.filter((o) => o.user.accountStatus === "active").length;
     out.set(a.userId, { members, applicants: near.length - members });
   }
@@ -74,18 +81,18 @@ export async function listApplications(opts: { status: string; city: string | nu
   const apps = await prisma.application.findMany({ where, orderBy: [{ submittedAt: "asc" }, { createdAt: "asc" }], take: 300 });
   const users = await prisma.user.findMany({
     where: { id: { in: apps.map((a) => a.userId) } },
-    select: { id: true, displayName: true, search: { select: { cityId: true, areas: { select: { areaId: true } } } } },
+    select: { id: true, displayName: true, search: { select: { cityId: true, anyArea: true, areas: { select: { areaId: true } } } } },
   });
   const byId = new Map(users.map((u) => [u.id, u]));
   let rows = apps.map((a) => {
     const u = byId.get(a.userId);
-    return { app: a, name: u?.displayName ?? "", cityId: u?.search?.cityId ?? null, areas: u?.search?.areas.map((x) => x.areaId) ?? [] };
+    return { app: a, name: u?.displayName ?? "", cityId: u?.search?.cityId ?? null, anyArea: !!u?.search?.anyArea, areas: u?.search?.areas.map((x) => x.areaId) ?? [] };
   });
   if (opts.city) rows = rows.filter((r) => r.cityId === opts.city);
-  if (opts.area) rows = rows.filter((r) => r.areas.includes(opts.area!));
-  const clusters = await clusterCounts(rows.map((r) => ({ userId: r.app.userId, cityId: r.cityId, areas: r.areas })));
+  if (opts.area) rows = rows.filter((r) => r.anyArea || r.areas.includes(opts.area!));
+  const clusters = await clusterCounts(rows.map((r) => ({ userId: r.app.userId, cityId: r.cityId, areas: r.areas, anyArea: r.anyArea })));
   const now = Date.now();
-  const applications = rows.map(({ app, name, cityId, areas }) => {
+  const applications = rows.map(({ app, name, cityId, areas, anyArea }) => {
     const since = app.submittedAt ?? app.createdAt;
     const hours = Math.max(0, Math.floor((now - since.getTime()) / 3_600_000));
     const waiting = ["submitted", "in_review", "call_booked"].includes(app.status);
@@ -95,7 +102,8 @@ export async function listApplications(opts: { status: string; city: string | nu
       display_name: name || "(no name yet)",
       city: cityId,
       city_open: cityId ? isCityOpen(cityId) : true,
-      areas: areas.map((id) => ({ id, label: areaLabel(cityId, id) })),
+      any_area: anyArea,
+      areas: anyArea ? [{ id: "anywhere", label: anywhereLabel(cityId) }] : areas.map((id) => ({ id, label: areaLabel(cityId, id) })),
       status: app.status,
       submitted_at: app.submittedAt,
       call_at: app.callAt,
@@ -149,7 +157,8 @@ export async function applicationDetail(appId: string, viewer: { id: string; rol
     bio: user.profile?.bio ?? null,
     city: cityId,
     city_open: cityId ? isCityOpen(cityId) : true,
-    areas: (search?.areas ?? []).map((a) => ({ id: a.areaId, label: areaLabel(cityId, a.areaId) })),
+    any_area: !!search?.anyArea,
+    areas: search?.anyArea ? [{ id: "anywhere", label: anywhereLabel(cityId) }] : (search?.areas ?? []).map((a) => ({ id: a.areaId, label: areaLabel(cityId, a.areaId) })),
     budget:
       search?.rentMinMinor != null && search?.rentMaxMinor != null
         ? {

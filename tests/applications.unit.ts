@@ -67,18 +67,20 @@ const complete = {
             stayMinMonths: 6, stayMaxMonths: 12, areaCount: 1, preferenceCount: 6 },
 };
 check("a complete application has nothing missing", missingFields(complete).length === 0);
-check("ENG-57: a fresh draft lists only the six essentials (name, city, areas, budget, dates, bio)",
+check("ENG-68: a fresh draft lists only the essentials (name, city, areas, budget, dates) — no bio",
   missingFields({ displayName: "", emailVerified: true, profile: { journey: null, bio: null }, search: null }).join(",")
-  === "displayName,bio,cityId,areaIds,budget,moveMode");
+  === "displayName,cityId,areaIds,budget,moveMode");
 check("ENG-57: journey, stay length and habits aren't required to submit",
   missingFields({ ...complete, profile: { ...complete.profile, journey: null },
     search: { ...complete.search, stayMinMonths: null, stayMaxMonths: null, preferenceCount: 0 } }).length === 0);
 check("ranged dates need both ends", missingFields({ ...complete, search: { ...complete.search, latestDate: null } }).join() === "dates");
 check("undecided dates aren't 'missing' (submit refuses them separately)", missingFields({ ...complete, search: { ...complete.search, moveMode: "undecided", earliestDate: null, latestDate: null } }).length === 0);
-check("ENG-57: a 39-character bio is too short, 40 is fine",
-  missingFields({ ...complete, profile: { ...complete.profile, bio: "x".repeat(39) } }).join() === "bio"
-  && missingFields({ ...complete, profile: { ...complete.profile, bio: "x".repeat(40) } }).length === 0);
-check("the message names fields in plain words", missingMessage(["bio", "areaIds"]) === "Complete these before you submit: a short bio (40 characters or more), areas.");
+check("ENG-68: an empty or short bio doesn't block submit",
+  missingFields({ ...complete, profile: { ...complete.profile, bio: null } }).length === 0
+  && missingFields({ ...complete, profile: { ...complete.profile, bio: "hi" } }).length === 0);
+check("ENG-69: 'anywhere in the city' counts as areas", missingFields({ ...complete, search: { ...complete.search, areaCount: 0, anyArea: true } }).length === 0
+  && missingFields({ ...complete, search: { ...complete.search, areaCount: 0 } }).join() === "areaIds");
+check("the message names fields in plain words", missingMessage(["displayName", "areaIds"]).startsWith("Complete these before you submit: ") && !missingMessage(["areaIds"]).includes("areaIds"));
 
 // --- Status object ---
 const app = { status: "call_booked", submittedAt: now, callAt: later, reapplyAfter: later };

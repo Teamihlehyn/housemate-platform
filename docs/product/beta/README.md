@@ -28,6 +28,7 @@ The findings, benchmarks and tickets from the first moderated test are in [`usab
 
 | Order | Engineer | Designer | Security |
 |---|---|---|---|
+| 0 (in progress) | **ENG-68** (D-R6, 22 Nov): bio optional; `/join` cut to 5 screens; "Make your profile stronger" checklist (status, Discover card, Profile) | **DES-38**: the 5-screen flow and the checklist card | — |
 | 0 (now, small) | ENG-67: staging-only "Approve without call (test only)" (for test runs and round 2 seeds) | DES-27 copy direction (founder, 21 Nov): the headline includes "find flatmates" | — |
 | 1 (now) | E1: ENG-50 notification links → ENG-51 read state and badges | D1: DES-27 hero layout + DES-33 Lagos example | SEC-16 |
 | 2 (now) | E2: ENG-55 date guard → ENG-54 resend invitation → ENG-58 funnel events (baseline before any flow change) | D2: DES-25 nav and indicators → DES-31 Discover chips | SEC-18 |

@@ -32,7 +32,8 @@ export function areaLabels(cityId: string | null, ids: string[]): { id: string; 
   return ids.map((id) => ({ id, label: city?.areas.find((a) => a.id === id)?.label ?? id }));
 }
 
-export function areasChip(labels: { label: string }[]): string {
+export function areasChip(labels: { label: string }[], anywhere?: { cityId: string | null }): string {
+  if (anywhere) return `Anywhere in ${anywhere.cityId === "lagos" ? "Lagos" : anywhere.cityId === "london" ? "London" : "the city"}`;
   if (!labels.length) return "No areas";
   return labels.length <= 2 ? labels.map((a) => a.label).join(", ") : `${labels[0].label} + ${labels.length - 1} more`;
 }

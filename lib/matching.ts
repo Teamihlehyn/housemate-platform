@@ -5,7 +5,7 @@ import { monthlyEquivalentMinor } from "./money";
 import { dateOverlap } from "./dates";
 import { computeScore } from "./credibility";
 import { IS_BETA, testApprovalsAllowed } from "./env";
-import { HabitAnswer, habitCompatible, stayRange } from "./matchRules";
+import { HabitAnswer, areaMatch, habitCompatible, stayRange } from "./matchRules";
 
 export interface Candidate {
   userId: string;
@@ -13,6 +13,7 @@ export interface Candidate {
   avatarInitials: string | null;
   cityId: string;
   areas: string[];
+  anyArea?: boolean; // ENG-69: "Anywhere in {city}"
   rentMinMonthly: number;
   rentMaxMonthly: number;
   currency: string;
@@ -49,6 +50,7 @@ interface Loaded {
   stayMin: number;
   stayMax: number;
   areas: string[];
+  anyArea: boolean;
   prefs: Record<string, HabitAnswer>;
   gender: string | null;
   genderAccepts: string[];
@@ -105,6 +107,7 @@ async function loadMatchable(userId: string): Promise<Loaded | null> {
     stayMin: stay.min,
     stayMax: stay.max,
     areas: s.areas.map((a) => a.areaId),
+    anyArea: s.anyArea,
     prefs,
     gender: s.gender,
     genderAccepts: parseGenderPreference(s.genderPreference),
@@ -178,9 +181,10 @@ export async function getRecommendations(viewerId: string): Promise<MatchResult>
     const c = await loadMatchable(u.id);
     if (!c) continue;
 
-    // Common areas
-    const commonAreas = c.areas.filter((a) => viewer.areas.includes(a));
-    if (commonAreas.length === 0) {
+    // Common areas ("Anywhere in {city}" shares an area with everyone in the city, ENG-69)
+    const am = areaMatch(viewer, c);
+    const commonAreas = am.common;
+    if (!am.ok) {
       excludedCount++;
       reasonsWhyNarrow.add("areas");
       continue;
@@ -255,7 +259,7 @@ export async function getRecommendations(viewerId: string): Promise<MatchResult>
       }
     }
     habitPoints = Math.min(36, habitPoints);
-    const areaPoints = Math.min(10, commonAreas.length * 2);
+    const areaPoints = am.points;
     const datePoints = Math.min(14, overlap.days);
     const rank = habitPoints + areaPoints + datePoints;
 
@@ -264,10 +268,12 @@ export async function getRecommendations(viewerId: string): Promise<MatchResult>
     reasons.push(
       `Shared move-in window ${overlap.start} → ${overlap.end} (${overlap.days} day${overlap.days === 1 ? "" : "s"})`
     );
-    const areaLabels = commonAreas
-      .map((a) => CITIES[viewer.cityId as keyof typeof CITIES].areas.find((x) => x.id === a)?.label ?? a)
-      .join(", ");
-    reasons.push(`Both want to live in ${areaLabels}`);
+    const cityCfg = CITIES[viewer.cityId as keyof typeof CITIES];
+    const labelOf = (a: string) => cityCfg.areas.find((x) => x.id === a)?.label ?? a;
+    const cityName = viewer.cityId === "lagos" ? "Lagos" : viewer.cityId === "london" ? "London" : "the city";
+    if (!am.anywhere) reasons.push(`Both want to live in ${commonAreas.map(labelOf).join(", ")}`);
+    else if (c.anyArea) reasons.push(`Open to anywhere in ${cityName}`);
+    else reasons.push(`Wants to live in ${c.areas.map(labelOf).join(", ")}`);
     if (identicalHabits.length > 0) {
       const first = identicalHabits[0];
       reasons.push(`Same answer on "${answerLabel(first, viewer.prefs[first].own as string)}"`);
@@ -291,6 +297,7 @@ export async function getRecommendations(viewerId: string): Promise<MatchResult>
       avatarInitials: c.avatarInitials,
       cityId: c.cityId,
       areas: c.areas,
+      anyArea: c.anyArea,
       rentMinMonthly: c.rentMinMonthly,
       rentMaxMonthly: c.rentMaxMonthly,
       currency: c.currency,

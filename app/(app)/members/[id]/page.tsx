@@ -80,7 +80,11 @@ export default function MemberProfile({ params }: { params: Promise<{ id: string
             : <span className="chip bg-brand-100 text-brand-800">Demo {profile.credibility.score}/100</span>}
         </div>
 
-        <p className="mt-4 text-ink-700" data-clarity-mask="true">{profile.bio}</p>
+        {profile.bio?.trim() ? (
+          <p className="mt-4 text-ink-700" data-clarity-mask="true">{profile.bio}</p>
+        ) : (
+          <p className="mt-4 text-sm text-ink-600">Hasn&apos;t added a bio yet.</p>
+        )}
 
         <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
           <div className="rounded-lg bg-cream p-3">

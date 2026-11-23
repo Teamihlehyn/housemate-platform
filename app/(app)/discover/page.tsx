@@ -11,6 +11,7 @@ import Pea from "@/components/brand/Pea";
 import { IconCalendar, IconChat, IconCheck, IconWallet } from "@/components/icons";
 import { IdCheckedChip } from "@/components/ChecksCard";
 import SearchChips from "@/components/discover/SearchChips";
+import ProfileStrength from "@/components/ProfileStrength";
 
 // Avatar tints are chosen from the id, never from gender or anything personal.
 const TINTS = ["bg-lilac-100 text-lilac-800", "bg-sky-100 text-sky-800", "bg-apricot-100 text-apricot-800", "bg-pea-100 text-ink"];
@@ -32,6 +33,8 @@ interface Candidate {
   idChecked?: boolean;
   testAccount?: boolean; // ENG-67: test environments only
   reasons: string[];
+  /** ENG-69: open to anywhere in their city. */
+  anyArea?: boolean;
   /** ENG-51: something from this person waiting for you (private to you). */
   activity?: { kind: "new_message"; href: string; count?: number } | { kind: "introduced"; href: string } | null;
 }
@@ -107,6 +110,9 @@ export default function Discover() {
 
       <SearchChips onSaved={load} openSignal={editSignal} />
 
+      {/* DES-38: what's left to make your profile stronger; hide for a week, never nags. */}
+      <ProfileStrength from="discover" dismissible headingLevel={2} className="mb-5" />
+
       {process.env.NEXT_PUBLIC_APP_ENV === "research" && (
         <div className="mb-5 rounded-panel border border-dashed border-ink-400 bg-white p-4 text-sm text-ink-700">
           Everyone here is a <strong>sample housemate</strong> created for your test, matched to what you entered. They reply
@@ -146,7 +152,7 @@ export default function Discover() {
                     {c.idChecked && <IdCheckedChip />}
                     {c.testAccount && <span className="chip bg-caution-50 text-caution-800">Test account — ID not checked</span>}
                   </p>
-                  <p className="truncate text-sm text-ink-600">{c.areas.map((a) => areaLabel(c.cityId, a)).join(", ")}</p>
+                  <p className="truncate text-sm text-ink-600">{c.anyArea ? `Anywhere in ${c.cityId === "london" ? "London" : "Lagos"}` : c.areas.map((a) => areaLabel(c.cityId, a)).join(", ")}</p>
                 </div>
               </div>
 
