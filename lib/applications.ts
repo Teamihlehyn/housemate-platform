@@ -129,8 +129,8 @@ export interface CompletenessInput {
   profile: { journey: string | null; bio: string | null } | null;
   search: {
     cityId: string | null;
-    rentMinMinor: number | null;
-    rentMaxMinor: number | null;
+    rentMinMinor: number | bigint | null;
+    rentMaxMinor: number | bigint | null;
     moveMode: string | null;
     earliestDate: string | null;
     latestDate: string | null;
@@ -254,4 +254,10 @@ export function purgeKind(
   if (a.status === "declined") return (a.reviewedAt ?? a.updatedAt).getTime() < cutoff ? "declined" : null;
   if (a.status === "withdrawn") return a.updatedAt.getTime() < cutoff ? "withdrawn" : null;
   return null;
+}
+
+// HM-54: bios stay editable after approval (ENG-68), so staff are told when the bio changed
+// after the decision (approve, decline or waitlist). No decision yet → false.
+export function bioChangedAfterReview(bioUpdatedAt: Date | null | undefined, decidedAt: Date | null | undefined): boolean {
+  return !!bioUpdatedAt && !!decidedAt && bioUpdatedAt.getTime() > decidedAt.getTime();
 }

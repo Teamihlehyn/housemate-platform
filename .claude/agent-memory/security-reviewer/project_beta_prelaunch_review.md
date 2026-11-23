@@ -94,6 +94,11 @@ Update 2026-11-23 (ENG-68 bio optional + profile strength, ENG-69 anyArea, DES-3
 - Info: {anyArea:false} alone is a no-op; GET /users/[id] omits anyArea; guard.ts allow-list comment misses /me/profile-strength
 - Reviewed clean: areaMatch two-way + same-city in matching and intro re-check, gender check unchanged and separate, staff area filter/clusters, sandbox shape, profile-strength owner-only (staff 404, magic link null), funnel events/steps allow-listed with HM-50 caps, bio rendered as React text everywhere (only dangerouslySetInnerHTML is chat), migration additive NOT NULL DEFAULT false, export includes anyArea via spread
 
+Update 2026-11-23 re-review of HM-54/55/56 fixes (uncommitted WT on 8477d8d; verdict OK for staging):
+- HM-55 FIXED in WT (BIGINT migration, searchInput caps, non-object body 422, global BigInt toJSON in lib/db.ts). Rollback caveat: pre-HM-55 deployments read BIGINT columns with an Int client.
+- HM-56 FIXED in WT (Report.targetBio, moderator/admin only). Residual Low: reports have no retention/deletion path at all, so snapshot outlives a deleted user.
+- HM-54 PARTIAL: bioUpdatedAt + "changed after review" + 20/day cap + length-only audit done; contactDetails.ts detector not wired (founder decision). Detector regexes reviewed: no catastrophic backtracking (worst ~O(n^2) on 600 chars); false positives on "call me", "snap"; misses "+234 (0)803".
+
 Clean at re-review: npm audit 0; tsc clean; unit tests pass; no secrets/personal emails in commit candidates; docs/security/ ignored; Vercel overwrites x-forwarded-for (not spoofable on Vercel).
 
 Related: [[recurring-weak-spots]]

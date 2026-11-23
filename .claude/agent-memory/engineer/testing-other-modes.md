@@ -54,5 +54,9 @@ Don't kill it and don't start a second `next dev` in the same checkout (shared `
   survive between tool calls.
 - Resetting a scratch DB while its server runs: `dropdb --force`. `prisma migrate deploy` needs
   both DATABASE_URL and DIRECT_URL set, or it prints only the CLI version and applies nothing.
+- The scratch copy's `node_modules` can vanish between sessions (scratchpad cleanup): if
+  `next dev` says it can't find `next/package.json`, re-run `cp -cR node_modules` + `prisma generate`.
+- The e2e staff password timing check ("within 200 ms") can flake on the first run against a
+  cold dev server (route compile); rerun on a fresh DB before calling it a regression.
 - `tests/round1.unit.ts` collects cases and prints them in a loop near the end: new checks must
   go above `let failed = 0;` or they silently never run.

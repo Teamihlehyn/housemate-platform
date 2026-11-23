@@ -187,7 +187,16 @@ export default function Staff() {
                     <span>{r.reporter} → {r.target}</span>
                     <span className="ml-auto">{new Date(r.createdAt).toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" })}</span>
                   </div>
-                  <p className="mt-1.5 whitespace-pre-wrap text-ink">{r.description}</p>
+                  <p className="mt-1.5 whitespace-pre-wrap text-ink" data-clarity-mask="true">{r.description}</p>
+                  {r.targetBio !== undefined && (
+                    <div className="mt-2 rounded-lg bg-paper p-2.5 text-xs text-ink-700">
+                      <p className="font-semibold text-ink-600">
+                        Their bio when reported
+                        {r.targetBioChangedAfterReview && <span className="chip ml-2 bg-caution-50 text-caution-800">Bio changed after review</span>}
+                      </p>
+                      <p className="mt-1 whitespace-pre-wrap" data-clarity-mask="true">{r.targetBio || "No bio."}</p>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

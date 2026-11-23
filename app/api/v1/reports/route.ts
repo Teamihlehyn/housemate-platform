@@ -20,6 +20,8 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
   if (!target || target.id === user.id || (target.sandboxWorldId ?? null) !== (user.sandboxWorldId ?? null))
     return fail("NOT_FOUND", "We couldn't find that user.", 404, rid);
 
+  // HM-56: keep the bio as it was when reported, for moderators (bios can change later).
+  const targetProfile = await prisma.profile.findUnique({ where: { userId: target.id }, select: { bio: true } });
   const report = await prisma.$transaction(async (tx) => {
     const r = await tx.report.create({
       data: {
@@ -28,6 +30,7 @@ export const POST = handler(async (req: NextRequest, { rid }) => {
         category: body.category,
         description,
         conversationId: body.conversation_id ?? null,
+        targetBio: targetProfile?.bio ?? null,
       },
     });
     // Audit records the case, never the description text.

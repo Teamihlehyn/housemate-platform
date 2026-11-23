@@ -10,6 +10,7 @@ import { preferenceRow } from "@/lib/matchRules";
 import { areaLabels, areasChip, budgetChip, datesChip } from "@/lib/searchChips";
 import { requireUser } from "@/lib/guard";
 import { recordApplicationEvent } from "@/lib/funnelServer";
+import { budgetError, isDateInput, monthsError } from "@/lib/searchInput";
 
 // GET /api/v1/me/search — what the Discover chips show and the edit sheet edits (ENG-59): areas
 // (within the city, which is locked once approved), budget and move-in window, with labels.
@@ -22,7 +23,7 @@ export const GET = handler(async (_req: NextRequest, { rid }) => {
   const options = cityId && cityId in CITIES ? CITIES[cityId as keyof typeof CITIES].areas.map((a) => ({ id: a.id, label: a.label })) : [];
   const budget =
     s.rentMinMinor != null && s.rentMaxMinor != null && s.currency && s.rentPeriod
-      ? { min_minor: s.rentMinMinor, max_minor: s.rentMaxMinor, period: s.rentPeriod, currency: s.currency }
+      ? { min_minor: Number(s.rentMinMinor), max_minor: Number(s.rentMaxMinor), period: s.rentPeriod, currency: s.currency }
       : null;
   return ok(
     {
@@ -43,10 +44,20 @@ export const GET = handler(async (_req: NextRequest, { rid }) => {
   );
 });
 
+// Audit hygiene: the field names PATCH accepts; anything else a client sends isn't logged.
+const SEARCH_FIELDS = [
+  "cityId", "rentPeriod", "gender", "genderPreference", "locationDetail", "rentMinMinor", "rentMaxMinor",
+  "moveMode", "earliestDate", "latestDate", "preferredDate", "stayMinMonths", "stayMaxMonths", "anyArea", "areaIds", "preferences",
+];
+
 // PATCH /api/v1/me/search — partial onboarding updates. Stores a search version on change.
 export const PATCH = handler(async (req: NextRequest, { rid }) => {
   const user = await requireAccount();
-  const body = await req.json().catch(() => ({}));
+  const raw = await req.json().catch(() => ({}));
+  // HM-55: malformed input is a 422, never a 500.
+  if (!raw || typeof raw !== "object" || Array.isArray(raw))
+    return fail("VALIDATION", "Send the changes as a JSON object.", 422, rid);
+  const body = raw as Record<string, any>;
   const DEFERRED_KEYS = ["preferences", "stayMinMonths", "stayMaxMonths"];
   const deferredOnly = !!body && typeof body === "object" && Object.keys(body).length > 0 && Object.keys(body).every((k) => DEFERRED_KEYS.includes(k));
   await assertAnswersEditable(user, { deferredOnly });
@@ -98,18 +109,20 @@ export const PATCH = handler(async (req: NextRequest, { rid }) => {
     else data.locationDetail = loc.length ? loc : null;
   }
 
-  const rentMin = body.rentMinMinor ?? search.rentMinMinor;
-  const rentMax = body.rentMaxMinor ?? search.rentMaxMinor;
+  // HM-55: whole minor units only, capped per currency (the columns are BigInt).
+  const currency = (data.currency ?? search.currency) as string | null;
   if (body.rentMinMinor !== undefined) {
-    if (typeof body.rentMinMinor !== "number" || body.rentMinMinor < 100)
-      fe.rentMinMinor = "Enter a valid minimum budget.";
+    const e = budgetError(body.rentMinMinor, currency, "min");
+    if (e) fe.rentMinMinor = e;
     else data.rentMinMinor = body.rentMinMinor;
   }
   if (body.rentMaxMinor !== undefined) {
-    if (typeof body.rentMaxMinor !== "number" || body.rentMaxMinor < 100)
-      fe.rentMaxMinor = "Enter a valid maximum budget.";
+    const e = budgetError(body.rentMaxMinor, currency, "max");
+    if (e) fe.rentMaxMinor = e;
     else data.rentMaxMinor = body.rentMaxMinor;
   }
+  const rentMin = fe.rentMinMinor ? null : body.rentMinMinor ?? (search.rentMinMinor == null ? null : Number(search.rentMinMinor));
+  const rentMax = fe.rentMaxMinor ? null : body.rentMaxMinor ?? (search.rentMaxMinor == null ? null : Number(search.rentMaxMinor));
   if (rentMin != null && rentMax != null && rentMax < rentMin) {
     fe.rentMaxMinor = "Maximum budget must be at least minimum budget.";
   }
@@ -119,8 +132,14 @@ export const PATCH = handler(async (req: NextRequest, { rid }) => {
     else data.moveMode = body.moveMode;
   }
 
+  for (const k of ["earliestDate", "latestDate", "preferredDate"] as const) {
+    if (body[k] !== undefined && !isDateInput(body[k])) fe[k] = "Choose a date.";
+  }
+
   const mode = (data.moveMode ?? search.moveMode) as string | null;
-  if (mode && mode !== "undecided") {
+  if (Object.keys(fe).length > 0) {
+    // stop before the date logic reads malformed values
+  } else if (mode && mode !== "undecided") {
     const today = testToday();
     const maxDate = addMonths(today, 18);
     let earliest = body.earliestDate ?? search.earliestDate;
@@ -152,11 +171,13 @@ export const PATCH = handler(async (req: NextRequest, { rid }) => {
   }
 
   if (body.stayMinMonths !== undefined) {
-    if (body.stayMinMonths < 1 || body.stayMinMonths > 24) fe.stayMinMonths = "1–24 months.";
+    const e = monthsError(body.stayMinMonths, 24);
+    if (e) fe.stayMinMonths = e;
     else data.stayMinMonths = body.stayMinMonths;
   }
   if (body.stayMaxMonths !== undefined) {
-    if (body.stayMaxMonths < 1 || body.stayMaxMonths > 36) fe.stayMaxMonths = "1–36 months.";
+    const e = monthsError(body.stayMaxMonths, 36);
+    if (e) fe.stayMaxMonths = e;
     else data.stayMaxMonths = body.stayMaxMonths;
   }
   const sMin = (data.stayMinMonths ?? search.stayMinMonths) as number | null;
@@ -173,7 +194,16 @@ export const PATCH = handler(async (req: NextRequest, { rid }) => {
   if (body.anyArea !== undefined && typeof body.anyArea !== "boolean") {
     return fail("VALIDATION", "Please fix the highlighted fields.", 422, rid, { field_errors: { anyArea: "Must be true or false." } });
   }
+  if (body.areaIds !== undefined && (!Array.isArray(body.areaIds) || !body.areaIds.every((a: unknown) => typeof a === "string"))) {
+    return fail("VALIDATION", "Please fix the highlighted fields.", 422, rid, { field_errors: { areaIds: "Send a list of areas." } });
+  }
   const wantsAreas = Array.isArray(body.areaIds) && body.areaIds.length > 0;
+  // Turning "Anywhere" off needs the areas that replace it, in the same request.
+  if (body.anyArea === false && !wantsAreas) {
+    return fail("VALIDATION", "To turn off “Anywhere”, choose at least one area.", 422, rid, {
+      field_errors: { areaIds: "To turn off “Anywhere”, choose at least one area." },
+    });
+  }
   if (body.anyArea === true && wantsAreas) {
     return fail("VALIDATION", "Choose “Anywhere” or specific areas, not both.", 422, rid, {
       field_errors: { areaIds: "Choose “Anywhere” or specific areas, not both." },
@@ -272,7 +302,7 @@ export const PATCH = handler(async (req: NextRequest, { rid }) => {
         resourceType: "search",
         resourceId: search.id,
         action: "patch",
-        safeAfter: { changed: Object.keys(body) },
+        safeAfter: { changed: Object.keys(body).filter((k) => SEARCH_FIELDS.includes(k)) },
         versionBefore: search.version,
         versionAfter: fresh!.version,
       }, rid);

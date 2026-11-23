@@ -59,9 +59,10 @@ export const GET = handler(async (_req: NextRequest, { rid, params }) => {
       journey: target.profile!.journey,
       cityId: s.cityId,
       areas: s.areas.map((a) => a.areaId),
+      anyArea: s.anyArea, // ENG-69: "Anywhere in {city}"
       currency: s.currency,
-      rentMinMinor: s.rentMinMinor,
-      rentMaxMinor: s.rentMaxMinor,
+      rentMinMinor: s.rentMinMinor == null ? null : Number(s.rentMinMinor),
+      rentMaxMinor: s.rentMaxMinor == null ? null : Number(s.rentMaxMinor),
       rentPeriod: s.rentPeriod,
       moveMode: s.moveMode,
       earliestDate: s.earliestDate,

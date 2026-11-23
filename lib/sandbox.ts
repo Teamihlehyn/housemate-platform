@@ -101,8 +101,8 @@ async function loadSearchShape(tx: Tx, userId: string): Promise<SearchShape | nu
   return {
     cityId: s.cityId as CityId,
     currency: s.currency,
-    rentMinMinor: s.rentMinMinor,
-    rentMaxMinor: s.rentMaxMinor,
+    rentMinMinor: Number(s.rentMinMinor),
+    rentMaxMinor: Number(s.rentMaxMinor),
     rentPeriod: s.rentPeriod,
     earliestDate: s.earliestDate,
     latestDate: s.latestDate,

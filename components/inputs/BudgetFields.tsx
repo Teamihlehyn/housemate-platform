@@ -8,7 +8,7 @@
 import { useEffect, useState } from "react";
 import { formatMoney } from "@/lib/money";
 import MoneyInput from "./MoneyInput";
-import { BUDGET_PICKS, Period, convertPeriod, sanityFor } from "./budgetRules";
+import { BUDGET_MAX, BUDGET_PICKS, Period, convertPeriod, sanityFor } from "./budgetRules";
 
 const money = (units: number, currency: string) => formatMoney(units * 100, currency);
 
@@ -82,6 +82,10 @@ export default function BudgetFields({
     if (v > sane.high) return `That looks high for ${per} per person in ${sane.place}. Did you mean ${money(Math.round(v / 10), currency)}?`;
     return null;
   };
+  // The server refuses budgets above the cap (any period), so say so before they continue.
+  const cap = BUDGET_MAX[currency];
+  const overCap = (sourceDigits: string) =>
+    cap && parseInt(sourceDigits || "0", 10) > cap ? `Enter a budget of ${money(cap, currency)} or less.` : undefined;
   const rangeError = lo > 0 && hi > 0 && hi < lo ? `Make "Up to" at least ${money(lo, currency)}, the same as "From" or more.` : undefined;
 
   const other: Period = view === "year" ? "month" : "year";
@@ -121,8 +125,8 @@ export default function BudgetFields({
       )}
 
       <div className="mt-4 grid grid-cols-2 gap-3">
-        <MoneyInput id={`${idPrefix}rmin`} label="From" currency={currency} period={view} value={minShown} onChange={(v) => edit("min", v)} error={errors.min} />
-        <MoneyInput id={`${idPrefix}rmax`} label="Up to" currency={currency} period={view} value={maxShown} onChange={(v) => edit("max", v)} error={errors.max ?? rangeError} />
+        <MoneyInput id={`${idPrefix}rmin`} label="From" currency={currency} period={view} value={minShown} onChange={(v) => edit("min", v)} error={errors.min ?? overCap(min)} />
+        <MoneyInput id={`${idPrefix}rmax`} label="Up to" currency={currency} period={view} value={maxShown} onChange={(v) => edit("max", v)} error={errors.max ?? overCap(max) ?? rangeError} />
       </div>
       <p className="helper">Type the full amount, or shorthand like {currency === "NGN" ? "1.5m or 500k" : "1.2k"}.</p>
 

@@ -4,7 +4,7 @@ import { CITIES, QUESTIONNAIRE } from "./constants";
 import { isCityOpen, testApprovalsAllowed } from "./env";
 import { monthlyEquivalentMinor } from "./money";
 import { inviteState } from "./invites";
-import { DAY_MS, canStaffRoleAct, missingFields, waitingLabel } from "./applications";
+import { DAY_MS, bioChangedAfterReview, canStaffRoleAct, missingFields, waitingLabel } from "./applications";
 import { completenessInput } from "./applicationService";
 
 // Staff views of applications (ENG-42). Gender and housemate preference are never in these
@@ -127,9 +127,10 @@ export async function applicationDetail(appId: string, viewer: { id: string; rol
   const app = await staffApplication(appId, viewer.id);
   const { user, input } = await completenessInput(prisma, app.userId);
   const search = await prisma.search.findUnique({ where: { userId: app.userId }, include: { areas: true, preferences: true } });
-  const [reviewer, invite] = await Promise.all([
+  const [reviewer, invite, prof] = await Promise.all([
     app.reviewedBy ? prisma.user.findUnique({ where: { id: app.reviewedBy }, select: { displayName: true } }) : null,
     app.activationInviteId ? prisma.invite.findUnique({ where: { id: app.activationInviteId } }) : null,
+    prisma.profile.findUnique({ where: { userId: app.userId }, select: { bioUpdatedAt: true } }),
   ]);
   const cityId = search?.cityId ?? null;
   const period = search?.rentPeriod ?? "month";
@@ -155,6 +156,9 @@ export async function applicationDetail(appId: string, viewer: { id: string; rol
     display_name: user.displayName,
     journey: user.profile?.journey ?? null,
     bio: user.profile?.bio ?? null,
+    // HM-54: "Bio changed after review".
+    bio_updated_at: prof?.bioUpdatedAt ?? null,
+    bio_changed_after_review: bioChangedAfterReview(prof?.bioUpdatedAt, app.reviewedAt),
     city: cityId,
     city_open: cityId ? isCityOpen(cityId) : true,
     any_area: !!search?.anyArea,
@@ -164,8 +168,8 @@ export async function applicationDetail(appId: string, viewer: { id: string; rol
         ? {
             currency: search.currency,
             period,
-            min_minor: search.rentMinMinor,
-            max_minor: search.rentMaxMinor,
+            min_minor: Number(search.rentMinMinor),
+            max_minor: Number(search.rentMaxMinor),
             monthly_min_minor: monthlyEquivalentMinor(search.rentMinMinor, period),
             monthly_max_minor: monthlyEquivalentMinor(search.rentMaxMinor, period),
           }

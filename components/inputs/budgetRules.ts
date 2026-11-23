@@ -49,3 +49,6 @@ export function sanityFor(currency: string, period: Period) {
     high: convertPeriod(s.high, s.period, period, currency),
   };
 }
+
+/** Server caps (API doc §9, HM-55): any period, whole currency units. Not founder-tunable. */
+export const BUDGET_MAX: Record<string, number> = { NGN: 1_000_000_000, GBP: 1_000_000 };

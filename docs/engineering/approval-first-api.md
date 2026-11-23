@@ -488,3 +488,37 @@ check; `idCheckMethod = "skipped_test"`; `User.isTestAccount = true`; audit
   viewer is anywhere). Introductions re-check city + areas (404 "This user is not available.").
 - `useProfileDraft` exports `anyArea` and `setAnyArea(on)` (on clears areas; `toggleArea`
   turns it off; `chooseCity` resets it); `where`/`areas` validation accepts it.
+
+## 9. Security follow-ups HM-54–56 (23 Nov)
+
+### Budgets and input checks (HM-55)
+- `Search.rentMinMinor`, `rentMaxMinor`, `upfrontMinor` are now **BigInt** (migration
+  `20261123090000_budget_bigint_bio_marker`). The API still sends and accepts plain JSON numbers.
+- `PATCH /me/search` budgets: whole numbers of minor units, at least 100, at most **₦1,000,000,000**
+  (100,000,000,000 kobo) or **£1,000,000** (100,000,000 pence), any period. Otherwise 422 on
+  `rentMinMinor` / `rentMaxMinor`. **Designer: cap the budget inputs at ₦1bn and £1m** (the
+  error copy: "Enter a budget of ₦1,000,000,000 or less.").
+- Stay months: whole numbers (min 1–24, max 1–36). Dates: `YYYY-MM-DD` or null. `areaIds`: a list
+  of strings. A body that isn't a JSON object: 422. None of these can 500 any more.
+- `{ anyArea: false }` without a non-empty `areaIds`: 422 on `areaIds` ("To turn off “Anywhere”,
+  choose at least one area."). Send `{ areaIds: [...] }` to switch from anywhere to areas.
+- `GET /users/{id}` adds `anyArea`.
+
+### Bio changes (HM-54)
+- `Profile.bioUpdatedAt` is set whenever the bio's value changes. Each change writes a
+  `profile.bio_changed` audit row with `{ length }` only. Limit: 20 bio changes a day → 429
+  `RATE_LIMITED` ("You've changed your bio a lot today. Try again tomorrow."). Saving the same
+  text isn't a change.
+- Staff application detail adds `bio_updated_at` and `bio_changed_after_review` (bio changed after
+  the decision: approve, decline or waitlist). The console shows "Bio changed after review".
+- `lib/contactDetails.ts` (`findContactDetails(text) → kinds[]`: phone, email, url, handle,
+  messaging_app) is ready but **not enforced** anywhere until the founder decides block vs warn.
+
+### Report snapshot (HM-56)
+- A report stores the target's bio at that moment (`Report.targetBio`). `GET /staff/research`
+  shows `targetBio` and `targetBioChangedAfterReview` to moderators and admins only (verifiers
+  get neither). Never in the audit log; deleted with the report.
+
+### Audit hygiene
+`profile.updated` and `search.updated` list only known field names in `changed`.
+
