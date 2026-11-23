@@ -111,6 +111,9 @@ model Search {
   user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   status             String   @default("draft") // draft|active|paused|housed|archived
   cityId             String?
+  // ENG-69: "Anywhere in {city}": open to every area there, including areas added later.
+  // Exclusive with specific SearchArea rows.
+  anyArea            Boolean  @default(false)
   currency           String?  // GBP|NGN
   rentMinMinor       Int?
   rentMaxMinor       Int?

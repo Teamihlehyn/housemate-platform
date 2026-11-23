@@ -8,6 +8,8 @@ import { formatDateRange } from "@/lib/dates";
 import { CITIES } from "@/lib/constants";
 import Pea from "@/components/brand/Pea";
 import { IconCalendar, IconCheck } from "@/components/icons";
+import MoneyInput from "@/components/inputs/MoneyInput";
+import { convertPeriod } from "@/components/inputs/budgetRules";
 
 // Beta has no homes, viewings, application or move-in (those APIs 404 there): the household
 // is the written agreement only.
@@ -341,8 +343,12 @@ function AgreementCard({ hh, meId, onAction, onAccept, readOnly }: { hh: any; me
 function AgreementEditor({ hh, onCancel, onSaved, onAction }: { hh: any; onCancel: () => void; onSaved: () => void; onAction: any }) {
   const plan = hh.currentPlan;
   const members: any[] = hh.members.filter((m: any) => m.state === "active");
+  // DES-37: naira rent is usually yearly, so Lagos households type yearly amounts (converted to
+  // the monthly-equivalent minor units the server stores); pounds stay monthly.
+  const [per, setPer] = useState<"month" | "year">(plan.currency === "NGN" ? "year" : "month");
+  const toShown = (monthlyMinor: number, p: "month" | "year") => String(Math.round((monthlyMinor * (p === "year" ? 12 : 1)) / 100));
   const [amounts, setAmounts] = useState<Record<string, string>>(
-    Object.fromEntries(members.map((m) => [m.userId, String(Math.round((plan.contributions[m.userId] ?? 0) / 100))]))
+    Object.fromEntries(members.map((m) => [m.userId, toShown(plan.contributions[m.userId] ?? 0, plan.currency === "NGN" ? "year" : "month")]))
   );
   const [notice, setNotice] = useState<number>(plan.noticePeriodWeeks);
   const [bills, setBills] = useState<string>(plan.billsSplit);
@@ -351,9 +357,25 @@ function AgreementEditor({ hh, onCancel, onSaved, onAction }: { hh: any; onCance
   const [notes, setNotes] = useState<string>(plan.notes ?? "");
   const [saving, setSaving] = useState(false);
   const symbol = plan.currency === "NGN" ? "₦" : "£";
+  // `amounts` + `per` are the SOURCE (exactly what was typed, in that period); `view` is only how
+  // they're shown. Toggling back shows the original exactly; editing in the other period
+  // re-anchors the source there. The payload is always computed from the source.
+  const [view, setView] = useState<"month" | "year">(per);
+  const shownAmount = (v: string) => {
+    const n = parseInt(v || "0", 10);
+    return !n || view === per ? v : String(convertPeriod(n, per, view, plan.currency));
+  };
   const parsed: Record<string, number> = Object.fromEntries(
-    members.map((m) => [m.userId, Math.round(parseFloat(amounts[m.userId] || "0") * 100)])
+    members.map((m) => [m.userId, Math.round((parseInt(amounts[m.userId] || "0", 10) * 100) / (per === "year" ? 12 : 1))])
   );
+  function editAmount(userId: string, v: string) {
+    if (view !== per) {
+      setAmounts(Object.fromEntries(members.map((m) => [m.userId, m.userId === userId ? v : shownAmount(amounts[m.userId])])));
+      setPer(view);
+      return;
+    }
+    setAmounts((a) => ({ ...a, [userId]: v }));
+  }
   const total: number = Object.values(parsed).reduce((a: number, b: number) => a + (Number.isFinite(b) ? b : 0), 0);
 
   async function save() {
@@ -384,7 +406,13 @@ function AgreementEditor({ hh, onCancel, onSaved, onAction }: { hh: any; onCance
       <p className="text-sm text-ink-600">Saving creates version {plan.versionNo + 1}. Your housemate will be asked to accept it.</p>
 
       <fieldset className="mt-5">
-        <legend className="label">How much rent will each of you pay per month?</legend>
+        <legend className="label">How much rent will each of you pay per {view}?</legend>
+        <div className="mb-3 inline-flex rounded-full bg-white p-1 ring-1 ring-ink-100" role="radiogroup" aria-label="Show amounts per">
+          {(plan.currency === "NGN" ? (["year", "month"] as const) : (["month", "year"] as const)).map((p) => (
+            <button key={p} type="button" role="radio" aria-checked={view === p} onClick={() => setView(p)}
+              className={`min-h-[44px] rounded-full px-5 text-sm font-semibold ${view === p ? "bg-ink text-cream" : "text-ink-700"}`}>Per {p}</button>
+          ))}
+        </div>
         <div className="space-y-3">
           {members.map((m) => {
             const v = parsed[m.userId];
@@ -392,24 +420,24 @@ function AgreementEditor({ hh, onCancel, onSaved, onAction }: { hh: any; onCance
             const outside = band && Number.isFinite(v) && (v < band.minMonthly || v > band.maxMonthly);
             return (
               <div key={m.userId}>
-                <div className="flex items-center gap-3">
-                  <label className="w-20 shrink-0 truncate text-sm text-ink-700 sm:w-28" htmlFor={`c-${m.userId}`}>{m.name.split(" ")[0]}</label>
-                  <div className="relative flex-1">
-                    <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ink-600">{symbol}</span>
-                    <input id={`c-${m.userId}`} inputMode="decimal" className="input num pl-8" value={amounts[m.userId]}
-                      onChange={(e) => setAmounts((a) => ({ ...a, [m.userId]: e.target.value.replace(/[^\d.]/g, "") }))} />
+                <div className="flex items-end gap-3">
+                  <div className="min-w-0 flex-1">
+                    <MoneyInput id={`c-${m.userId}`} label={m.name.split(" ")[0]} currency={plan.currency} period={view}
+                      value={shownAmount(amounts[m.userId])} onChange={(v) => editAmount(m.userId, v)} />
                   </div>
-                  <span className="num w-10 shrink-0 text-right text-sm text-ink-600">{total > 0 && Number.isFinite(v) ? Math.round((v / total) * 100) : 0}%</span>
+                  <span className="num mb-3 w-10 shrink-0 text-right text-sm text-ink-600" aria-label={`${total > 0 && Number.isFinite(v) ? Math.round((v / total) * 100) : 0} percent of the rent`}>{total > 0 && Number.isFinite(v) ? Math.round((v / total) * 100) : 0}%</span>
                 </div>
                 {outside && (
-                  <p className="ml-[5.75rem] mt-1 text-sm text-caution-800 sm:ml-[7.75rem]">
+                  <p className="mt-1 text-sm text-caution-800">
                     Outside {m.name.split(" ")[0]}&apos;s saved budget ({formatMoney(band.minMonthly, plan.currency)}–{formatMoney(band.maxMonthly, plan.currency)}/mo).
                   </p>
                 )}
               </div>
             );
           })}
-          <p className="text-sm text-ink-600">Total: <span className="font-medium text-ink">{formatMoney(total, plan.currency)}/mo</span>{plan.currency === "NGN" && <> · ≈ {formatMoney(total * 12, plan.currency)}/yr</>}</p>
+          <p className="num text-sm text-ink-600" aria-live="polite">
+            Total: <span className="font-medium text-ink">{formatMoney(total * 12, plan.currency)} a year</span> · about {formatMoney(total, plan.currency)} a month
+          </p>
         </div>
       </fieldset>
 
@@ -428,11 +456,11 @@ function AgreementEditor({ hh, onCancel, onSaved, onAction }: { hh: any; onCance
         </div>
         <div>
           <label className="label" htmlFor="smin">Minimum stay (months)</label>
-          <input id="smin" inputMode="numeric" className="input" value={stayMin} onChange={(e) => setStayMin(e.target.value)} />
+          <input id="smin" inputMode="numeric" pattern="[0-9]*" autoComplete="off" className="input num" value={stayMin} onChange={(e) => setStayMin(e.target.value.replace(/\D/g, "").slice(0, 2))} />
         </div>
         <div>
           <label className="label" htmlFor="smax">Maximum stay (months)</label>
-          <input id="smax" inputMode="numeric" className="input" value={stayMax} onChange={(e) => setStayMax(e.target.value)} />
+          <input id="smax" inputMode="numeric" pattern="[0-9]*" autoComplete="off" className="input num" value={stayMax} onChange={(e) => setStayMax(e.target.value.replace(/\D/g, "").slice(0, 2))} />
         </div>
       </div>
 

@@ -355,6 +355,20 @@ The current `/join` runs email → code → consent, then 17 question screens + 
 
 **Still open:** F-26, the booking tool (founder.md).
 
+**D-R6 (founder, 22 Nov 2026), amends D-R5:**
+- **The bio is no longer required to apply** (it was a 40-character minimum). It moves to "complete later", alongside habits and stay length. `/join` becomes **5 screens: name → where (city + areas) → money and dates → living with (gender + preference) → review.**
+- A **"Make your profile stronger" checklist** (bio, habits, stay length, and so on) appears in three places, with each item linking to its editor:
+  - on the status page while waiting;
+  - as a dismissible card on Discover;
+  - on Profile.
+- **Goal:** minimise drop-off, especially in Nigeria; people complete the rest later. Tickets ENG-68 / DES-38 are in progress.
+- **PM notes:**
+  1. Staff now judge genuineness from the profile basics and the video call, not the bio.
+  2. A profile without a bio shows "No bio yet" to other users, never invented text.
+  3. *Recommendation, not decided:* ask for a short bio just in time, before someone's first introduction. It improves reply rates and costs nothing at sign-up.
+  4. Unanswered habits and stay length use ENG-57's conservative and open rules.
+- **D-R7 (founder, 22 Nov), ENG-69 / DES-39:** an **"Anywhere in {city}" areas option**, stored as a flag. It's matched two-way, it's exclusive with specific areas, and it earns no common-area points, so specific overlaps still rank higher. *The bio-before-first-intro prompt is still undecided.*
+
 | ID | Decision | Options | **Recommendation (approved)** | Blocks |
 |---|---|---|---|---|
 | **D-R1** | Verification timing | A. Verification first (today). B. Limited, consented preview, then verification before any contact | **A for the pilot, with the call made easy** (self-serve booking ENG-60, clear explanation DES-32, the habits step during the wait). Add non-personal value before applying: live counts per area and month, no profiles. Revisit B after round 2 with SEC-19. *Why:* real strangers, a small pilot, and the call is the trust promise participants valued | SEC-19 (only if B) |

@@ -7,7 +7,7 @@ import { credibilityDto } from "@/lib/credibility";
 import { IS_BETA } from "@/lib/env";
 import { parseGenderPreference } from "@/lib/constants";
 import { dealBreakersOf } from "@/lib/matchRules";
-import { applicationStatusFor, isNameLocked } from "@/lib/applicationService";
+import { applicationStatusFor, isNameLocked, profileStrengthFor } from "@/lib/applicationService";
 
 // GET /api/v1/me — private own account, progress, credibility.
 export const GET = handler(async (_req: NextRequest, { rid }) => {
@@ -35,6 +35,8 @@ export const GET = handler(async (_req: NextRequest, { rid }) => {
       // never applied; whether the name is locked; which kind of session this is.
       application: await applicationStatusFor(user.id),
       nameLocked: await isNameLocked(user.id),
+      // ENG-68: what's left to make the profile stronger (owner-only).
+      profileStrength: await profileStrengthFor(user.id),
       sessionScope: user.sessionScope,
       emailVerified: full!.emailVerified,
       phone: full!.phone,

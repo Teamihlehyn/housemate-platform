@@ -5,6 +5,7 @@ import { emailConfigured, sendEmail } from "./email";
 import { IS_BETA, callBookingUrl, isCityOpen, siteUrl } from "./env";
 import { ApiError } from "./api";
 import { applicationDto, canEdit, missingFields } from "./applications";
+import { profileStrength } from "./profileStrength";
 import { findInvite, inviteUsable, maskEmail } from "./invites";
 
 const STAFF_ROLE_NAMES = ["verifier", "moderator", "admin"];
@@ -35,6 +36,7 @@ export async function completenessInput(db: Db, userId: string) {
             stayMinMonths: u.search.stayMinMonths,
             stayMaxMonths: u.search.stayMaxMonths,
             areaCount: u.search._count.areas,
+            anyArea: u.search.anyArea,
             preferenceCount: u.search._count.preferences,
           }
         : null,
@@ -49,6 +51,7 @@ export async function missingFor(db: Db, userId: string) {
 
 // The applicant-facing status object for a user (null when they never applied).
 export async function applicationStatusFor(userId: string, readOnly = false) {
+  const strength = readOnly ? null : await profileStrengthFor(userId);
   const [app, search, user] = await Promise.all([
     prisma.application.findUnique({ where: { userId } }),
     prisma.search.findUnique({
@@ -60,7 +63,7 @@ export async function applicationStatusFor(userId: string, readOnly = false) {
   if (!app) return null;
   const city = search?.cityId ?? null;
   const answered = (search?.preferences.filter((p) => p.ownAnswer).length ?? 0) + (search?.stayMinMonths != null ? 1 : 0);
-  return applicationDto(app, city, {
+  const dto = applicationDto(app, city, {
     readOnly,
     cityOpen: city ? isCityOpen(city) : true,
     applicant: user?.accountStatus === "applicant",
@@ -69,6 +72,8 @@ export async function applicationStatusFor(userId: string, readOnly = false) {
     betterMatchesAnswered: answered,
     bookingUrl: callBookingUrl(),
   });
+  // ENG-68: owner-only checklist; never on the read-only magic link.
+  return { ...dto, profile_strength: strength };
 }
 
 export function statusUrl(token: string): string {
@@ -168,4 +173,26 @@ export async function resendsLeft(applicationId: string): Promise<number> {
     where: { eventType: "application.activation_resent_self", resourceId: applicationId, occurredAt: { gt: new Date(Date.now() - 86_400_000) } },
   });
   return Math.max(0, SELF_RESENDS_PER_DAY - used);
+}
+
+// ENG-68: the owner's profile-strength checklist (never shown to anyone else).
+export async function profileStrengthFor(userId: string) {
+  const u = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      accountStatus: true,
+      profile: { select: { bio: true, journey: true } },
+      search: { select: { stayMinMonths: true, preferences: { select: { dimension: true, ownAnswer: true, state: true } } } },
+    },
+  });
+  if (!u) return null;
+  return profileStrength(
+    {
+      bio: u.profile?.bio ?? null,
+      journey: u.profile?.journey ?? null,
+      stayAnswered: u.search?.stayMinMonths != null,
+      habits: (u.search?.preferences ?? []).map((p) => ({ dimension: p.dimension, own: p.ownAnswer, state: p.state })),
+    },
+    { applicant: u.accountStatus === "applicant" }
+  );
 }

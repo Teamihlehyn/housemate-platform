@@ -684,7 +684,8 @@ check("the member pages send an applicant back to /join", st in (303, 307, 308) 
 print("== Case 15: incomplete application ==")
 r = ada_c.call("/applications/submit", {})
 check("submit an empty draft: 422 INCOMPLETE listing the missing fields",
-      r[0] == 422 and err(r) == "INCOMPLETE" and {"displayName", "bio", "cityId", "areaIds"} <= set(r[1]["error"]["field_errors"] or {}), r)
+      r[0] == 422 and err(r) == "INCOMPLETE" and {"displayName", "cityId", "areaIds"} <= set(r[1]["error"]["field_errors"] or {})
+      and "bio" not in (r[1]["error"]["field_errors"] or {}), r)
 check("…and the draft is kept", sql(f'select status from "Application" where "userId" = {lit(ada_id)}') == "draft")
 ada_c.call("/me/profile", {"journey": "find_together", "displayName": "Ada", "bio": BIO}, method="PATCH")
 ada_c.call("/me/search", {"cityId": "lagos", "areaIds": ["yaba"], **LAGOS_MONEY, "moveMode": "undecided", "stayMinMonths": 6, "stayMaxMonths": 12}, method="PATCH")
@@ -764,7 +765,7 @@ r = staff_c.call(f"/staff/applications/{ada_aid}", {"action": "start_review", "e
 check("a stale version: 409 VERSION_CONFLICT", r[0] == 409 and err(r) == "VERSION_CONFLICT", r)
 r = staff_act(staff_c, ada_aid, "start_review")
 check("start review → in_review", r[0] == 200 and d(r)["application"]["status"] == "in_review", r)
-check("answers lock once review starts", ada_c.call("/me/profile", {"bio": BIO}, method="PATCH")[0] == 409)
+check("answers lock once review starts", ada_c.call("/me/profile", {"displayName": "Ada Changed"}, method="PATCH")[0] == 409)
 call_at = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)).replace(microsecond=0).isoformat()
 before = len(mails_to(ada))
 r = staff_act(staff_c, ada_aid, "call_booked", call_at=call_at, send_email=True)
@@ -885,7 +886,8 @@ check("a declined applicant sees the status page with the date", d(r).get("outco
       and d(r)["application"]["reapply_after"], r)
 check("…and no new application is created", sql(f'select count(*) from "Application" where "userId" = {lit(user_id(dec))}') == "1"
       and sql(f'select status from "Application" where id = {lit(dec_aid)}') == "declined")
-check("…and can't edit answers", c11.call("/me/profile", {"bio": BIO}, method="PATCH")[0] == 409)
+check("…and can't edit answers, not even the bio", c11.call("/me/profile", {"bio": BIO}, method="PATCH")[0] == 409
+      and c11.call("/me/profile", {"displayName": "Dec"}, method="PATCH")[0] == 409)
 sql(f'''update "Application" set "reapplyAfter" = now() - interval '1 minute' where id = {lit(dec_aid)}''')
 _, r = start_application(dec)
 check("after the date the same application reopens as a draft, answers kept", d(r)["application"]["status"] == "draft"
@@ -1549,7 +1551,7 @@ sh_c.call("/me/profile", {"displayName": "Shade", "bio": "Quiet nurse, early ris
 sh_c.call("/me/search", {"cityId": "lagos", "areaIds": ["yaba"], **LAGOS_MONEY, "moveMode": "range", "earliestDate": DATES["earliestDate"], "latestDate": DATES["latestDate"]}, method="PATCH")
 sh_c.call("/me/search", {"gender": "woman", "genderPreference": ["woman"]}, method="PATCH")
 r = sh_c.call("/applications/submit", {})
-check("six essentials (no journey, stay or habits, a 40+ character bio) are enough to submit", r[0] == 200 and d(r)["application"]["status"] == "submitted", r)
+check("the essentials (no journey, stay, habits; a short bio) are enough to submit", r[0] == 200 and d(r)["application"]["status"] == "submitted", r)
 sh_aid = application_id(sh_email)
 check("no address field was collected", sql(f'select coalesce("locationDetail", \'\') from "Search" where "userId" = {lit(user_id(sh_email))}') == "")
 staff_act(admin_c, sh_aid, "start_review")
@@ -1558,7 +1560,8 @@ r = sh_c.call("/me/search", {"preferences": [{"dimension": "quiet", "ownAnswer":
 check("better first matches can be answered while the review is under way", r[0] == 200, r)
 check("…without moving the application version (staff still approve what they reviewed)", app_version(sh_aid) == v_before)
 check("…and the status shows progress out of 7", d(sh_c.call("/applications/status"))["application"]["better_matches"] == {"answered": 2, "total": 7})
-check("other answers stay locked during review", sh_c.call("/me/profile", {"bio": "Changed while in review, which isn't allowed now."}, method="PATCH")[0] == 409)
+check("other answers stay locked during review", sh_c.call("/me/profile", {"displayName": "Shade Changed"}, method="PATCH")[0] == 409
+      and sh_c.call("/me/search", {"rentMinMinor": 160000000}, method="PATCH")[0] == 409)
 check("funnel: a deferred answer is recorded (step only)", int(sql(f'''select count(*) from "FunnelEvent" where event = 'prefs.deferred_answered' and step = 'h:quiet' ''')) >= 1)
 nostay_c, nostay_email, nostay_id = verified_member("nostay")
 sql(f'update "Search" set "stayMinMonths" = null, "stayMaxMonths" = null where "userId" = {lit(nostay_id)}')
@@ -1619,6 +1622,110 @@ check("other users on staging see it, labelled: testAccount true, idChecked fals
 prof = kemi_c.call(f"/users/{tst_id}")
 check("its public profile shows 'test account' and no identity check",
       prof[0] == 200 and any(c["category"] == "test_account" for c in d(prof)["credibility"]["checks"]) and not any(c["category"] == "identity" for c in d(prof)["credibility"]["checks"]), prof[0])
+
+
+print("== ENG-68: bio optional, profile strength checklist ==")
+nb_email = f"beta-nobio-{RUN}@example.com"
+nb_c, _ = start_application(nb_email)
+nb_c.call("/me/profile", {"displayName": "Bisi"}, method="PATCH")
+nb_c.call("/me/search", {"cityId": "lagos", "areaIds": ["yaba"], **LAGOS_MONEY, "moveMode": "range", "earliestDate": DATES["earliestDate"], "latestDate": DATES["latestDate"]}, method="PATCH")
+nb_c.call("/me/search", {"gender": "woman"}, method="PATCH")
+r = nb_c.call("/me/profile-strength")
+ps = d(r)
+check("GET /me/profile-strength works for an applicant: 4 items in order, nothing done",
+      r[0] == 200 and [i["key"] for i in ps["items"]] == ["bio", "habits", "stay", "journey"] and ps["done"] == 0 and ps["total"] == 4 and ps["percent"] == 0, ps)
+check("…each item has key, label, done, href, why, weight; applicant links go to /join/better",
+      all(set(["key", "label", "done", "href", "why", "weight"]) <= set(i) and i["href"].startswith("/join/better") for i in ps["items"]))
+r = nb_c.call("/applications/submit", {})
+check("submit with no bio at all: 200 submitted", r[0] == 200 and d(r)["application"]["status"] == "submitted", r)
+nb_aid = application_id(nb_email)
+check("the status object carries profile_strength", (d(nb_c.call("/applications/status"))["application"].get("profile_strength") or {}).get("total") == 4)
+check("GET /me carries profileStrength", (d(nb_c.call("/me")).get("profileStrength") or {}).get("total") == 4)
+det = d(admin_c.call(f"/staff/applications/{nb_aid}"))["application"]
+check("staff detail: bio is empty (shown as 'No bio yet'), nothing blocks review", not det.get("bio") and staff_act(admin_c, nb_aid, "start_review")[0] == 200, det.get("bio"))
+v0 = app_version(nb_aid)
+r1 = nb_c.call("/me/profile", {"bio": "Calm designer who cooks a lot and keeps shared spaces tidy."}, method="PATCH")
+r2 = nb_c.call("/me/profile", {"journey": "find_together"}, method="PATCH")
+r3 = nb_c.call("/me/search", {"stayMinMonths": 6, "stayMaxMonths": 12}, method="PATCH")
+r4 = nb_c.call("/me/search", {"preferences": [{"dimension": "quiet", "ownAnswer": "before_00", "noDealBreakers": True}]}, method="PATCH")
+check("during review: bio, journey, stay and a habit are all editable", [x[0] for x in (r1, r2, r3, r4)] == [200, 200, 200, 200], [x[0] for x in (r1, r2, r3, r4)])
+check("…without moving the application version", app_version(nb_aid) == v0)
+check("…but a bio over 600 characters is refused", nb_c.call("/me/profile", {"bio": "x" * 601}, method="PATCH")[0] == 422)
+ps = d(nb_c.call("/me/profile-strength"))
+hab = next(i for i in ps["items"] if i["key"] == "habits")
+check("checklist updates: bio, stay, journey done; habits 1 of 6", ps["done"] == 3 and hab["progress"] == {"done": 1, "total": 6} and not hab["done"] and 60 < ps["percent"] < 100, ps)
+fid68 = str(uuid.uuid4())
+nb_c.call("/funnel", {"event": "profile.item_opened", "step": "habits", "funnel_id": fid68})
+nb_c.call("/funnel", {"event": "profile.item_completed", "step": "bio", "funnel_id": fid68})
+nb_c.call("/funnel", {"event": "profile.item_opened", "funnel_id": fid68})
+check("funnel: checklist item opened/completed recorded (step only); without a step it's dropped",
+      int(sql(f"""select count(*) from "FunnelEvent" where event in ('profile.item_opened', 'profile.item_completed') and "createdAt" > now() - interval '5 minutes' """)) == 2)
+b0 = len(mails_to(nb_email))
+r = staff_act(admin_c, nb_aid, "approve", id_check_confirmed=True, id_check_method="video")
+check("an application with no bio can be approved", r[0] == 200, r)
+nb_c = C()
+nb_c.call(f"/invites/{d(r)['activation_code']}", {})
+r = nb_c.call("/auth/verify-code", {"activation_code": d(r)["activation_code"], "code": login_code(nb_email, after=b0)})
+check("…and activated", r[0] == 200, r)
+r = nb_c.call("/me/profile", {"bio": ""}, method="PATCH")
+check("after activation the bio can be cleared; the profile stays live", r[0] == 200 and d(nb_c.call("/me"))["profile"]["publicationStatus"] == "published", r)
+pub = kemi_c.call(f"/users/{user_id(nb_email)}")
+check("public profile with no bio: 200, bio empty", pub[0] == 200 and not (d(pub).get("profile") or d(pub)).get("bio"), pub[0])
+nb_c.call("/me/search", {"preferences": [{"dimension": k, "ownAnswer": v, "noDealBreakers": True} for k, v in HABITS.items()]}, method="PATCH")
+nb_c.call("/me/profile", {"bio": "Calm designer who cooks a lot and keeps shared spaces tidy."}, method="PATCH")
+ps = d(nb_c.call("/me/profile-strength"))
+check("after activation: everything done → 4 of 4, 100%, links go to /profile",
+      ps["done"] == 4 and ps["percent"] == 100 and all(i["href"].startswith("/profile") for i in ps["items"]), ps)
+check("profile strength is owner-only: a staff session gets nothing, signed out 401",
+      admin_c.call("/me/profile-strength")[0] in (401, 404) and C().call("/me/profile-strength")[0] == 401)
+
+print("== ENG-69: Anywhere in {city} ==")
+aw_email = f"beta-anywhere-{RUN}@example.com"
+aw_c, _ = start_application(aw_email)
+aw_c.call("/me/profile", {"displayName": "Ayo"}, method="PATCH")
+r = aw_c.call("/me/search", {"cityId": "lagos", "anyArea": True, "areaIds": ["yaba"]}, method="PATCH")
+check("anyArea with specific areas: 422", r[0] == 422 and bool({"anyArea", "areaIds"} & set(r[1]["error"]["field_errors"] or {})), r)
+r = aw_c.call("/me/search", {"anyArea": True}, method="PATCH")
+check("anyArea without a city: 422", r[0] == 422, r)
+aw_c.call("/me/search", {"cityId": "lagos", "areaIds": ["yaba", "ikeja"]}, method="PATCH")
+r = aw_c.call("/me/search", {"anyArea": True}, method="PATCH")
+s_ = d(aw_c.call("/me"))["search"]
+check("choosing anywhere clears the areas (GET /me: anyArea true, no areas)",
+      r[0] == 200 and s_["anyArea"] is True and s_["areas"] == []
+      and sql(f'select count(*) from "SearchArea" sa join "Search" s on s.id = sa."searchId" where s."userId" = {lit(user_id(aw_email))}') == "0", s_)
+aw_c.call("/me/search", {"areaIds": ["yaba"]}, method="PATCH")
+check("choosing an area turns anywhere off", d(aw_c.call("/me"))["search"]["anyArea"] is False)
+aw_c.call("/me/search", {"anyArea": True}, method="PATCH")
+aw_c.call("/me/search", {"cityId": "london"}, method="PATCH")
+check("changing city resets anywhere", d(aw_c.call("/me"))["search"]["anyArea"] is False)
+aw_c.call("/me/search", {"cityId": "lagos", "anyArea": True, **LAGOS_MONEY, **DATES}, method="PATCH")
+aw_c.call("/me/search", {"gender": "man", "preferences": PREFS}, method="PATCH")
+r = aw_c.call("/applications/submit", {})
+check("an 'anywhere' application (no specific areas) can be submitted", r[0] == 200, r)
+aw_aid = application_id(aw_email)
+det = d(admin_c.call(f"/staff/applications/{aw_aid}"))["application"]
+check("staff detail says 'Anywhere in Lagos'", det.get("any_area") is True and [a["label"] for a in det.get("areas", [])] == ["Anywhere in Lagos"], det.get("areas"))
+lst = d(admin_c.call("/staff/applications?area=ikeja"))
+check("the staff area filter includes anywhere applicants", any(a["id"] == aw_aid for a in lst.get("applications", [])))
+aw_c = activate(aw_email, admin_c)
+aw_id = user_id(aw_email)
+s_ = d(aw_c.call("/me/search"))
+check("Discover chips (GET /me/search): any_area true, 'Anywhere in Lagos'", s_.get("any_area") is True and s_["chips"]["areas"] == "Anywhere in Lagos", s_.get("chips"))
+yb_c, yb_email, yb_id = apply_activated("yabaone", admin_c, area="yaba", gender="man")
+cands = {c["userId"]: c for c in d(aw_c.call("/recommendations"))["candidates"]}
+check("an anywhere user sees a Yaba user", yb_id in cands, list(cands))
+back = {c["userId"]: c for c in d(yb_c.call("/recommendations"))["candidates"]}
+check("…and the Yaba user sees the anywhere user", aw_id in back, list(back))
+check("reasons are honest: 'Open to anywhere in Lagos'", "Open to anywhere in Lagos" in back.get(aw_id, {}).get("reasons", []), back.get(aw_id))
+check("…and no 'Both want to live in' for the anywhere pair", not any(x.startswith("Both want to live in") for x in back.get(aw_id, {}).get("reasons", []) + cands.get(yb_id, {}).get("reasons", [])))
+ln_c, ln_email, ln_id = verified_member("londoner")
+check("a different city never matches either way",
+      ln_id not in [c["userId"] for c in d(aw_c.call("/recommendations"))["candidates"]]
+      and aw_id not in [c["userId"] for c in d(ln_c.call("/recommendations"))["candidates"]])
+r = ln_c.call("/introductions", {"target_user_id": aw_id, "text": INTRO})
+check("introduction across cities: 404", r[0] == 404, r)
+r = aw_c.call("/introductions", {"target_user_id": yb_id, "text": INTRO})
+check("introduction anywhere → Yaba: allowed", r[0] == 200, r)
 
 
 print("== ENG-25: draft legal pages ==")

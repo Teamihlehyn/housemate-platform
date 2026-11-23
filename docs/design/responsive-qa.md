@@ -227,3 +227,34 @@ code only (the tool can't emulate it): the timer never starts when the media que
   valid inside a button). ✓
 - Not checked in the browser: the household proposals list (sample housemates accept straight
   away, so no pending state exists in research mode), desktop for these screens.
+
+**DES-37 MoneyInput** (`housemate-research`, real keystrokes at 375):
+- Typed 1000000 → "1,000,000", caret at the end. Typed 5 at position 5 → "10,005,000", caret 6.
+  Backspace just after a comma (position 3) → "1,005,000", caret 1.
+- Pasted "₦2,500,000" → 2,500,000; "£950" → 950. "1.5m" → 1,500,000. A typed letter is rejected
+  and the caret stays put.
+- The founder's case (From ₦1,000,000, Up to ₦100,000,000, per year) now shows "Up to: That looks
+  high for a year's rent per person in Lagos. Did you mean ₦10,000,000?"
+- Per month converts to 83,300 / 8,333,300; the quick pick ₦1m–2m fills 1,000,000 / 2,000,000.
+  Continue sent `{"rentMinMinor":100000000,"rentMaxMinor":200000000,"rentPeriod":"year"}`
+  (unchanged contract).
+- London monthly: £900 / £9,000 → "Did you mean £900?" and "About £10,800–£108,000 a year".
+- Household rent split (Zainab, Lagos): yearly by default, ₦3,000,000 each, total "₦6,000,000 a
+  year · about ₦500,000 a month". At 320 px: no overflow, nothing under 44 px, no input under
+  16 px. Desktop 1280 screenshot taken.
+- Screenshots: /join budget Lagos yearly (375), London monthly (375), household rent split (375
+  and 1280). Not checked: 430 px for the budget screen, and the Discover sheet (it uses the same
+  component).
+
+**DES-38/39 (22 Nov, 375 px, `housemate-research`):**
+- /join: "Where · Step 2 of 5" with Anywhere in Lagos (exclusive with areas: picking it unpressed
+  Yaba); "Money and dates · Step 3 of 5" (budget and dates on one screen); "Step 4 of 5"; review
+  "Step 5 of 5" with rows Name, Anywhere in Lagos, ₦1,000,000–₦2,000,000 per year, dates, two
+  private rows, and the "add a bio later" note. Submitted with no bio.
+- Status page: the checklist read "0 of 4 done". Bio item → `/join/better?screen=bio` ("Step 1 of
+  1", starters, then Done) → back on `/join/status#strength` with "1 of 4 done".
+- Discover (Chidi, bio cleared): card "3 of 4 done" with a Hide button. Bio item → `/profile`
+  with the About editor open (3 starters) → Save → back on /discover; the card is gone (complete).
+- Profile: "Your profile is complete" with Pea and Bud. No overflow at 320, 430 or 1280.
+- Not checked in the browser: the public "Hasn't added a bio yet" line (every sample housemate
+  has a bio), the Discover hide-for-a-week timer, and the 320/430 widths of /join's money step.

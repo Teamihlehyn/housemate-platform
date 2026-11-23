@@ -435,6 +435,11 @@ function ReviewNote({ editing }: { editing: boolean }) {
           <strong className="font-semibold text-ink">What happens next:</strong> a person on our team reads your application, then emails you to book a short video call to see your photo ID. Nobody sees your profile until you&apos;re approved and activate your account.
         </p>
       )}
+      {!editing && (
+        <p className="rounded-field bg-pea-50 px-3 py-2.5 text-ink-700">
+          You can add a bio and living habits after you apply. They help people say hello.
+        </p>
+      )}
       <p className="flex items-start gap-2">
         <IconLock size={16} className="mt-0.5 shrink-0 text-ink-600" />
         <span>Your gender, who you&apos;d live with and any address stay private. A reviewer only opens them if needed, and that&apos;s logged.</span>
@@ -510,9 +515,8 @@ function resumeApplication(me: any): ScreenId {
   const name = String(me?.displayName ?? "");
   if (name.trim().length < 2 || name.includes("@")) return "name";
   if (!s.cityId || !s.areas?.length) return "where";
-  if (s.rentMinMinor == null || s.rentMaxMinor == null) return "budget";
+  if (s.rentMinMinor == null || s.rentMaxMinor == null) return "budget"; // the money step
   if (!s.earliestDate || !s.moveMode || s.moveMode === "undecided") return "dates";
   if (!s.gender) return "livingWith";
-  if (!me?.profile?.bio || String(me.profile.bio).trim().length < 40) return "bio";
   return "review";
 }

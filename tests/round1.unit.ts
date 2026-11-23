@@ -2,7 +2,8 @@
 import { notificationHref } from "../lib/notificationTargets";
 import { afterEarliestChange, dayLabel, latestMin, rangeError } from "../lib/dateRange";
 import { CLIENT_EVENTS, cleanSource, countBucket, daysBucket, isClientEvent, isStep, msBucket, plausibleFunnelId } from "../lib/funnelEvents";
-import { allValues, dealBreakersOf, habitCompatible, preferenceRow, stayRange, unanswered } from "../lib/matchRules";
+import { allValues, areaMatch, dealBreakersOf, habitCompatible, preferenceRow, stayRange, unanswered } from "../lib/matchRules";
+import { profileStrength } from "../lib/profileStrength";
 import { areasChip, budgetChip, datesChip } from "../lib/searchChips";
 import { inboxOrder } from "../lib/reads";
 import { callBookingUrl, testApprovalsAllowed } from "../lib/env";
@@ -42,7 +43,7 @@ check("moving the start within the range keeps the end", afterEarliestChange("20
 check("day labels", dayLabel("2027-03-05") === "5 March 2027");
 
 // ENG-58: funnel rules (no personal data).
-check("only the listed client events", isClientEvent("join.step_viewed") && !isClientEvent("join.submitted") && !isClientEvent("anything") && CLIENT_EVENTS.length === 6);
+check("only the listed client events", isClientEvent("join.step_viewed") && !isClientEvent("join.submitted") && !isClientEvent("anything") && CLIENT_EVENTS.length === 8);
 check("only known screen ids", isStep("bio") && isStep("h:cleaning") && !isStep("ada@example.com") && !isStep("<script>"));
 check("funnel ids: random-looking only", plausibleFunnelId("3f2b9c1e-1111-4a2b-9c3d-0123456789ab") && !plausibleFunnelId("ada@example.com") && !plausibleFunnelId("x"));
 check("sources: a fixed list only, no free text (HM-52)", cleanSource("WhatsApp") === "whatsapp" && cleanSource("twitter") === "x"
@@ -115,6 +116,39 @@ check("the status object offers booking only while submitted or in review",
   applicationDto(appB, "lagos", { readOnly: false, cityOpen: true, bookingUrl: "https://cal.com/x" }).booking_url === "https://cal.com/x"
   && applicationDto({ ...appB, status: "call_booked" }, "lagos", { readOnly: false, cityOpen: true, bookingUrl: "https://cal.com/x" }).booking_url === null
   && applicationDto(appB, "lagos", { readOnly: false, cityOpen: true, bookingUrl: null }).booking_url === null);
+
+// --- ENG-69: "Anywhere in {city}" ---
+{
+  const any = { anyArea: true, areas: [] as string[] };
+  const yaba = { anyArea: false, areas: ["yaba"] };
+  const lekki = { anyArea: false, areas: ["lekki"] };
+  const ab = areaMatch(any, yaba), ba = areaMatch(yaba, any);
+  check("ENG-69: anywhere matches a specific area, both directions", ab.ok && ba.ok);
+  check("ENG-69: anywhere earns no common-area points and lists no common areas", ab.points === 0 && ba.points === 0 && ab.common.length === 0);
+  check("ENG-69: two anywhere users match", areaMatch(any, any).ok && areaMatch(any, any).points === 0);
+  check("ENG-69: specific areas still need an overlap", !areaMatch(yaba, lekki).ok && !areaMatch(lekki, yaba).ok);
+  const two = areaMatch({ anyArea: false, areas: ["yaba", "lekki"] }, { anyArea: false, areas: ["lekki", "yaba", "ikeja"] });
+  check("ENG-69: specific overlap scores 2 per area as before", two.ok && two.points === 4 && !two.anywhere);
+  check("ENG-69: the chip says 'Anywhere in Lagos'", areasChip([{ label: "Yaba" }], { cityId: "lagos" }).includes("Anywhere in Lagos"));
+}
+
+// --- ENG-68: profile strength checklist ---
+{
+  const habits = (n: number) => QUESTIONNAIRE.map((q) => q.id).map((d, i) => ({ dimension: d, own: i < n ? "x" : null, state: i < n ? "none" : "unanswered" }));
+  const empty = profileStrength({ bio: null, journey: null, stayAnswered: false, habits: habits(0) }, { applicant: true });
+  check("ENG-68: checklist is ordered bio, habits, stay, journey", empty.items.map((i) => i.key).join() === "bio,habits,stay,journey");
+  check("ENG-68: nothing done → 0 of 4, 0%", empty.done === 0 && empty.total === 4 && empty.percent === 0);
+  check("ENG-68: every item has key, label, done, href, why, weight",
+    empty.items.every((i) => i.key && i.label && typeof i.done === "boolean" && i.href.startsWith("/join/better") && i.why && i.weight > 0));
+  check("ENG-68: weights add up to 100", empty.items.reduce((n, i) => n + i.weight, 0) === 100);
+  const half = profileStrength({ bio: "x".repeat(60), journey: null, stayAnswered: false, habits: habits(3) }, { applicant: false });
+  check("ENG-68: a bio of 40+ characters counts; habits show progress", half.items[0].done && !half.items[1].done && half.items[1].progress?.done === 3);
+  check("ENG-68: partial habits earn partial weight", half.percent > 30 && half.percent < 70);
+  check("ENG-68: users' links go to their profile", half.items.every((i) => i.href.startsWith("/profile")));
+  const full = profileStrength({ bio: "x".repeat(60), journey: "find_together", stayAnswered: true, habits: habits(6) }, { applicant: false });
+  check("ENG-68: everything done → 4 of 4, 100%", full.done === 4 && full.percent === 100);
+  check("ENG-68: a short bio isn't done", !profileStrength({ bio: "hi", journey: null, stayAnswered: false, habits: habits(0) }, { applicant: true }).items[0].done);
+}
 
 let failed = 0;
 for (const [name, pass] of cases) {

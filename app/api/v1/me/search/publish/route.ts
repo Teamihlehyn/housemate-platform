@@ -22,9 +22,9 @@ export const POST = handler(async (_req: NextRequest, { rid }) => {
   // Same essentials as an application (D-R5): journey, stay and habits can come later.
   const missing: string[] = [];
   if (!full!.displayName || full!.displayName.length < 2) missing.push("display name");
-  if (!p.bio || p.bio.trim().length < 40) missing.push("bio");
+  void p; // ENG-68: the bio is optional
   if (!s.cityId) missing.push("city");
-  if (s.areas.length === 0) missing.push("areas");
+  if (s.areas.length === 0 && !s.anyArea) missing.push("areas");
   if (s.rentMinMinor == null || s.rentMaxMinor == null) missing.push("budget");
   if (!s.moveMode) missing.push("move mode");
   if (s.moveMode !== "undecided" && (!s.earliestDate || !s.latestDate)) missing.push("move-in dates");

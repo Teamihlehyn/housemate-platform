@@ -76,3 +76,15 @@ export function preferenceRow(
 export function dealBreakersOf(dimension: string, accepted: string[], state: string): string[] {
   return state === "some" ? allValues(dimension).filter((v) => !accepted.includes(v)) : [];
 }
+
+// Areas (ENG-69). "Anywhere in {city}" (anyArea) shares an area with anyone in the same city,
+// both ways; two "anywhere" people match too. Only specific overlaps earn area points, so the
+// ranking still favours people who named the same places. Same-city is checked elsewhere.
+export function areaMatch(
+  a: { anyArea: boolean; areas: string[] },
+  b: { anyArea: boolean; areas: string[] }
+): { ok: boolean; common: string[]; points: number; anywhere: boolean } {
+  if (a.anyArea || b.anyArea) return { ok: true, common: [], points: 0, anywhere: true };
+  const common = b.areas.filter((x) => a.areas.includes(x));
+  return { ok: common.length > 0, common, points: Math.min(10, common.length * 2), anywhere: false };
+}

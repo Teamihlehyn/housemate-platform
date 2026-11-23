@@ -9,6 +9,7 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import PublicShell, { TextLink } from "@/components/PublicShell";
+import ProfileStrength from "@/components/ProfileStrength";
 import Pea, { PeaMood } from "@/components/brand/Pea";
 import { api, ApiClientError } from "@/lib/client";
 import { Application, CITY_NAME, callTime, longDate, normaliseCode } from "@/components/apply/application";
@@ -46,14 +47,6 @@ function Status() {
 
   useEffect(() => { void load(); }, [load]);
 
-  // DES-30: how many of the 7 "Better first matches" questions are answered (session only).
-  const [better, setBetter] = useState<number | null>(null);
-  useEffect(() => {
-    if (token) return;
-    api<any>("/me")
-      .then((me) => setBetter((me.search?.preferences ?? []).filter((p: { state?: string }) => p.state !== "unanswered").length + (me.search?.stayMinMonths != null ? 1 : 0)))
-      .catch(() => setBetter(null));
-  }, [token]);
   // Focus the heading whenever the state changes (including after withdrawing).
   const focusKey = state.kind === "ok" ? state.app.status : state.kind;
   useEffect(() => { if (focusKey !== "loading") headingRef.current?.focus(); }, [focusKey]);
@@ -180,21 +173,9 @@ function Status() {
         )}
       </div>
 
-      {session && better !== null && better < 7 && ["submitted", "in_review", "call_booked", "waitlisted"].includes(app.status) && (
-        <div className="card mt-6 p-5 text-left sm:p-6">
-          <div className="flex items-start gap-3">
-            <Pea size={44} mood="awake" blink className="shrink-0" />
-            <div className="min-w-0">
-              <h2 className="text-h3 text-ink">Better first matches</h2>
-              <p className="mt-1 text-sm text-ink-700">
-                While you wait for your call: six quick questions about living together, and how long you want to stay.
-                Optional. Your answers help us match you more precisely.
-              </p>
-              <p className="num mt-2 text-sm font-medium text-ink-700">{better} of 7 answered</p>
-            </div>
-          </div>
-          <Link href="/join/better" className="btn-primary mt-4 w-full sm:w-auto">{better === 0 ? "Start" : "Carry on"} <IconArrowRight size={18} /></Link>
-        </div>
+      {/* DES-38: what's left to make the profile stronger (absorbs "Better first matches"). */}
+      {session && app.profile_strength && ["draft", "submitted", "in_review", "call_booked", "waitlisted", "approved"].includes(app.status) && (
+        <div className="mt-6 text-left"><ProfileStrength initial={app.profile_strength} from="status" /></div>
       )}
 
       {app.status === "approved" && (

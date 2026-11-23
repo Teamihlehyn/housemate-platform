@@ -131,28 +131,8 @@ export function RadioRow({ checked, onClick, label, multi = false }: { checked: 
   );
 }
 
-export function MoneyInput({ id, label, currency, value, onChange, error }: { id: string; label: string; currency: string; value: string; onChange: (v: string) => void; error?: string }) {
-  return (
-    <div>
-      <label className="label" htmlFor={id}>{label}</label>
-      <div className="relative">
-        <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 font-semibold text-ink-600" aria-hidden="true">
-          {currency === "NGN" ? "₦" : "£"}
-        </span>
-        <input
-          id={id}
-          className="input num pl-9"
-          inputMode="numeric"
-          value={value}
-          onChange={(e) => onChange(e.target.value.replace(/[^\d.]/g, ""))}
-          aria-invalid={!!error}
-          aria-label={`${label}, in ${currency === "NGN" ? "naira" : "pounds"}`}
-        />
-      </div>
-      <FieldError msg={error} />
-    </div>
-  );
-}
+// MoneyInput moved to components/inputs (DES-37); re-exported here for existing imports.
+export { default as MoneyInput } from "@/components/inputs/MoneyInput";
 
 export function Stepper({ id, label, value, onChange, min, max, error }: { id: string; label: string; value: string; onChange: (v: string) => void; min: number; max: number; error?: string }) {
   const n = parseInt(value) || min;

@@ -87,6 +87,13 @@ Update 2026-11-21 (usability round 1, SEC-16/17/18 + ENG-67, uncommitted WT on t
 - Reviewed clean: notification hrefs (server-built, SAFE_ID), POST notifications/[id]/read ownership, read state private (no API exposes another's lastReadAt), thread open re-checks block/status/world, proposal error codes, resend-activation (session or 256-bit token, 3/24h under lock, old code revoked, email to app address only, masked hint), test approvals gated (admin + flag + not VERCEL_ENV production), no identity row for test accounts, matchRules unanswered handling conservative, deferred edits limited to habits/stay
 - 11/21 checks: npm audit 0; next 16.4.6; effect 3.22.5 under prisma; tsc clean; unit tests pass; prisma validate ok
 
+Update 2026-11-23 (ENG-68 bio optional + profile strength, ENG-69 anyArea, DES-37/38/39; uncommitted WT on top of c6f7bec; verdict OK for staging):
+- HM-54 NEW Medium, decide before production: bio left the staff-reviewed set (deferred edit, no version bump) so most bios are now written unreviewed; no contact-detail/URL check, no "changed since review" marker (app/api/v1/me/profile/route.ts)
+- HM-55 NEW Low: /me/search budget has no integer/upper bound; big NGN values overflow Int (500); stay fields untyped (app/api/v1/me/search/route.ts)
+- HM-56 NEW Low: reports don't snapshot the reported bio; audit keeps key names only
+- Info: {anyArea:false} alone is a no-op; GET /users/[id] omits anyArea; guard.ts allow-list comment misses /me/profile-strength
+- Reviewed clean: areaMatch two-way + same-city in matching and intro re-check, gender check unchanged and separate, staff area filter/clusters, sandbox shape, profile-strength owner-only (staff 404, magic link null), funnel events/steps allow-listed with HM-50 caps, bio rendered as React text everywhere (only dangerouslySetInnerHTML is chat), migration additive NOT NULL DEFAULT false, export includes anyArea via spread
+
 Clean at re-review: npm audit 0; tsc clean; unit tests pass; no secrets/personal emails in commit candidates; docs/security/ ignored; Vercel overwrites x-forwarded-for (not spoofable on Vercel).
 
 Related: [[recurring-weak-spots]]

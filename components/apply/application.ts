@@ -17,6 +17,8 @@ export interface Application {
   email_hint?: string | null;
   /** ENG-54: invitations left today (0–3; approved, session only). */
   resends_left?: number;
+  /** ENG-68: owner-only checklist (null on the read-only magic link). */
+  profile_strength?: import("@/components/ProfileStrength").Strength | null;
   /** ENG-60: the self-serve booking link (https), while submitted or in review; null when unset. */
   booking_url?: string | null;
 }

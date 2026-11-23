@@ -19,7 +19,7 @@ export type Prefs = Record<string, { own: string; accepted: string[]; state: Hab
 
 export type ScreenId =
   | "name" | "journey" | "city" | "areas" | "where" | "location" | "budget" | "dates" | "stay"
-  | "gender" | "genderPref" | "livingWith" | `h:${Dimension}` | "bio" | "review";
+  | "gender" | "genderPref" | "livingWith" | "money" | `h:${Dimension}` | "bio" | "review";
 
 export const HABIT_IDS = QUESTIONNAIRE.map((q) => `h:${q.id}` as ScreenId);
 
@@ -28,18 +28,20 @@ export const HABIT_IDS = QUESTIONNAIRE.map((q) => `h:${q.id}` as ScreenId);
 // renders them). SCREENS is what /join runs today: the same questions, with city/areas and
 // gender/preference still on separate screens. Journey, stay and the six habits are no longer
 // part of the application; "location" isn't collected any more.
-export const APPLICATION_SCREENS: ScreenId[] = ["name", "where", "budget", "dates", "livingWith", "bio", "review"];
-export const SCREENS: ScreenId[] = ["name", "city", "areas", "budget", "dates", "gender", "genderPref", "bio", "review"];
+// ENG-68: five steps — name, where (city + areas), money (budget + dates), living with
+// (gender + preference), review. The bio is optional and comes later with the habits.
+export const APPLICATION_SCREENS: ScreenId[] = ["name", "where", "money", "livingWith", "review"];
+export const SCREENS: ScreenId[] = ["name", "city", "areas", "budget", "dates", "gender", "genderPref", "review"];
 // "Better first matches" (D-R5): after submitting, optional, skippable.
-export const DEFERRED_SCREENS: ScreenId[] = [...HABIT_IDS, "stay"];
+export const DEFERRED_SCREENS: ScreenId[] = ["bio", ...HABIT_IDS, "stay", "journey"];
 
 export const SECTIONS: { label: string; screens: ScreenId[] }[] = [
   { label: "About you", screens: ["name", "journey"] },
   { label: "Where", screens: ["city", "areas", "where", "location"] },
-  { label: "Money and dates", screens: ["budget", "dates"] },
+  { label: "Money and dates", screens: ["budget", "dates", "money"] },
   { label: "Living together", screens: ["gender", "genderPref", "livingWith"] },
-  { label: "Your profile", screens: ["bio", "review"] },
-  { label: "Better first matches", screens: [...HABIT_IDS, "stay"] },
+  { label: "Your profile", screens: ["review"] },
+  { label: "Better first matches", screens: ["bio", ...HABIT_IDS, "stay", "journey"] },
 ];
 
 const ALL_VALUES = (dim: string) => QUESTIONNAIRE.find((q) => q.id === dim)?.values.map((v) => v.id) ?? [];
@@ -78,6 +80,8 @@ export function useProfileDraft() {
   const [journey, setJourney] = useState("");
   const [city, setCity] = useState<CityId | "">("");
   const [areas, setAreas] = useState<string[]>([]);
+  // ENG-69: "Anywhere in {city}" — exclusive with specific areas.
+  const [anyArea, setAnyAreaState] = useState(false);
   const [locationDetail, setLocationDetail] = useState("");
   const [rentMin, setRentMin] = useState("");
   const [rentMax, setRentMax] = useState("");
@@ -113,6 +117,7 @@ export function useProfileDraft() {
     if (s) {
       if (s.cityId && s.cityId in CITIES) { setCity(s.cityId); setPeriod(s.rentPeriod ?? CITIES[s.cityId as CityId].defaultPeriod); }
       if (s.areas?.length) setAreas(s.areas);
+      if (s.anyArea) setAnyAreaState(true);
       if (s.locationDetail) setLocationDetail(s.locationDetail);
       if (s.rentMinMinor) setRentMin(String(s.rentMinMinor / 100));
       if (s.rentMaxMinor) setRentMax(String(s.rentMaxMinor / 100));
@@ -148,9 +153,16 @@ export function useProfileDraft() {
     if (city === c) return;
     setCity(c);
     setAreas([]);
+    setAnyAreaState(false);
     setPeriod(CITIES[c].defaultPeriod);
   }
+  /** "Anywhere in {city}" on clears the chosen areas (ENG-69). */
+  function setAnyArea(on: boolean) {
+    setAnyAreaState(on);
+    if (on) setAreas([]);
+  }
   function toggleArea(id: string) {
+    setAnyAreaState(false);
     setAreas((a) => (a.includes(id) ? a.filter((x) => x !== id) : a.length < 5 ? [...a, id] : a));
   }
   /** Rule an answer in or out as a deal-breaker (ENG-56). At least one answer stays acceptable. */
@@ -209,10 +221,10 @@ export function useProfileDraft() {
     if (s === "name" && displayName.trim().length < 2) return { displayName: "Tell us what to call you (at least 2 characters)." };
     if (s === "journey" && !journey) return { journey: "Choose what you're looking to do." };
     if (s === "city" && !city) return { city: "Choose a city." };
-    if (s === "areas" && areas.length === 0) return { areas: "Choose at least one area." };
+    if (s === "areas" && areas.length === 0 && !anyArea) return { areas: "Choose at least one area." };
     if (s === "where") {
       if (!city) return { city: "Choose a city." };
-      if (areas.length === 0) return { areas: "Choose at least one area." };
+      if (areas.length === 0 && !anyArea) return { areas: "Choose at least one area, or anywhere in the city." };
     }
     if (s === "livingWith" && !gender) return { gender: "Choose an option. “Prefer not to say” is fine." };
     if (s === "budget") {
@@ -243,7 +255,9 @@ export function useProfileDraft() {
       if (p.state === "unanswered") return { [s.slice(2)]: "Choose your deal-breakers, or “I have no deal-breakers”." };
     }
     if (s === "gender" && !gender) return { gender: "Choose an option. “Prefer not to say” is fine." };
-    if (s === "bio" && bio.trim().length < 40) return { bio: `Add ${40 - bio.trim().length} more characters, so people have something to reply to.` };
+    // ENG-68: the bio is optional; only the length is limited.
+    if (s === "bio" && bio.trim().length > 600) return { bio: "Keep it under 600 characters." };
+    if (s === "money") return { ...validate("budget"), ...validate("dates") };
     return {};
   }
 
@@ -253,10 +267,18 @@ export function useProfileDraft() {
       case "name": return { path: "/me/profile", body: { displayName: displayName.trim() } };
       case "journey": return { path: "/me/profile", body: { journey } };
       case "city": return { path: "/me/search", body: { cityId: city, rentPeriod: period } };
-      case "areas": return { path: "/me/search", body: { cityId: city, areaIds: areas } };
-      case "where": return { path: "/me/search", body: { cityId: city, rentPeriod: period, areaIds: areas } };
+      case "areas": return { path: "/me/search", body: { cityId: city, ...(anyArea ? { anyArea: true } : { areaIds: areas }) } };
+      case "where": return { path: "/me/search", body: { cityId: city, rentPeriod: period, ...(anyArea ? { anyArea: true } : { areaIds: areas }) } };
       case "livingWith": return { path: "/me/search", body: { gender, genderPreference: genderAccepts } };
       case "location": return { path: "/me/search", body: { locationDetail } };
+      case "money":
+        return {
+          path: "/me/search",
+          body: {
+            rentMinMinor: Math.round(parseFloat(rentMin) * 100), rentMaxMinor: Math.round(parseFloat(rentMax) * 100), rentPeriod: period,
+            moveMode, earliestDate: earliest, latestDate: moveMode === "exact" ? earliest : latest,
+          },
+        };
       case "budget":
         return { path: "/me/search", body: { rentMinMinor: Math.round(parseFloat(rentMin) * 100), rentMaxMinor: Math.round(parseFloat(rentMax) * 100), rentPeriod: period } };
       case "dates":
@@ -323,7 +345,7 @@ export function useProfileDraft() {
 
   return {
     // values
-    journey, city, areas, locationDetail, rentMin, rentMax, period, moveMode, earliest, latest,
+    journey, city, areas, anyArea, locationDetail, rentMin, rentMax, period, moveMode, earliest, latest,
     stayMin, stayMax, gender, genderAccepts, prefs, answered, displayName, bio,
     // ENG-55: the "latest" picker's min, and a counter that changes when it needs focus.
     latestMin: latestMinOf(earliest), focusLatest,
@@ -331,7 +353,7 @@ export function useProfileDraft() {
     setJourney, setLocationDetail, setRentMin, setRentMax, setPeriod, setMoveMode,
     setEarliest: setEarliestGuarded, setLatest: setLatestGuarded,
     setStayMin, setStayMax, setGender, setDisplayName, setBio,
-    chooseCity, toggleArea, toggleAccepted, toggleDealBreaker, setNoDealBreakers, markAnswered, setOwn, toggleGenderAccept,
+    chooseCity, toggleArea, setAnyArea, toggleAccepted, toggleDealBreaker, setNoDealBreakers, markAnswered, setOwn, toggleGenderAccept,
     // state
     errors, setErrors, saveState, setSaveState,
     hydrate, validate, save,
@@ -342,17 +364,11 @@ export function useProfileDraft() {
 export function resumeScreen(me: any): ScreenId {
   const p = me?.profile ?? {};
   const s = me?.search ?? {};
+  // ENG-68: only the five essentials decide where /join resumes (combined step ids).
   if (!me?.displayName || String(me.displayName).includes("@") || String(me.displayName).trim().length < 2) return "name";
-  if (!p.journey) return "journey";
-  if (!s.cityId) return "city";
-  if (!s.areas?.length) return "areas";
-  if (s.rentMinMinor == null || s.rentMaxMinor == null) return "budget";
-  if (!s.earliestDate || !s.moveMode || s.moveMode === "undecided") return "dates";
-  if (s.stayMinMonths == null || s.stayMaxMonths == null) return "stay";
-  if (!s.gender) return "gender";
-  const done: string[] = (s.preferences ?? []).map((x: { dimension: string }) => x.dimension);
-  const missing = QUESTIONNAIRE.find((q) => !done.includes(q.id));
-  if (missing) return `h:${missing.id}` as ScreenId;
-  if (!p.bio || String(p.bio).trim().length < 80) return "bio";
+  if (!s.cityId || (!s.areas?.length && !s.anyArea)) return "where";
+  if (s.rentMinMinor == null || s.rentMaxMinor == null || !s.earliestDate || !s.moveMode || s.moveMode === "undecided") return "money";
+  if (!s.gender) return "livingWith";
+  void p;
   return "review";
 }

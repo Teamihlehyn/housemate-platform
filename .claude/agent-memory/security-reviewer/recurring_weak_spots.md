@@ -22,6 +22,8 @@ Patterns seen in the 2026-11-09 review (see [[beta-prelaunch-review-2026-11]]):
 14. **Per-address lockouts are lockout levers** against named staff; pair with IP and make recovery (reset) clear them.
 15. **Exclusivity enforced by check-then-update** (one household per person, formation closes others): when several pending rows can race, every path that changes them (create, accept, withdraw, decline, block, leave) must take the same per-person advisory lock or use conditional updates on state/version. Found again 2026-11-21 (HM-49).
 16. **"Anonymous" analytics keyed by a hash we can recompute** is still pseudonymous personal data: needs a privacy-notice line and deletion with the account.
+17. **Fields leaving the reviewed set**: when a product decision makes an answer "complete later" (deferred, no Application.version bump), it also stops being seen by staff. Ask who now sees that content first (bio, 23 Nov) and what moderation replaces review.
+18. **Client-only numeric bounds**: inputs allow more digits than Prisma `Int` holds; check the route has Number.isInteger + upper bound, or users hit a generic 500.
 7. **Free-text into audit** via unvalidated `reason`/`reason_code` fields despite the allow-list rule.
 
 **Why:** these produced most findings in the first pre-launch review.

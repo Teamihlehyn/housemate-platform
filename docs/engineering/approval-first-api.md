@@ -399,7 +399,7 @@ on `/join`. Admin: `GET /api/v1/staff/funnel?days=30` and the back office "Funne
   Continue on a habit screen needs an own answer and a deal-breaker choice; skipping is the
   flow's Skip.
 
-### Short application (ENG-57, D-R5)
+### Short application (ENG-57, D-R5) — superseded by §8 (bio optional, five steps)
 - Submit needs only: name, city + areas, budget, dates, gender (preference defaults to open),
   bio ≥ 40 characters. INCOMPLETE keys: `displayName`, `bio`, `cityId`, `areaIds`, `budget`,
   `moveMode`, `dates`, `email`.
@@ -437,3 +437,54 @@ check; `idCheckMethod = "skipped_test"`; `User.isTestAccount = true`; audit
   `{status:"ok"}`). `source` must be one of `whatsapp, instagram, x, facebook, tiktok, linkedin,
   email, friend, flyer, google, direct` (aliases: twitter, wa, ig, fb); anything else is dropped.
   An application's funnel rows are deleted with it (retention purge, `/me/delete`).
+
+## 8. Minimum application and profile strength (ENG-68), anywhere in the city (ENG-69), 22 Nov
+
+### Bio optional, five steps (ENG-68)
+- Submit needs: name, city + areas (or anywhere), budget, dates, gender (preference defaults to
+  open). INCOMPLETE keys: `displayName`, `cityId`, `areaIds`, `budget`, `moveMode`, `dates`,
+  `email` — **no `bio`**. `PATCH /me/profile {bio}`: 0–600 characters (`""` clears it → null).
+- `useProfileDraft`: `APPLICATION_SCREENS = ["name", "where", "money", "livingWith", "review"]`
+  (`money` = budget + dates, one PATCH). `DEFERRED_SCREENS = ["bio", h:×6, "stay", "journey"]`.
+  `resumeScreen(me)` returns one of the five ids. `SCREENS` (single-question ids) still works.
+- Deferred fields — `bio`, `journey` (profile), `preferences`, `stayMinMonths`, `stayMaxMonths`
+  (search) — are accepted in every application state except declined/withdrawn, and after
+  activation, and never change the application version. A PATCH that mixes in any other field
+  follows the normal lock (409 once review starts).
+- Staff detail: `bio` may be null (render "No bio yet"); it never blocks review or approval.
+  Public profile: `bio` may be empty — show a neutral empty state, no nagging.
+
+### `GET /api/v1/me/profile-strength` (owner-only; applicants and users; signed out 401, staff never get one)
+```json
+{ "items": [
+    { "key": "bio", "label": "Write a short bio", "done": false, "progress": null,
+      "href": "/join/better?screen=bio", "screen": "bio", "why": "…", "weight": 30 },
+    { "key": "habits", "label": "Answer the six living-habit questions", "done": false,
+      "progress": { "done": 1, "total": 6 }, "href": "/join/better?screen=h%3Aquiet",
+      "screen": "h:quiet", "why": "…", "weight": 40 },
+    { "key": "stay", …, "weight": 15 }, { "key": "journey", …, "weight": 15 } ],
+  "done": 0, "total": 4, "percent": 6 }
+```
+- Fixed order: bio, habits, stay, journey. Bio counts as done at 40+ characters. Habits earn
+  partial weight (floor of weight × answered/6). Weights sum to 100.
+- `href`: applicants → `/join/better?screen=<id>`, users → `/profile?edit=<id>`; `screen` is the
+  `useProfileDraft` screen id to open (habits → the first unanswered one).
+- Also embedded as `profile_strength` in the application status object (null when read-only)
+  and `profileStrength` in `GET /me`.
+- Funnel: `trackFunnel("profile.item_opened", { step })` when an item is opened and
+  `trackFunnel("profile.item_completed", { step })` when saved; `step` ∈ `bio`, `habits`,
+  `stay`, `journey` (or an `h:*` id). Without a step the event is dropped. Step ids now also
+  include `where`, `money`, `moneyDates`.
+
+### Anywhere in {city} (ENG-69)
+- `PATCH /me/search { anyArea: true }` — needs a city (in the body or saved); clears specific
+  areas. `{ areaIds: [...] }` (non-empty) turns it off. Both in one body → 422 (`anyArea`).
+  Changing `cityId` resets `anyArea` to false and clears areas. Non-boolean → 422.
+- `GET /me` → `search.anyArea`; `GET /me/search` → `any_area`, `chips.areas = "Anywhere in Lagos"`;
+  candidates → `anyArea`; staff list/detail → `any_area` and `areas: [{ id: "anywhere", label:
+  "Anywhere in Lagos" }]`; the staff area filter includes anywhere applicants.
+- Matching: anywhere satisfies the area rule both ways (and with another anywhere person), earns
+  no area points, reason "Open to anywhere in {city}" (or "Wants to live in …" when only the
+  viewer is anywhere). Introductions re-check city + areas (404 "This user is not available.").
+- `useProfileDraft` exports `anyArea` and `setAnyArea(on)` (on clears areas; `toggleArea`
+  turns it off; `chooseCity` resets it); `where`/`areas` validation accepts it.
